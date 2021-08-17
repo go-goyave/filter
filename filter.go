@@ -9,6 +9,7 @@ import (
 	"goyave.dev/goyave/v3/database"
 )
 
+// Filter structured representation of a filter query.
 type Filter struct {
 	Field    string
 	Operator *Operator
@@ -16,22 +17,29 @@ type Filter struct {
 	Or       bool
 }
 
+// Sort structured representation of a sort query.
 type Sort struct {
 	Field string
 	Order SortOrder
 }
 
+// Join structured representation of a join query.
 type Join struct {
 	Relation string
 	Fields   []string
 }
 
+// SortOrder the allowed strings for SQL "ORDER BY" clause.
 type SortOrder string
 
 const (
+	// DefaultPageSize the default pagination page size if the "per_page" query param
+	// isn't provided.
 	DefaultPageSize = 10
 
-	SortAscending  SortOrder = "ASC"
+	// SortAscending "ORDER BY column ASC"
+	SortAscending SortOrder = "ASC"
+	// SortDescending "ORDER BY column DESC"
 	SortDescending SortOrder = "DESC"
 )
 
@@ -47,6 +55,10 @@ func selectScope(fields []string) func(*gorm.DB) *gorm.DB {
 	}
 }
 
+// Scope apply all filters, sorts and joins defined in the request's data to the given `*gorm.DB`
+// and process pagination. Returns the resulting `*database.Paginator` and the `*gorm.DB` result,
+// which can be used to check for database errors.
+// The given request is expected to be validated using `ApplyValidation`.
 func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Paginator, *gorm.DB) {
 
 	for _, queryParam := range []string{"filter", "or"} {
@@ -101,18 +113,21 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 
 }
 
+// Scope returns the GORM scope to use in order to apply this filter.
 func (f *Filter) Scope(tx *gorm.DB) *gorm.DB {
 	return f.Operator.Function(tx, f)
 }
 
+// Scope returns the GORM scope to use in order to apply sorting.
 func (s *Sort) Scope(tx *gorm.DB) *gorm.DB {
-	field := escape(tx, s.Field)
+	field := SQLEscape(tx, s.Field)
 	if !strings.Contains(field, ".") {
 		field = getTableName(tx) + field
 	}
 	return tx.Order(fmt.Sprintf("%s %s", field, s.Order))
 }
 
+// Scope returns the GORM scope to use in order to apply this joint.
 func (j *Join) Scope(tx *gorm.DB) *gorm.DB {
 	// FIXME If UserID not selected, cannot assign relation.
 	// Manually find all relation IDs and add them if they're not here
@@ -138,7 +153,8 @@ func getTableName(tx *gorm.DB) string {
 	return ""
 }
 
-func escape(tx *gorm.DB, str string) string {
+// SQLEscape escape the given string to prevent SQL injection.
+func SQLEscape(tx *gorm.DB, str string) string {
 	var f strings.Builder
 	tx.QuoteTo(&f, str)
 	return f.String()

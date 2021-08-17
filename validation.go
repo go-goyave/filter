@@ -17,6 +17,8 @@ func init() {
 	validation.AddRule("join", &validation.RuleDefinition{
 		Function: validateJoin,
 	})
+
+	// TODO add language entries
 }
 
 func validateFilter(ctx *validation.Context) bool {
@@ -61,6 +63,7 @@ func validateJoin(ctx *validation.Context) bool {
 	return true
 }
 
+// ApplyValidation add all fields used by the filter module to the given RuleSet.
 func ApplyValidation(set validation.RuleSet) {
 	set["filter"] = validation.List{"array"}
 	set["filter[]"] = validation.List{"filter"}
@@ -72,13 +75,15 @@ func ApplyValidation(set validation.RuleSet) {
 	set["join[]"] = validation.List{"join"}
 	set["fields"] = validation.List{"string"}
 	set["page"] = validation.List{"integer", "min:1"}
-	set["per_page"] = validation.List{"integer", "between:1,100"}
+	set["per_page"] = validation.List{"integer", "min:1"}
 }
 
 // TODO apply validation to validation.Rules too
 
+// ParseFilter parse a string in format "field||$operator||value" and return
+// a Filter struct. The filter string must satisfy the used operator's "RequiredArguments"
+// constraint, otherwise an error is returned.
 func ParseFilter(filter string) (*Filter, error) {
-	// field||$operator||value
 	res := &Filter{}
 	f := filter
 	op := ""
@@ -115,13 +120,16 @@ func ParseFilter(filter string) (*Filter, error) {
 		}
 	}
 
-	if len(res.Args) < int(res.Operator.RequiredParams) {
-		return nil, fmt.Errorf("Operator %q requires at least %d argument(s)", op, res.Operator.RequiredParams)
+	if len(res.Args) < int(res.Operator.RequiredArguments) {
+		return nil, fmt.Errorf("Operator %q requires at least %d argument(s)", op, res.Operator.RequiredArguments)
 	}
 
 	return res, nil
 }
 
+// ParseSort parse a string in format "name,ASC" and return a Sort struct.
+// The element after the comma (sort order) must have a value allowing it to be
+// converted to SortOrder, otherwise an error is returned.
 func ParseSort(sort string) (*Sort, error) {
 	commaIndex := strings.Index(sort, ",")
 	if commaIndex == -1 {
@@ -142,6 +150,8 @@ func ParseSort(sort string) (*Sort, error) {
 	return s, nil
 }
 
+// ParseJoin parse a string in format "relation||field1,field2,..." and return
+// a Join struct.
 func ParseJoin(join string) (*Join, error) {
 	commaIndex := strings.Index(join, "||")
 	if commaIndex == -1 {

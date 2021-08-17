@@ -92,14 +92,17 @@ func ParseFilter(filter string) (*Filter, error) {
 	if index == -1 {
 		return nil, fmt.Errorf("Missing operator")
 	}
-	res.Field = f[:index]
+	res.Field = strings.TrimSpace(f[:index])
+	if res.Field == "" {
+		return nil, fmt.Errorf("Invalid filter syntax")
+	}
 	f = f[index+2:]
 
 	index = strings.Index(f, "||")
 	if index == -1 {
 		index = len(f)
 	}
-	op = f[:index]
+	op = strings.TrimSpace(f[:index])
 	operator, ok := Operators[op]
 	if !ok {
 		return nil, fmt.Errorf("Unknown operator: %q", f[:index])
@@ -112,7 +115,11 @@ func ParseFilter(filter string) (*Filter, error) {
 			if paramIndex == -1 {
 				paramIndex = len(f)
 			}
-			res.Args = append(res.Args, f[:paramIndex])
+			p := strings.TrimSpace(f[:paramIndex])
+			if p == "" {
+				return nil, fmt.Errorf("Invalid filter syntax")
+			}
+			res.Args = append(res.Args, p)
 			if paramIndex+1 >= len(f) {
 				break
 			}
@@ -136,8 +143,11 @@ func ParseSort(sort string) (*Sort, error) {
 		return nil, fmt.Errorf("Invalid sort syntax")
 	}
 
-	fieldName := sort[:commaIndex]
-	order := strings.ToUpper(sort[commaIndex+1:])
+	fieldName := strings.TrimSpace(sort[:commaIndex])
+	order := strings.TrimSpace(strings.ToUpper(sort[commaIndex+1:]))
+	if fieldName == "" || order == "" {
+		return nil, fmt.Errorf("Invalid sort syntax")
+	}
 
 	if order != string(SortAscending) && order != string(SortDescending) {
 		return nil, fmt.Errorf("Invalid sort order %q", order)
@@ -153,20 +163,26 @@ func ParseSort(sort string) (*Sort, error) {
 // ParseJoin parse a string in format "relation||field1,field2,..." and return
 // a Join struct.
 func ParseJoin(join string) (*Join, error) {
-	commaIndex := strings.Index(join, "||")
-	if commaIndex == -1 {
-		j := &Join{
-			Relation: join,
-			Fields:   []string{},
-		}
-		return j, nil
+	separatorIndex := strings.Index(join, "||")
+	if separatorIndex == -1 {
+		separatorIndex = len(join)
 	}
 
-	relation := join[:commaIndex]
+	relation := strings.TrimSpace(join[:separatorIndex])
+	if relation == "" {
+		return nil, fmt.Errorf("Invalid join syntax")
+	}
 
 	var fields []string
-	if commaIndex+2 < len(join) {
-		fields = strings.Split(join[commaIndex+2:], ",")
+	if separatorIndex+2 < len(join) {
+		fields = strings.Split(join[separatorIndex+2:], ",")
+		for i, f := range fields {
+			f = strings.TrimSpace(f)
+			if f == "" {
+				return nil, fmt.Errorf("Invalid join syntax")
+			}
+			fields[i] = f
+		}
 	} else {
 		fields = []string{}
 	}

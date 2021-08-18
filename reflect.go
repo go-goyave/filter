@@ -1,13 +1,12 @@
 package filter
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
 	"gorm.io/gorm"
 )
-
-// TODO cache reflect operations
 
 var (
 	identityCache = make(map[string]*modelIdentity, 10)
@@ -32,13 +31,27 @@ func (i *modelIdentity) promote(identity *modelIdentity, prefix string) {
 	}
 }
 
+// cleanColumns returns a slice of column names containing only the valid
+// column names from the input columns slice.
+func (i *modelIdentity) cleanColumns(columns []string) []string {
+	fmt.Printf("%#v\n", i)
+	for j := 0; j < len(columns); j++ {
+		if _, ok := i.Columns[columns[j]]; !ok {
+			columns = append(columns[:j], columns[j+1:]...)
+			j--
+		}
+	}
+
+	return columns
+}
+
 func parseModel(db *gorm.DB, model interface{}) *modelIdentity {
 	t := reflect.TypeOf(model)
 	return parseIdentity(db, t, []reflect.Type{t})
 }
 
 func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelIdentity {
-	if t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Slice {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct || checkCycle(t, parents) {

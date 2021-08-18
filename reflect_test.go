@@ -62,6 +62,9 @@ func TestParseModel(t *testing.T) {
 	assert.Contains(t, identityCache, "goyave.dev/filter|filter.PromotedPtr")
 	assert.Contains(t, identityCache, "goyave.dev/filter|filter.PromotedRelation")
 	assert.Contains(t, identityCache, "goyave.dev/filter|filter.TestModel")
+
+	identity = parseModel(db, []*TestModel{})
+	assert.Equal(t, expected, identity)
 }
 
 type TestRelationCycle struct {

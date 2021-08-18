@@ -60,6 +60,7 @@ func selectScope(fields []string) func(*gorm.DB) *gorm.DB {
 // which can be used to check for database errors.
 // The given request is expected to be validated using `ApplyValidation`.
 func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Paginator, *gorm.DB) {
+	modelIdentity := parseModel(db, dest)
 
 	for _, queryParam := range []string{"filter", "or"} {
 		if request.Has(queryParam) {
@@ -106,7 +107,9 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 		// TODO validate fields exist
 		// FIXME if field is a relation, should not be considered as existing
 		// TODO if joins have fields, add them to the select scope
-		db.Scopes(selectScope(strings.Split(request.String("fields"), ",")))
+		fields := strings.Split(request.String("fields"), ",")
+		fields = modelIdentity.cleanColumns(fields)
+		db.Scopes(selectScope(fields))
 	}
 
 	return paginator, paginator.Find()

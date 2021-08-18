@@ -32,11 +32,13 @@ type Join struct {
 // SortOrder the allowed strings for SQL "ORDER BY" clause.
 type SortOrder string
 
-const (
+var (
 	// DefaultPageSize the default pagination page size if the "per_page" query param
 	// isn't provided.
 	DefaultPageSize = 10
+)
 
+const (
 	// SortAscending "ORDER BY column ASC"
 	SortAscending SortOrder = "ASC"
 	// SortDescending "ORDER BY column DESC"

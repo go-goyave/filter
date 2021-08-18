@@ -70,22 +70,15 @@ func selectScope(fields []string) func(*gorm.DB) *gorm.DB {
 func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Paginator, *gorm.DB) {
 	modelIdentity := parseModel(db, dest)
 
-	for _, queryParam := range []string{"filter", "or"} {
-		if request.Has(queryParam) {
-			filters, ok := request.Data[queryParam].([]*Filter)
-			if ok {
-				for _, f := range filters {
-					db = db.Scopes(f.Scope)
-				}
-			}
-		}
-	}
+	db = applyFilters(db, request)
 
 	if request.Has("sort") {
 		sorts, ok := request.Data["sort"].([]*Sort)
 		if ok {
 			for _, s := range sorts {
-				db = db.Scopes(s.Scope)
+				if scope := s.Scope(modelIdentity); scope != nil {
+					db = db.Scopes(scope)
+				}
 			}
 		}
 	}
@@ -119,7 +112,20 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 	}
 
 	return paginator, paginator.Find()
+}
 
+func applyFilters(db *gorm.DB, request *goyave.Request) *gorm.DB {
+	for _, queryParam := range []string{"filter", "or"} {
+		if request.Has(queryParam) {
+			filters, ok := request.Data[queryParam].([]*Filter)
+			if ok {
+				for _, f := range filters {
+					db = db.Scopes(f.Scope)
+				}
+			}
+		}
+	}
+	return db
 }
 
 // Scope returns the GORM scope to use in order to apply this filter.
@@ -128,16 +134,23 @@ func (f *Filter) Scope(tx *gorm.DB) *gorm.DB {
 }
 
 // Scope returns the GORM scope to use in order to apply sorting.
-func (s *Sort) Scope(tx *gorm.DB) *gorm.DB {
-	field := SQLEscape(tx, s.Field)
-	if !strings.Contains(field, ".") {
-		field = getTableName(tx) + field
+func (s *Sort) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
+	_, ok := modelIdentity.Columns[s.Field]
+	if !ok {
+		return nil
 	}
-	return tx.Order(fmt.Sprintf("%s %s", field, s.Order))
+
+	return func(tx *gorm.DB) *gorm.DB {
+		field := SQLEscape(tx, s.Field)
+		if !strings.Contains(field, ".") {
+			field = getTableName(tx) + field
+		}
+		return tx.Order(fmt.Sprintf("%s %s", field, s.Order))
+	}
 }
 
 // Scope returns the GORM scope to use in order to apply this joint.
-func (j *Join) Scope(modelIdentity *modelIdentity) func(tx *gorm.DB) *gorm.DB {
+func (j *Join) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 	// FIXME If UserID not selected, cannot assign relation.
 	// Manually find all relation IDs and add them if they're not here
 	// if field has tag foreignKey, use that, otherwise use fieldName + "ID" OR fieldName + "Id"

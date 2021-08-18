@@ -88,7 +88,6 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 					Tag:  field.Tag,
 				}
 			} else if i := parseIdentity(db, fieldType, parents); i != nil {
-				// FIXME some structures are not relations (sql.NullTime)
 				if prefix, ok := getEmbeddedInfo(field); ok {
 					identity.promote(i, prefix)
 				} else {

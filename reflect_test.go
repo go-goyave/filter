@@ -121,6 +121,20 @@ func TestGetEmbeddedInfoInvalidSyntax(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestCleanColumns(t *testing.T) {
+	identity := &modelIdentity{
+		Columns: map[string]column{
+			"name":  {},
+			"email": {},
+		},
+		Relations: map[string]*modelIdentity{
+			"relation": {},
+		},
+	}
+
+	assert.Equal(t, []string{"name", "email"}, identity.cleanColumns([]string{"name", "notacolumn", "email", "relation"}))
+}
+
 func TestParseNilModel(t *testing.T) {
 	assert.Nil(t, parseModel(nil, 1))
 }

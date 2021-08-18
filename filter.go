@@ -47,9 +47,15 @@ func selectScope(fields []string) func(*gorm.DB) *gorm.DB {
 	return func(tx *gorm.DB) *gorm.DB {
 		// TODO ability to specify fields that cannot be selected / sorted by, joined, etc
 		// Prevent "select *" to remove the fields that are blacklisted
-		fieldsWithTableName := make([]string, 0, len(fields))
-		for _, f := range fields {
-			fieldsWithTableName = append(fieldsWithTableName, getTableName(tx)+f)
+
+		var fieldsWithTableName []string
+		if len(fields) == 0 {
+			fieldsWithTableName = []string{"1"}
+		} else {
+			fieldsWithTableName = make([]string, 0, len(fields))
+			for _, f := range fields {
+				fieldsWithTableName = append(fieldsWithTableName, getTableName(tx)+f)
+			}
 		}
 		return tx.Select(fieldsWithTableName)
 	}
@@ -86,7 +92,9 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 		joins, ok := request.Data["join"].([]*Join)
 		if ok {
 			for _, j := range joins {
-				db = db.Scopes(j.Scope)
+				if s := j.Scope(modelIdentity); s != nil {
+					db = db.Scopes(s)
+				}
 			}
 		}
 	}
@@ -104,12 +112,8 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 	paginator.UpdatePageInfo()
 
 	if request.Has("fields") {
-		// TODO validate fields exist
-		// FIXME if field is a relation, should not be considered as existing
-		// TODO if joins have fields, add them to the select scope
 		fields := strings.Split(request.String("fields"), ",")
-		fields = modelIdentity.cleanColumns(fields)
-		db.Scopes(selectScope(fields))
+		db.Scopes(selectScope(modelIdentity.cleanColumns(fields)))
 	}
 
 	return paginator, paginator.Find()
@@ -131,11 +135,18 @@ func (s *Sort) Scope(tx *gorm.DB) *gorm.DB {
 }
 
 // Scope returns the GORM scope to use in order to apply this joint.
-func (j *Join) Scope(tx *gorm.DB) *gorm.DB {
+func (j *Join) Scope(modelIdentity *modelIdentity) func(tx *gorm.DB) *gorm.DB {
 	// FIXME If UserID not selected, cannot assign relation.
 	// Manually find all relation IDs and add them if they're not here
 	// if field has tag foreignKey, use that, otherwise use fieldName + "ID" OR fieldName + "Id"
-	return tx.Preload(j.Relation, selectScope(j.Fields))
+	relationIdentity, ok := modelIdentity.Relations[j.Relation]
+	if !ok {
+		return nil
+	}
+
+	return func(tx *gorm.DB) *gorm.DB {
+		return tx.Preload(j.Relation, selectScope(relationIdentity.cleanColumns(j.Fields)))
+	}
 
 	// TODO joins with conditions (and may not want to select relation content)
 }

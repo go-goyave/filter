@@ -1,7 +1,6 @@
 package filter
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -34,7 +33,6 @@ func (i *modelIdentity) promote(identity *modelIdentity, prefix string) {
 // cleanColumns returns a slice of column names containing only the valid
 // column names from the input columns slice.
 func (i *modelIdentity) cleanColumns(columns []string) []string {
-	fmt.Printf("%#v\n", i)
 	for j := 0; j < len(columns); j++ {
 		if _, ok := i.Columns[columns[j]]; !ok {
 			columns = append(columns[:j], columns[j+1:]...)
@@ -85,6 +83,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 				}
 				identity.promote(i, "")
 			} else if i := parseIdentity(db, fieldType, parents); i != nil {
+				// FIXME some structures are not relations (sql.NullTime)
 				if prefix, ok := getEmbeddedInfo(field); ok {
 					identity.promote(i, prefix)
 				} else {

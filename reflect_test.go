@@ -9,29 +9,29 @@ import (
 	"gorm.io/gorm/utils/tests"
 )
 
-func TestParseModel(t *testing.T) {
-	type TestRelation struct {
-		Name string
-	}
-	type Promoted struct {
-		Email string `gorm:"column:email_address"`
-	}
-	type PromotedPtr struct {
-		Promoted
-	}
-	type PromotedRelation struct {
-		PromotedRelation TestRelation
-	}
-	type TestModel struct {
-		Promoted
-		*PromotedPtr
-		PromotedRelation
-		Str       string `gorm:"column:"`
-		Relation  *TestRelation
-		Relations []*TestRelation
-		ID        uint
-	}
+type TestRelation struct {
+	Name string
+}
+type Promoted struct {
+	Email string `gorm:"column:email_address"`
+}
+type PromotedPtr struct {
+	Promoted
+}
+type PromotedRelation struct {
+	PromotedRelation TestRelation
+}
+type TestModel struct {
+	Promoted
+	*PromotedPtr
+	PromotedRelation
+	Str       string `gorm:"column:"`
+	Relation  *TestRelation
+	Relations []*TestRelation
+	ID        uint
+}
 
+func TestParseModel(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	identity := parseModel(db, &TestModel{})
 
@@ -54,6 +54,14 @@ func TestParseModel(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, identity)
+	assert.Same(t, identity.Relations["Relation"], identity.Relations["Relations"])
+	assert.Same(t, identity.Relations["Relation"], identity.Relations["PromotedRelation"])
+
+	assert.Contains(t, identityCache, "goyave.dev/filter|filter.TestRelation")
+	assert.Contains(t, identityCache, "goyave.dev/filter|filter.Promoted")
+	assert.Contains(t, identityCache, "goyave.dev/filter|filter.PromotedPtr")
+	assert.Contains(t, identityCache, "goyave.dev/filter|filter.PromotedRelation")
+	assert.Contains(t, identityCache, "goyave.dev/filter|filter.TestModel")
 }
 
 type TestRelationCycle struct {

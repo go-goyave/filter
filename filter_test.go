@@ -9,11 +9,6 @@ import (
 	"gorm.io/gorm/utils/tests"
 )
 
-type TestModel struct {
-	Name string
-	ID   uint
-}
-
 func TestSQLEscape(t *testing.T) {
 	tx := &gorm.DB{Config: &gorm.Config{
 		Dialector: tests.DummyDialector{},
@@ -22,6 +17,11 @@ func TestSQLEscape(t *testing.T) {
 }
 
 func TestGetTableName(t *testing.T) {
+	type testModel struct {
+		Name string
+		ID   uint
+	}
+
 	tx := &gorm.DB{
 		Config:    &gorm.Config{Dialector: tests.DummyDialector{}},
 		Statement: &gorm.Statement{},
@@ -35,7 +35,7 @@ func TestGetTableName(t *testing.T) {
 	assert.Equal(t, "users.", getTableName(tx))
 
 	tx, _ = gorm.Open(tests.DummyDialector{}, nil)
-	tx = tx.Model(&TestModel{})
+	tx = tx.Model(&testModel{})
 
 	assert.Equal(t, "test_models.", getTableName(tx))
 

@@ -9,6 +9,10 @@ import (
 
 // TODO cache reflect operations
 
+var (
+	identityCache = make(map[string]*modelIdentity, 10)
+)
+
 type modelIdentity struct {
 	Columns   map[string]column
 	Relations map[string]*modelIdentity
@@ -39,6 +43,10 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 	}
 	if t.Kind() != reflect.Struct || checkCycle(t, parents) {
 		return nil
+	}
+	identifier := t.PkgPath() + "|" + t.String()
+	if cached, ok := identityCache[identifier]; ok {
+		return cached
 	}
 	identity := &modelIdentity{
 		Columns:   make(map[string]column, 10),
@@ -84,6 +92,8 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 			}
 		}
 	}
+
+	identityCache[identifier] = identity
 	return identity
 }
 

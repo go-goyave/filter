@@ -25,6 +25,7 @@ type TestModel struct {
 	Promoted
 	*PromotedPtr
 	PromotedRelation
+	DeletedAt *gorm.DeletedAt
 	Str       string `gorm:"column:"`
 	Relation  *TestRelation
 	Relations []*TestRelation
@@ -46,6 +47,7 @@ func TestParseModel(t *testing.T) {
 			"id":            {Name: "ID", Tag: ""},
 			"str":           {Name: "Str", Tag: `gorm:"column:"`},
 			"email_address": {Name: "Email", Tag: `gorm:"column:email_address"`},
+			"deleted_at":    {Name: "DeletedAt", Tag: ""},
 		},
 		Relations: map[string]*modelIdentity{
 			"Relation":         relation,

@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"database/sql"
 	"reflect"
 	"strings"
 
@@ -49,9 +50,7 @@ func parseModel(db *gorm.DB, model interface{}) *modelIdentity {
 }
 
 func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelIdentity {
-	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Slice {
-		t = t.Elem()
-	}
+	t = actualType(t)
 	if t.Kind() != reflect.Struct || checkCycle(t, parents) {
 		return nil
 	}
@@ -82,6 +81,12 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 					continue
 				}
 				identity.promote(i, "")
+			} else if field.Type.Implements(reflect.TypeOf((*sql.Scanner)(nil)).Elem()) {
+				// This is not a relation but a field such as sql.NullTime
+				identity.Columns[columnName(db, field)] = column{
+					Name: field.Name,
+					Tag:  field.Tag,
+				}
 			} else if i := parseIdentity(db, fieldType, parents); i != nil {
 				// FIXME some structures are not relations (sql.NullTime)
 				if prefix, ok := getEmbeddedInfo(field); ok {
@@ -107,6 +112,13 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 
 	identityCache[identifier] = identity
 	return identity
+}
+
+func actualType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Slice {
+		t = t.Elem()
+	}
+	return t
 }
 
 func columnName(db *gorm.DB, field reflect.StructField) string {

@@ -121,6 +121,14 @@ Internally, `goyave.dev/filter` uses [Goyave's `Paginator`](https://goyave.dev/g
 - Fields are pre-processed and clients cannot request fields that don't exist. This prevents database errors. If a non-existing field is required, it is simply ignored. The same goes for sorts and joins. It is not possible to request a relation that doesn't exist.
 - Foreign keys are always selected in joins to ensure associations can be assigned to parent model. *(WIP)*
 
+## Model recommendations
+
+- Use `json:",omitempty"` on all model fields.
+- Use `json:"-"` on foreign keys.
+- Use `*null.Time` from the [`gopkg.in/guregu/null.v4`](https://github.com/guregu/null) library instead of `sql.NullTime`.
+- Don't use `gorm.Model` and add the necessary fields manually. You get better control over json struct tags this way.
+- Use pointers for nullable relations and nullable fields that implement `sql.Scanner` (such as `null.Time`).
+
 ## License
 
 `goyave.dev/filter` is MIT Licensed. Copyright (c) 2021 Jérémy LAMBERT (SystemGlitch)

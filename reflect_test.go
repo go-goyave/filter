@@ -6,11 +6,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 	"gorm.io/gorm/utils/tests"
 )
 
 type TestRelation struct {
-	Name string
+	TestModel          *TestModel `gorm:"foreignKey:TestModelID"`
+	TestModelGuessed   *TestModel
+	Name               string
+	TestModelID        int
+	TestModelGuessedID int
+	ID                 int
 }
 type Promoted struct {
 	Email string `gorm:"column:email_address"`
@@ -22,42 +28,82 @@ type PromotedRelation struct {
 	PromotedRelation TestRelation
 }
 type TestModel struct {
-	Promoted
-	*PromotedPtr
-	PromotedRelation
-	DeletedAt *gorm.DeletedAt
-	Str       string `gorm:"column:"`
-	Relation  *TestRelation
 	Relations []*TestRelation
-	ID        uint
+	Relation  *TestRelation
+	DeletedAt *gorm.DeletedAt
+	*PromotedPtr
+	Promoted
+	Str string `gorm:"column:"`
+	PromotedRelation
+	ID uint `gorm:"primaryKey"`
 }
 
 func TestParseModel(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	identity := parseModel(db, &TestModel{})
 
-	relation := &modelIdentity{
+	relModelIdentity := &modelIdentity{
 		Columns: map[string]column{
-			"name": {Name: "Name", Tag: ""},
+			"name":                  {Name: "Name", Tags: &gormTags{}},
+			"id":                    {Name: "ID", Tags: &gormTags{}},
+			"test_model_id":         {Name: "TestModelID", Tags: &gormTags{}},
+			"test_model_guessed_id": {Name: "TestModelGuessedID", Tags: &gormTags{}},
 		},
-		Relations: map[string]*modelIdentity{},
+		Relations: map[string]*relation{},
 	}
 	expected := &modelIdentity{
 		Columns: map[string]column{
-			"id":            {Name: "ID", Tag: ""},
-			"str":           {Name: "Str", Tag: `gorm:"column:"`},
-			"email_address": {Name: "Email", Tag: `gorm:"column:email_address"`},
-			"deleted_at":    {Name: "DeletedAt", Tag: ""},
+			"id":            {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"str":           {Name: "Str", Tags: &gormTags{}},
+			"email_address": {Name: "Email", Tags: &gormTags{Column: "email_address"}},
+			"deleted_at":    {Name: "DeletedAt", Tags: &gormTags{}},
 		},
-		Relations: map[string]*modelIdentity{
-			"Relation":         relation,
-			"Relations":        relation,
-			"PromotedRelation": relation,
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: relModelIdentity,
+				Type:          schema.HasOne,
+				Tags:          &gormTags{},
+				PrimaryKeys:   []string{"id"},
+				ForeignKeys:   []string{"test_model_id", "test_model_guessed_id"},
+				keysProcessed: true,
+			},
+			"Relations": {
+				modelIdentity: relModelIdentity,
+				Type:          schema.HasMany,
+				Tags:          &gormTags{},
+				PrimaryKeys:   []string{"id"},
+				ForeignKeys:   []string{"test_model_id", "test_model_guessed_id"},
+				keysProcessed: true,
+			},
+			"PromotedRelation": {
+				modelIdentity: relModelIdentity,
+				Type:          schema.HasOne,
+				Tags:          &gormTags{},
+				PrimaryKeys:   []string{"id"},
+				ForeignKeys:   []string{"test_model_id", "test_model_guessed_id"},
+				keysProcessed: true,
+			},
 		},
 	}
+	relModelIdentity.Relations["TestModel"] = &relation{
+		modelIdentity: expected,
+		Type:          schema.HasOne,
+		Tags:          &gormTags{ForeignKey: "TestModelID"},
+		PrimaryKeys:   []string{"id"},
+		ForeignKeys:   []string{},
+		keysProcessed: true,
+	}
+	relModelIdentity.Relations["TestModelGuessed"] = &relation{
+		modelIdentity: expected,
+		Type:          schema.HasOne,
+		Tags:          &gormTags{},
+		PrimaryKeys:   []string{"id"},
+		ForeignKeys:   []string{},
+		keysProcessed: true,
+	}
 	assert.Equal(t, expected, identity)
-	assert.Same(t, identity.Relations["Relation"], identity.Relations["Relations"])
-	assert.Same(t, identity.Relations["Relation"], identity.Relations["PromotedRelation"])
+	assert.Same(t, identity.Relations["Relation"].modelIdentity, identity.Relations["Relations"].modelIdentity)
+	assert.Same(t, identity.Relations["Relation"].modelIdentity, identity.Relations["PromotedRelation"].modelIdentity)
 
 	assert.Contains(t, identityCache, "goyave.dev/filter|filter.TestRelation")
 	assert.Contains(t, identityCache, "goyave.dev/filter|filter.Promoted")
@@ -80,14 +126,31 @@ type TestModelRelationCycle struct {
 func TestParseModelRelationCycle(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	identity := parseModel(db, &TestModelRelationCycle{})
+
+	rel := &relation{
+		modelIdentity: &modelIdentity{
+			Columns:   map[string]column{},
+			Relations: map[string]*relation{},
+		},
+		Type:          schema.HasOne,
+		Tags:          &gormTags{},
+		PrimaryKeys:   []string{},
+		ForeignKeys:   []string{},
+		keysProcessed: true,
+	}
 	expected := &modelIdentity{
 		Columns: map[string]column{},
-		Relations: map[string]*modelIdentity{
-			"Relation": {
-				Columns:   map[string]column{},
-				Relations: map[string]*modelIdentity{},
-			},
+		Relations: map[string]*relation{
+			"Relation": rel,
 		},
+	}
+	rel.Relations["Parent"] = &relation{
+		modelIdentity: expected,
+		Type:          schema.HasOne,
+		Tags:          &gormTags{},
+		PrimaryKeys:   []string{},
+		ForeignKeys:   []string{},
+		keysProcessed: true,
 	}
 	assert.Equal(t, expected, identity)
 }
@@ -104,35 +167,47 @@ func TestParseModelEmbeddedStruct(t *testing.T) {
 	identity := parseModel(db, &TestModelEmbedded{})
 	expected := &modelIdentity{
 		Columns: map[string]column{
-			"embed_name": {Name: "Name", Tag: ""},
+			"embed_name": {Name: "Name", Tags: &gormTags{}},
 		},
-		Relations: map[string]*modelIdentity{},
+		Relations: map[string]*relation{},
 	}
 	assert.Equal(t, expected, identity)
 }
 
-func TestGetEmbeddedInfoInvalidSyntax(t *testing.T) {
-	field := reflect.StructField{
-		Tag: `gorm:"embedded;embeddedPrefix:"`,
+func TestParseGormTags(t *testing.T) {
+	type gormTagsModel struct {
+		CustomColumn string `gorm:"column:custom_column"`
+		Relation     string `gorm:"foreignKey:id_relation;references:relation"`
+		Embedded     string `gorm:"embedded;embeddedPrefix:prefix_"`
+		ID           int    `gorm:"primaryKey"`
+		IDAlt        int    `gorm:"primary_key"`
 	}
 
-	prefix, ok := getEmbeddedInfo(field)
-	assert.Empty(t, prefix)
-	assert.True(t, ok)
+	ty := reflect.TypeOf(gormTagsModel{})
+	expected := &gormTags{Column: "custom_column"}
+	assert.Equal(t, expected, parseGormTags(ty.Field(0)))
+
+	expected = &gormTags{ForeignKey: "id_relation", References: "relation"}
+	assert.Equal(t, expected, parseGormTags(ty.Field(1)))
+
+	expected = &gormTags{Embedded: true, EmbeddedPrefix: "prefix_"}
+	assert.Equal(t, expected, parseGormTags(ty.Field(2)))
+
+	expected = &gormTags{PrimaryKey: true}
+	assert.Equal(t, expected, parseGormTags(ty.Field(3)))
+
+	expected = &gormTags{PrimaryKey: true}
+	assert.Equal(t, expected, parseGormTags(ty.Field(4)))
 }
 
 func TestCleanColumns(t *testing.T) {
-	identity := &modelIdentity{
+	id := &modelIdentity{
 		Columns: map[string]column{
-			"name":  {},
-			"email": {},
-		},
-		Relations: map[string]*modelIdentity{
-			"relation": {},
+			"id":   {},
+			"name": {},
 		},
 	}
-
-	assert.Equal(t, []string{"name", "email"}, identity.cleanColumns([]string{"name", "notacolumn", "email", "relation"}))
+	assert.Equal(t, []string{"id", "name"}, id.cleanColumns([]string{"id", "test", "name", "notacolumn"}))
 }
 
 func TestParseNilModel(t *testing.T) {

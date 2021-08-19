@@ -144,7 +144,7 @@ func TestParseJoin(t *testing.T) {
 	assert.Nil(t, err)
 	if assert.NotNil(t, j) {
 		assert.Equal(t, "relation", j.Relation)
-		assert.Equal(t, []string{}, j.Fields)
+		assert.Nil(t, j.Fields)
 	}
 
 	j, err = ParseJoin("relation||field1")
@@ -158,7 +158,7 @@ func TestParseJoin(t *testing.T) {
 	assert.Nil(t, err)
 	if assert.NotNil(t, j) {
 		assert.Equal(t, "relation", j.Relation)
-		assert.Equal(t, []string{}, j.Fields)
+		assert.Nil(t, j.Fields)
 	}
 
 	j, err = ParseJoin("relation||,")

@@ -135,7 +135,7 @@ Internally, `goyave.dev/filter` uses [Goyave's `Paginator`](https://goyave.dev/g
 
 - Inputs are escaped to prevent SQL injections.
 - Fields are pre-processed and clients cannot request fields that don't exist. This prevents database errors. If a non-existing field is required, it is simply ignored. The same goes for sorts and joins. It is not possible to request a relation that doesn't exist.
-- Foreign keys are always selected in joins to ensure associations can be assigned to parent model. *(WIP)*
+- Foreign keys are always selected in joins to ensure associations can be assigned to parent model.
 
 ## Model recommendations
 

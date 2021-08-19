@@ -5,8 +5,10 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 	"goyave.dev/goyave/v3"
 	"goyave.dev/goyave/v3/database"
+	"goyave.dev/goyave/v3/helper"
 )
 
 // Filter structured representation of a filter query.
@@ -47,6 +49,11 @@ const (
 
 func selectScope(fields []string) func(*gorm.DB) *gorm.DB {
 	return func(tx *gorm.DB) *gorm.DB {
+
+		if fields == nil {
+			return tx
+		}
+		fmt.Println(fields)
 		// TODO ability to specify fields that cannot be selected / sorted by, joined, etc
 		// Prevent "select *" to remove the fields that are blacklisted
 
@@ -108,7 +115,8 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 
 	if request.Has("fields") {
 		fields := strings.Split(request.String("fields"), ",")
-		db.Scopes(selectScope(modelIdentity.cleanColumns(fields)))
+		// TODO if there is a relation, select the field that is used as foreign key
+		paginator.DB = db.Scopes(selectScope(modelIdentity.cleanColumns(fields)))
 	}
 
 	return paginator, paginator.Find()
@@ -160,19 +168,39 @@ func (s *Sort) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 
 // Scope returns the GORM scope to use in order to apply this joint.
 func (j *Join) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
-	// FIXME If UserID not selected, cannot assign relation.
-	// Manually find all relation IDs and add them if they're not here
-	// if field has tag foreignKey, use that, otherwise use fieldName + "ID" OR fieldName + "Id"
 	relationIdentity, ok := modelIdentity.Relations[j.Relation]
 	if !ok {
 		return nil
 	}
 
+	columns := relationIdentity.cleanColumns(j.Fields)
+
 	return func(tx *gorm.DB) *gorm.DB {
-		return tx.Preload(j.Relation, selectScope(relationIdentity.cleanColumns(j.Fields)))
+		if columns != nil {
+			switch relationIdentity.Type {
+			case schema.HasOne:
+				for _, k := range relationIdentity.PrimaryKeys {
+					if !helper.ContainsStr(columns, k) {
+						columns = append(columns, k)
+					}
+				}
+				foreignKey := relationIdentity.findForeignKey(tx, j.Relation, relationIdentity)
+				if foreignKey != "" && !helper.ContainsStr(columns, foreignKey) {
+					columns = append(columns, foreignKey)
+				}
+			case schema.HasMany:
+				for _, v := range relationIdentity.ForeignKeys {
+					if !helper.ContainsStr(columns, v) {
+						columns = append(columns, v)
+					}
+				}
+			}
+		}
+		return tx.Preload(j.Relation, selectScope(columns))
 	}
 
 	// TODO joins with conditions (and may not want to select relation content)
+	// TODO support many2many relations properly
 }
 
 func getTableName(tx *gorm.DB) string {

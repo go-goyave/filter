@@ -184,7 +184,7 @@ func ParseJoin(join string) (*Join, error) {
 			fields[i] = f
 		}
 	} else {
-		fields = []string{}
+		fields = nil
 	}
 
 	j := &Join{

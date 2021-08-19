@@ -6,20 +6,41 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
+	"gorm.io/gorm/utils"
 )
 
 var (
 	identityCache = make(map[string]*modelIdentity, 10)
 )
 
+type gormTags struct {
+	Column         string
+	ForeignKey     string
+	References     string
+	EmbeddedPrefix string
+	Embedded       bool
+	PrimaryKey     bool
+}
+
 type modelIdentity struct {
 	Columns   map[string]column
-	Relations map[string]*modelIdentity
+	Relations map[string]*relation
+}
+
+type relation struct {
+	*modelIdentity
+	Type        schema.RelationshipType
+	Tags        *gormTags
+	PrimaryKeys []string
+	ForeignKeys []string
+
+	keysProcessed bool
 }
 
 type column struct {
+	Tags *gormTags
 	Name string
-	Tag  reflect.StructTag
 }
 
 func (i *modelIdentity) promote(identity *modelIdentity, prefix string) {
@@ -44,14 +65,74 @@ func (i *modelIdentity) cleanColumns(columns []string) []string {
 	return columns
 }
 
+func (r *relation) processKeys(db *gorm.DB) {
+	if r.keysProcessed {
+		return
+	}
+	r.keysProcessed = true
+	r.ForeignKeys = r.findForeignKeys(db)
+	r.PrimaryKeys = r.findPrimaryKeys(db)
+	for _, rel := range r.Relations {
+		rel.processKeys(db)
+	}
+}
+
+func (r *relation) findForeignKeys(db *gorm.DB) []string {
+	foreignKeys := []string{}
+
+	for k, v := range r.Relations {
+		if key := r.findForeignKey(db, k, v); key != "" {
+			foreignKeys = append(foreignKeys, key)
+		}
+	}
+
+	return foreignKeys
+}
+
+func (r *relation) findForeignKey(db *gorm.DB, name string, rel *relation) string {
+	if rel.Tags.ForeignKey != "" {
+		return columnName(db, rel.Tags, rel.Tags.ForeignKey)
+	}
+	colName := columnName(db, rel.Tags, name) + "_id"
+	if col, ok := r.Columns[colName]; ok {
+		return columnName(db, col.Tags, colName)
+	}
+	return ""
+}
+
+func (r *relation) findPrimaryKeys(db *gorm.DB) []string {
+	primaryKeys := []string{}
+
+	for k, v := range r.Columns {
+		if v.Tags.PrimaryKey {
+			primaryKeys = append(primaryKeys, columnName(db, v.Tags, k))
+		}
+	}
+
+	if len(primaryKeys) == 0 {
+		colName := "id"
+		if col, ok := r.Columns[colName]; ok {
+			primaryKeys = append(primaryKeys, columnName(db, col.Tags, colName))
+		}
+	}
+
+	return primaryKeys
+}
+
 func parseModel(db *gorm.DB, model interface{}) *modelIdentity {
 	t := reflect.TypeOf(model)
-	return parseIdentity(db, t, []reflect.Type{t})
+	i := parseIdentity(db, t, []reflect.Type{t})
+	if i != nil {
+		for _, r := range i.Relations {
+			r.processKeys(db)
+		}
+	}
+	return i
 }
 
 func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelIdentity {
 	t = actualType(t)
-	if t.Kind() != reflect.Struct || checkCycle(t, parents) {
+	if t.Kind() != reflect.Struct {
 		return nil
 	}
 	identifier := t.PkgPath() + "|" + t.String()
@@ -60,8 +141,9 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 	}
 	identity := &modelIdentity{
 		Columns:   make(map[string]column, 10),
-		Relations: make(map[string]*modelIdentity, 5),
+		Relations: make(map[string]*relation, 5),
 	}
+	identityCache[identifier] = identity
 	count := t.NumField()
 
 	for i := 0; i < count; i++ {
@@ -70,46 +152,52 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 		if fieldType.Kind() == reflect.Ptr {
 			fieldType = fieldType.Elem()
 		}
+		gormTags := parseGormTags(field)
 
 		switch fieldType.Kind() {
 		case reflect.Struct:
 			parents = append(parents, t)
 			if field.Anonymous {
 				// Promoted fields
-				i := parseIdentity(db, fieldType, parents)
-				if i == nil {
-					continue
-				}
-				identity.promote(i, "")
+				identity.promote(parseIdentity(db, fieldType, parents), "")
 			} else if field.Type.Implements(reflect.TypeOf((*sql.Scanner)(nil)).Elem()) {
 				// This is not a relation but a field such as sql.NullTime
-				identity.Columns[columnName(db, field)] = column{
+				identity.Columns[columnName(db, gormTags, field.Name)] = column{
 					Name: field.Name,
-					Tag:  field.Tag,
+					Tags: gormTags,
 				}
 			} else if i := parseIdentity(db, fieldType, parents); i != nil {
-				if prefix, ok := getEmbeddedInfo(field); ok {
-					identity.promote(i, prefix)
+				if gormTags.Embedded {
+					identity.promote(i, gormTags.EmbeddedPrefix)
 				} else {
 					// "belongs to" / "has one" relation
-					identity.Relations[field.Name] = i
+					r := &relation{
+						modelIdentity: i,
+						Tags:          gormTags,
+						Type:          schema.HasOne,
+					}
+					identity.Relations[field.Name] = r
 				}
 			}
 		case reflect.Slice:
 			// "has many" relation
 			parents = append(parents, t)
 			if i := parseIdentity(db, fieldType.Elem(), parents); i != nil {
-				identity.Relations[field.Name] = i
+				r := &relation{
+					modelIdentity: i,
+					Tags:          gormTags,
+					Type:          schema.HasMany,
+				}
+				identity.Relations[field.Name] = r
 			}
 		default:
-			identity.Columns[columnName(db, field)] = column{
+			identity.Columns[columnName(db, gormTags, field.Name)] = column{
 				Name: field.Name,
-				Tag:  field.Tag,
+				Tags: gormTags,
 			}
 		}
 	}
 
-	identityCache[identifier] = identity
 	return identity
 }
 
@@ -120,44 +208,35 @@ func actualType(t reflect.Type) reflect.Type {
 	return t
 }
 
-func columnName(db *gorm.DB, field reflect.StructField) string {
-	for _, t := range strings.Split(field.Tag.Get("gorm"), ";") { // Check for gorm column name override
-		if strings.HasPrefix(t, "column") {
-			i := strings.Index(t, ":")
-			if i == -1 || i+1 >= len(t) {
-				// Invalid syntax, fallback to auto-naming
-				break
-			}
-			return strings.TrimSpace(t[i+1:])
+func parseGormTags(field reflect.StructField) *gormTags {
+	settings := schema.ParseTagSetting(field.Tag.Get("gorm"), ";")
+	res := &gormTags{}
+	for k, v := range settings {
+		switch k {
+		case "COLUMN":
+			res.Column = strings.TrimSpace(v)
+		case "EMBEDDED":
+			res.Embedded = true
+		case "EMBEDDEDPREFIX":
+			res.EmbeddedPrefix = strings.TrimSpace(v)
+		case "FOREIGNKEY":
+			res.ForeignKey = strings.TrimSpace(v)
+		case "REFERENCES":
+			res.References = strings.TrimSpace(v)
+		case "PRIMARYKEY":
+			res.PrimaryKey = utils.CheckTruth(v)
+		case "PRIMARY_KEY":
+			res.PrimaryKey = utils.CheckTruth(v)
 		}
 	}
 
-	return db.NamingStrategy.ColumnName("", field.Name)
+	return res
 }
 
-func getEmbeddedInfo(field reflect.StructField) (string, bool) {
-	embedded := false
-	embeddedPrefix := ""
-	for _, t := range strings.Split(field.Tag.Get("gorm"), ";") { // Check for gorm column name override
-		if t == "embedded" {
-			embedded = true
-		} else if strings.HasPrefix(t, "embeddedPrefix") {
-			i := strings.Index(t, ":")
-			if i == -1 || i+1 >= len(t) {
-				continue
-			}
-			embeddedPrefix = strings.TrimSpace(t[i+1:])
-		}
+func columnName(db *gorm.DB, tags *gormTags, fieldName string) string {
+	if tags.Column != "" {
+		return tags.Column
 	}
 
-	return embeddedPrefix, embedded
-}
-
-func checkCycle(t reflect.Type, parents []reflect.Type) bool {
-	for _, v := range parents {
-		if t == v {
-			return true
-		}
-	}
-	return false
+	return db.NamingStrategy.ColumnName("", fieldName)
 }

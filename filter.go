@@ -133,6 +133,15 @@ func (f *Filter) Scope(tx *gorm.DB) *gorm.DB {
 	return f.Operator.Function(tx, f)
 }
 
+// Where applies a condition to given transaction, automatically taking the "Or"
+// filter value into account.
+func (f *Filter) Where(tx *gorm.DB, query string, args ...interface{}) *gorm.DB {
+	if f.Or {
+		return tx.Or(query, args...)
+	}
+	return tx.Where(query, args...)
+}
+
 // Scope returns the GORM scope to use in order to apply sorting.
 func (s *Sort) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 	_, ok := modelIdentity.Columns[s.Field]

@@ -70,9 +70,25 @@ You can use `OR` conditions using `?or` instead, or in combination:
 
 #### Operators
 
-- **`$eq`**: `=`, equals
-- **`$cont`**: `LIKE %val%`, contains
-- *More operators coming in the future*
+|                |                                                         |
+|----------------|---------------------------------------------------------|
+| **`$eq`**      | `=`, equals                                             |
+| **`$ne`**      | `<>`, not equals                                        |
+| **`$gt`**      | `>`, greater than                                       |
+| **`$lt`**      | `<`, lower than                                         |
+| **`$gte`**     | `>=`, greater than or equals                            |
+| **`$lte`**     | `<=`, lower than or equals                              |
+| **`$starts`**  | `LIKE val%`, starts with                                |
+| **`$ends`**    | `LIKE %val`, ends with                                  |
+| **`$cont`**    | `LIKE %val%`, contains                                  |
+| **`$excl`**    | `NOT LIKE %val%`, not contains                          |
+| **`$in`**      | `IN (val1, val2,...)`, in (accepts multiple values)     |
+| **`$notin`**   | `NOT IN (val1, val2,...)`, in (accepts multiple values) |
+| **`$isnull`**  | `IS NULL`, is NULL (doesn't accept value)               |
+| **`$notnull`** | `IS NOT NULL`, not NULL (doesn't accept value)          |
+| **`$between`** | `BETWEEN val1 AND val2`, between (accepts two values)   |
+
+*More operators coming in the future*
 
 ### Fields / Select
 

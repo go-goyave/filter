@@ -75,7 +75,7 @@ func ApplyValidation(set validation.RuleSet) {
 	set["join[]"] = validation.List{"join"}
 	set["fields"] = validation.List{"string"}
 	set["page"] = validation.List{"integer", "min:1"}
-	set["per_page"] = validation.List{"integer", "min:1"}
+	set["per_page"] = validation.List{"integer", "between:1,500"}
 }
 
 // TODO apply validation to validation.Rules too

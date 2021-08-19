@@ -19,13 +19,25 @@ type Operator struct {
 var (
 	// Operators definitions. The key is the query representation of the operator, (e.g. "$eq").
 	Operators = map[string]*Operator{
-		"$eq": {
+		"$eq":  {Function: basicComparison("="), RequiredArguments: 1},
+		"$ne":  {Function: basicComparison("<>"), RequiredArguments: 1},
+		"$gt":  {Function: basicComparison(">"), RequiredArguments: 1},
+		"$lt":  {Function: basicComparison("<"), RequiredArguments: 1},
+		"$gte": {Function: basicComparison(">="), RequiredArguments: 1},
+		"$lte": {Function: basicComparison("<="), RequiredArguments: 1},
+		"$starts": {
 			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := SQLEscape(tx, filter.Field) + "= ?"
-				if filter.Or {
-					return tx.Or(query, filter.Args[0])
-				}
-				return tx.Where(query, filter.Args[0])
+				query := SQLEscape(tx, filter.Field) + "LIKE ?"
+				value := helper.EscapeLike(filter.Args[0]) + "%"
+				return filter.Where(tx, query, value)
+			},
+			RequiredArguments: 1,
+		},
+		"$ends": {
+			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
+				query := SQLEscape(tx, filter.Field) + "LIKE ?"
+				value := "%" + helper.EscapeLike(filter.Args[0])
+				return filter.Where(tx, query, value)
 			},
 			RequiredArguments: 1,
 		},
@@ -33,13 +45,53 @@ var (
 			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
 				query := SQLEscape(tx, filter.Field) + "LIKE ?"
 				value := "%" + helper.EscapeLike(filter.Args[0]) + "%"
-				if filter.Or {
-					return tx.Or(query, value)
-				}
-				return tx.Where(query, value)
+				return filter.Where(tx, query, value)
 			},
 			RequiredArguments: 1,
 		},
-		// TODO add more operators
+		"$excl": {
+			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
+				query := SQLEscape(tx, filter.Field) + "NOT LIKE ?"
+				value := "%" + helper.EscapeLike(filter.Args[0]) + "%"
+				return filter.Where(tx, query, value)
+			},
+			RequiredArguments: 1,
+		},
+		"$in":    {Function: multiComparison("IN"), RequiredArguments: 1},
+		"$notin": {Function: multiComparison("NOT IN"), RequiredArguments: 1},
+		"$isnull": {
+			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
+				return filter.Where(tx, SQLEscape(tx, filter.Field)+" IS NULL")
+			},
+			RequiredArguments: 0,
+		},
+		"$notnull": {
+			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
+				return filter.Where(tx, SQLEscape(tx, filter.Field)+" IS NOT NULL")
+			},
+			RequiredArguments: 0,
+		},
+		"$between": {
+			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
+				query := SQLEscape(tx, filter.Field) + " BETWEEN ? AND ?"
+				return filter.Where(tx, query, filter.Args[0], filter.Args[1])
+			},
+			RequiredArguments: 2,
+		},
+		// TODO add more operators (case-insensitive LIKE for example)
 	}
 )
+
+func basicComparison(op string) func(tx *gorm.DB, filter *Filter) *gorm.DB {
+	return func(tx *gorm.DB, filter *Filter) *gorm.DB {
+		query := SQLEscape(tx, filter.Field) + op + " ?"
+		return filter.Where(tx, query, filter.Args[0])
+	}
+}
+
+func multiComparison(op string) func(tx *gorm.DB, filter *Filter) *gorm.DB {
+	return func(tx *gorm.DB, filter *Filter) *gorm.DB {
+		query := SQLEscape(tx, filter.Field) + op + " ?"
+		return filter.Where(tx, query, filter.Args)
+	}
+}

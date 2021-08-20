@@ -49,7 +49,8 @@ func TestParseModel(t *testing.T) {
 			"test_model_id":         {Name: "TestModelID", Tags: &gormTags{}},
 			"test_model_guessed_id": {Name: "TestModelGuessedID", Tags: &gormTags{}},
 		},
-		Relations: map[string]*relation{},
+		Relations:   map[string]*relation{},
+		PrimaryKeys: []string{"id"},
 	}
 	expected := &modelIdentity{
 		Columns: map[string]*column{
@@ -58,12 +59,12 @@ func TestParseModel(t *testing.T) {
 			"email_address": {Name: "Email", Tags: &gormTags{Column: "email_address"}},
 			"deleted_at":    {Name: "DeletedAt", Tags: &gormTags{}},
 		},
+		PrimaryKeys: []string{"id"},
 		Relations: map[string]*relation{
 			"Relation": {
 				modelIdentity: relModelIdentity,
 				Type:          schema.HasOne,
 				Tags:          &gormTags{},
-				PrimaryKeys:   []string{"id"},
 				ForeignKeys:   []string{"test_model_id", "test_model_guessed_id"},
 				keysProcessed: true,
 			},
@@ -71,7 +72,6 @@ func TestParseModel(t *testing.T) {
 				modelIdentity: relModelIdentity,
 				Type:          schema.HasMany,
 				Tags:          &gormTags{},
-				PrimaryKeys:   []string{"id"},
 				ForeignKeys:   []string{"test_model_id", "test_model_guessed_id"},
 				keysProcessed: true,
 			},
@@ -79,7 +79,6 @@ func TestParseModel(t *testing.T) {
 				modelIdentity: relModelIdentity,
 				Type:          schema.HasOne,
 				Tags:          &gormTags{},
-				PrimaryKeys:   []string{"id"},
 				ForeignKeys:   []string{"test_model_id", "test_model_guessed_id"},
 				keysProcessed: true,
 			},
@@ -89,7 +88,6 @@ func TestParseModel(t *testing.T) {
 		modelIdentity: expected,
 		Type:          schema.HasOne,
 		Tags:          &gormTags{ForeignKey: "TestModelID"},
-		PrimaryKeys:   []string{"id"},
 		ForeignKeys:   []string{},
 		keysProcessed: true,
 	}
@@ -97,7 +95,6 @@ func TestParseModel(t *testing.T) {
 		modelIdentity: expected,
 		Type:          schema.HasOne,
 		Tags:          &gormTags{},
-		PrimaryKeys:   []string{"id"},
 		ForeignKeys:   []string{},
 		keysProcessed: true,
 	}
@@ -118,6 +115,7 @@ func TestParseModel(t *testing.T) {
 
 func assertModelIdentityEqual(t *testing.T, expected *modelIdentity, actual *modelIdentity, explored []*modelIdentity) {
 	assert.Equal(t, expected.Columns, actual.Columns)
+	assert.Equal(t, expected.PrimaryKeys, actual.PrimaryKeys)
 	for k, v := range expected.Relations {
 		if assert.Contains(t, actual.Relations, k) {
 			v2 := actual.Relations[k]
@@ -128,7 +126,6 @@ func assertModelIdentityEqual(t *testing.T, expected *modelIdentity, actual *mod
 			assert.Equal(t, v.Type, v2.Type)
 			assert.Equal(t, v.Tags, v2.Tags)
 			assert.Equal(t, v.keysProcessed, v2.keysProcessed)
-			assert.ElementsMatch(t, v.PrimaryKeys, v2.PrimaryKeys)
 			assert.ElementsMatch(t, v.ForeignKeys, v2.ForeignKeys)
 		}
 	}
@@ -161,12 +158,12 @@ func TestParseModelRelationCycle(t *testing.T) {
 
 	rel := &relation{
 		modelIdentity: &modelIdentity{
-			Columns:   map[string]*column{},
-			Relations: map[string]*relation{},
+			Columns:     map[string]*column{},
+			Relations:   map[string]*relation{},
+			PrimaryKeys: []string{},
 		},
 		Type:          schema.HasOne,
 		Tags:          &gormTags{},
-		PrimaryKeys:   []string{},
 		ForeignKeys:   []string{},
 		keysProcessed: true,
 	}
@@ -175,12 +172,12 @@ func TestParseModelRelationCycle(t *testing.T) {
 		Relations: map[string]*relation{
 			"Relation": rel,
 		},
+		PrimaryKeys: []string{},
 	}
 	rel.Relations["Parent"] = &relation{
 		modelIdentity: expected,
 		Type:          schema.HasOne,
 		Tags:          &gormTags{},
-		PrimaryKeys:   []string{},
 		ForeignKeys:   []string{},
 		keysProcessed: true,
 	}
@@ -201,7 +198,8 @@ func TestParseModelEmbeddedStruct(t *testing.T) {
 		Columns: map[string]*column{
 			"embed_name": {Name: "Name", Tags: &gormTags{}},
 		},
-		Relations: map[string]*relation{},
+		Relations:   map[string]*relation{},
+		PrimaryKeys: []string{},
 	}
 	assert.Equal(t, expected, identity)
 }

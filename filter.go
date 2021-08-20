@@ -67,7 +67,7 @@ func selectScope(fields []string) func(*gorm.DB) *gorm.DB {
 				if tableName != "" {
 					tableName = SQLEscape(tx, tableName) + "."
 				}
-				fieldsWithTableName = append(fieldsWithTableName, tableName+f)
+				fieldsWithTableName = append(fieldsWithTableName, tableName+SQLEscape(tx, f))
 			}
 		}
 		return tx.Select(fieldsWithTableName)
@@ -120,6 +120,7 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 
 	if request.Has("fields") {
 		fields := strings.Split(request.String("fields"), ",")
+		// TODO select primary key if there is at least one join
 		paginator.DB = db.Scopes(selectScope(modelIdentity.cleanColumns(fields)))
 	}
 
@@ -194,24 +195,16 @@ func (j *Join) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 
 	return func(tx *gorm.DB) *gorm.DB {
 		if columns != nil {
-			switch relationIdentity.Type {
-			case schema.HasOne:
-				if len(relationIdentity.PrimaryKeys) == 0 {
-					tx.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\" to your model`"))
-					return tx
+			if len(relationIdentity.PrimaryKeys) == 0 {
+				tx.AddError(fmt.Errorf("Could not find %q relation's primary key. Add `gorm:\"primaryKey\" to your model`", j.Relation))
+				return tx
+			}
+			for _, k := range relationIdentity.PrimaryKeys {
+				if !helper.ContainsStr(columns, k) {
+					columns = append(columns, k)
 				}
-				for _, k := range relationIdentity.PrimaryKeys {
-					if !helper.ContainsStr(columns, k) {
-						columns = append(columns, k)
-					}
-				}
-				for _, f := range relationIdentity.findForeignKey(tx, j.Relation, relationIdentity) {
-					if !helper.ContainsStr(columns, f) {
-						columns = append(columns, f)
-					}
-				}
-
-			case schema.HasMany:
+			}
+			if relationIdentity.Type == schema.HasMany {
 				for _, v := range relationIdentity.ForeignKeys {
 					if !helper.ContainsStr(columns, v) {
 						columns = append(columns, v)

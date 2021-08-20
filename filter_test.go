@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 	"gorm.io/gorm/utils/tests"
 )
 
@@ -90,7 +91,7 @@ func TestSelectScope(t *testing.T) {
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
 	db = db.Scopes(selectScope([]string{"a", "b"})).Find(nil)
-	assert.Equal(t, []string{"a", "b"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`a`", "`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
 	db = db.Scopes(selectScope([]string{})).Find(nil)
@@ -160,4 +161,136 @@ func TestSortScope(t *testing.T) {
 	db = db.Scopes(sort.Scope(modelIdentity)).Table("table").Find(nil)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestJoinScope(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	join := &Join{Relation: "notarelation", Fields: []string{"a", "b", "notacolumn"}}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a": {Name: "A", Tags: &gormTags{PrimaryKey: true}},
+						"b": {Name: "B"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{"a"},
+				},
+				Type: schema.HasOne,
+				Tags: &gormTags{},
+			},
+		},
+	}
+	assert.Nil(t, join.Scope(modelIdentity))
+	join.Relation = "Relation"
+
+	results := map[string]interface{}{}
+	db = db.Scopes(join.Scope(modelIdentity)).Table("table").Find(&results)
+	if assert.Contains(t, db.Statement.Preloads, "Relation") {
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.Equal(t, []string{"`table`.`a`", "`table`.`b`"}, tx.Statement.Selects)
+	}
+}
+
+func TestJoinScopeNoPrimaryKey(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	join := &Join{Relation: "Relation", Fields: []string{"a", "b", "notacolumn"}}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a": {Name: "A", Tags: &gormTags{}},
+						"b": {Name: "B"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{},
+				},
+				Type: schema.HasOne,
+				Tags: &gormTags{},
+			},
+		},
+	}
+	results := map[string]interface{}{}
+	db = db.Scopes(join.Scope(modelIdentity)).Table("table").Find(&results)
+	assert.Empty(t, db.Statement.Preloads)
+	assert.Empty(t, db.Statement.Selects)
+}
+
+func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	join := &Join{Relation: "Relation", Fields: []string{"b"}}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a": {Name: "A", Tags: &gormTags{PrimaryKey: true}},
+						"b": {Name: "B"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{"a"},
+				},
+				Type: schema.HasOne,
+				Tags: &gormTags{},
+			},
+		},
+	}
+	results := map[string]interface{}{}
+	db = db.Scopes(join.Scope(modelIdentity)).Table("table").Find(&results)
+	if assert.Contains(t, db.Statement.Preloads, "Relation") {
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.Equal(t, []string{"`table`.`b`", "`table`.`a`"}, tx.Statement.Selects)
+	}
+}
+
+func TestJoinScopeHasMany(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	join := &Join{Relation: "Relation", Fields: []string{"a", "b"}}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a":         {Name: "A", Tags: &gormTags{PrimaryKey: true}},
+						"b":         {Name: "B"},
+						"parent_id": {Name: "ParentID"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{"a"},
+				},
+				Type:        schema.HasMany,
+				Tags:        &gormTags{},
+				ForeignKeys: []string{"parent_id"},
+			},
+		},
+	}
+
+	results := map[string]interface{}{}
+	db = db.Scopes(join.Scope(modelIdentity)).Table("table").Find(&results)
+	if assert.Contains(t, db.Statement.Preloads, "Relation") {
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.Equal(t, []string{"`table`.`a`", "`table`.`b`", "`table`.`parent_id`"}, tx.Statement.Selects)
+	}
 }

@@ -24,15 +24,15 @@ type gormTags struct {
 }
 
 type modelIdentity struct {
-	Columns   map[string]*column
-	Relations map[string]*relation
+	Columns     map[string]*column
+	Relations   map[string]*relation
+	PrimaryKeys []string
 }
 
 type relation struct {
 	*modelIdentity
 	Type        schema.RelationshipType
 	Tags        *gormTags
-	PrimaryKeys []string
 	ForeignKeys []string
 
 	keysProcessed bool
@@ -80,7 +80,6 @@ func (r *relation) processKeys(db *gorm.DB) {
 	}
 	r.keysProcessed = true
 	r.ForeignKeys = r.findForeignKeys(db)
-	r.PrimaryKeys = r.findPrimaryKeys(db)
 	for _, rel := range r.Relations {
 		rel.processKeys(db)
 	}
@@ -113,25 +112,6 @@ func (r *relation) findForeignKey(db *gorm.DB, name string, rel *relation) []str
 	return keys
 }
 
-func (r *relation) findPrimaryKeys(db *gorm.DB) []string {
-	primaryKeys := []string{}
-
-	for k, v := range r.Columns {
-		if v.Tags.PrimaryKey {
-			primaryKeys = append(primaryKeys, columnName(db, v.Tags, k))
-		}
-	}
-
-	if len(primaryKeys) == 0 {
-		colName := "id"
-		if col, ok := r.Columns[colName]; ok {
-			primaryKeys = append(primaryKeys, columnName(db, col.Tags, colName))
-		}
-	}
-
-	return primaryKeys
-}
-
 func parseModel(db *gorm.DB, model interface{}) *modelIdentity {
 	t := reflect.TypeOf(model)
 	i := parseIdentity(db, t, []reflect.Type{t})
@@ -153,8 +133,9 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 		return cached
 	}
 	identity := &modelIdentity{
-		Columns:   make(map[string]*column, 10),
-		Relations: make(map[string]*relation, 5),
+		Columns:     make(map[string]*column, 10),
+		Relations:   make(map[string]*relation, 5),
+		PrimaryKeys: make([]string, 0, 2),
 	}
 	identityCache[identifier] = identity
 	count := t.NumField()
@@ -204,13 +185,23 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 				identity.Relations[field.Name] = r
 			}
 		default:
-			identity.Columns[columnName(db, gormTags, field.Name)] = &column{
+			colName := columnName(db, gormTags, field.Name)
+			if gormTags.PrimaryKey {
+				identity.PrimaryKeys = append(identity.PrimaryKeys, colName)
+			}
+			identity.Columns[colName] = &column{
 				Name: field.Name,
 				Tags: gormTags,
 			}
 		}
 	}
 
+	if len(identity.PrimaryKeys) == 0 {
+		colName := "id"
+		if col, ok := identity.Columns[colName]; ok {
+			identity.PrimaryKeys = append(identity.PrimaryKeys, columnName(db, col.Tags, colName))
+		}
+	}
 	return identity
 }
 

@@ -15,7 +15,8 @@ linters-settings:
       - nilness
     enable-all: true
   errcheck:
-    ignore: "gorm:*.AddError"
+    exclude-functions:
+      - (*gorm.io/gorm.DB).AddError
 
 linters:
   enable:

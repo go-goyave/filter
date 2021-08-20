@@ -62,7 +62,11 @@ func selectScope(fields []string) func(*gorm.DB) *gorm.DB {
 		} else {
 			fieldsWithTableName = make([]string, 0, len(fields))
 			for _, f := range fields {
-				fieldsWithTableName = append(fieldsWithTableName, getTableName(tx)+f)
+				tableName := getTableName(tx)
+				if tableName != "" {
+					tableName = SQLEscape(tx, tableName) + "."
+				}
+				fieldsWithTableName = append(fieldsWithTableName, tableName+f)
 			}
 		}
 		return tx.Select(fieldsWithTableName)
@@ -217,15 +221,16 @@ func (j *Join) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 
 func getTableName(tx *gorm.DB) string {
 	if tx.Statement.Table != "" {
-		return tx.Statement.Table + "."
+		return tx.Statement.Table
 	}
 
 	if tx.Statement.Model != nil {
 		stmt := &gorm.Statement{DB: tx}
 		if err := stmt.Parse(tx.Statement.Model); err != nil {
-			panic(err)
+			tx.AddError(err)
+			return ""
 		}
-		return stmt.Schema.Table + "."
+		return stmt.Schema.Table
 	}
 
 	return ""

@@ -1,7 +1,6 @@
 package filter
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,18 +32,17 @@ func TestGetTableName(t *testing.T) {
 
 	tx = tx.Table("users")
 
-	assert.Equal(t, "users.", getTableName(tx))
+	assert.Equal(t, "users", getTableName(tx))
 
 	tx, _ = gorm.Open(tests.DummyDialector{}, nil)
 	tx = tx.Model(&testModel{})
 
-	assert.Equal(t, "test_models.", getTableName(tx))
+	assert.Equal(t, "test_models", getTableName(tx))
 
-	assert.Panics(t, func() {
-		tx, _ = gorm.Open(tests.DummyDialector{}, nil)
-		tx = tx.Model(1)
-		fmt.Println(getTableName(tx))
-	})
+	tx, _ = gorm.Open(tests.DummyDialector{}, nil)
+	tx = tx.Model(1)
+	getTableName(tx)
+	assert.Equal(t, "unsupported data type: 1", tx.Error.Error())
 }
 
 func TestFilterWhere(t *testing.T) {

@@ -84,3 +84,17 @@ func TestFilterWhereOr(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
+
+func TestSelectScope(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db = db.Scopes(selectScope(nil)).Find(nil)
+	assert.Empty(t, db.Statement.Selects)
+
+	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
+	db = db.Scopes(selectScope([]string{"a", "b"})).Find(nil)
+	assert.Equal(t, []string{"a", "b"}, db.Statement.Selects)
+
+	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
+	db = db.Scopes(selectScope([]string{})).Find(nil)
+	assert.Equal(t, []string{"1"}, db.Statement.Selects)
+}

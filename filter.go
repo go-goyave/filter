@@ -77,7 +77,7 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 	// TODO ability to disable certain features (disable sort, join, etc)
 	modelIdentity := parseModel(db, dest)
 
-	db = applyFilters(db, request)
+	db = applyFilters(db, request, modelIdentity)
 
 	if request.Has("sort") {
 		sorts, ok := request.Data["sort"].([]*Sort)
@@ -115,20 +115,19 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 
 	if request.Has("fields") {
 		fields := strings.Split(request.String("fields"), ",")
-		// TODO if there is a relation, select the field that is used as foreign key
 		paginator.DB = db.Scopes(selectScope(modelIdentity.cleanColumns(fields)))
 	}
 
 	return paginator, paginator.Find()
 }
 
-func applyFilters(db *gorm.DB, request *goyave.Request) *gorm.DB {
+func applyFilters(db *gorm.DB, request *goyave.Request, modelIdentity *modelIdentity) *gorm.DB {
 	for _, queryParam := range []string{"filter", "or"} {
 		if request.Has(queryParam) {
 			filters, ok := request.Data[queryParam].([]*Filter)
 			if ok {
 				for _, f := range filters {
-					db = db.Scopes(f.Scope)
+					db = db.Scopes(f.Scope(modelIdentity))
 				}
 			}
 		}
@@ -137,8 +136,14 @@ func applyFilters(db *gorm.DB, request *goyave.Request) *gorm.DB {
 }
 
 // Scope returns the GORM scope to use in order to apply this filter.
-func (f *Filter) Scope(tx *gorm.DB) *gorm.DB {
-	return f.Operator.Function(tx, f)
+func (f *Filter) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
+	return func(tx *gorm.DB) *gorm.DB {
+		_, ok := modelIdentity.Columns[f.Field]
+		if !ok {
+			return tx
+		}
+		return f.Operator.Function(tx, f)
+	}
 }
 
 // Where applies a condition to given transaction, automatically taking the "Or"
@@ -206,7 +211,6 @@ func (j *Join) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 	}
 
 	// TODO joins with conditions (and may not want to select relation content)
-	// TODO support many2many relations properly
 }
 
 func getTableName(tx *gorm.DB) string {

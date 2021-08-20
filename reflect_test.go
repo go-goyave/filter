@@ -101,7 +101,8 @@ func TestParseModel(t *testing.T) {
 		ForeignKeys:   []string{},
 		keysProcessed: true,
 	}
-	assert.Equal(t, expected, identity)
+	assertModelIdentityEqual(t, expected, identity, []*modelIdentity{})
+
 	assert.Same(t, identity.Relations["Relation"].modelIdentity, identity.Relations["Relations"].modelIdentity)
 	assert.Same(t, identity.Relations["Relation"].modelIdentity, identity.Relations["PromotedRelation"].modelIdentity)
 
@@ -113,6 +114,37 @@ func TestParseModel(t *testing.T) {
 
 	identity = parseModel(db, []*TestModel{})
 	assert.Equal(t, expected, identity)
+}
+
+func assertModelIdentityEqual(t *testing.T, expected *modelIdentity, actual *modelIdentity, explored []*modelIdentity) {
+	assert.Equal(t, expected.Columns, actual.Columns)
+	for k, v := range expected.Relations {
+		if assert.Contains(t, actual.Relations, k) {
+			v2 := actual.Relations[k]
+			explored = append(explored, v.modelIdentity)
+			if !isExplored(explored, v.modelIdentity) {
+				assertModelIdentityEqual(t, v.modelIdentity, v2.modelIdentity, explored)
+			}
+			assert.Equal(t, v.Type, v2.Type)
+			assert.Equal(t, v.Tags, v2.Tags)
+			assert.Equal(t, v.keysProcessed, v2.keysProcessed)
+			assert.ElementsMatch(t, v.PrimaryKeys, v2.PrimaryKeys)
+			assert.ElementsMatch(t, v.ForeignKeys, v2.ForeignKeys)
+		}
+	}
+	for k := range actual.Relations {
+		assert.Contains(t, expected.Relations, k)
+	}
+	assert.Equal(t, expected.Columns, actual.Columns)
+}
+
+func isExplored(explored []*modelIdentity, identity *modelIdentity) bool {
+	for _, v := range explored {
+		if v == identity {
+			return true
+		}
+	}
+	return false
 }
 
 type TestRelationCycle struct {

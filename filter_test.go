@@ -123,3 +123,41 @@ func TestFilterScope(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
+
+func TestSortScope(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	sort := &Sort{Field: "notacolumn", Order: SortAscending}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"name": {Name: "Name"},
+		},
+	}
+
+	assert.Nil(t, sort.Scope(modelIdentity))
+
+	sort.Field = "name"
+
+	db = db.Scopes(sort.Scope(modelIdentity)).Table("table").Find(nil)
+	expected := map[string]clause.Clause{
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Table: "table",
+							Name:  "name",
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	sort.Order = SortDescending
+	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
+	db = db.Scopes(sort.Scope(modelIdentity)).Table("table").Find(nil)
+	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
+	assert.Equal(t, expected, db.Statement.Clauses)
+}

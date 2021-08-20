@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 	"goyave.dev/goyave/v3"
 	"goyave.dev/goyave/v3/database"
@@ -169,11 +170,16 @@ func (s *Sort) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 	}
 
 	return func(tx *gorm.DB) *gorm.DB {
-		field := SQLEscape(tx, s.Field)
-		if !strings.Contains(field, ".") {
-			field = getTableName(tx) + field
+		field := s.Field
+		table := getTableName(tx)
+		c := clause.OrderByColumn{
+			Column: clause.Column{
+				Table: table,
+				Name:  field,
+			},
+			Desc: s.Order == SortDescending,
 		}
-		return tx.Order(fmt.Sprintf("%s %s", field, s.Order))
+		return tx.Order(c)
 	}
 }
 

@@ -14,6 +14,8 @@ linters-settings:
       - shadow
       - nilness
     enable-all: true
+  errcheck:
+    ignore: "gorm:*.AddError"
 
 linters:
   enable:

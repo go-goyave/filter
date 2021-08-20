@@ -179,6 +179,10 @@ func (j *Join) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 		if columns != nil {
 			switch relationIdentity.Type {
 			case schema.HasOne:
+				if len(relationIdentity.PrimaryKeys) == 0 {
+					tx.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\" to your model`"))
+					return tx
+				}
 				for _, k := range relationIdentity.PrimaryKeys {
 					if !helper.ContainsStr(columns, k) {
 						columns = append(columns, k)

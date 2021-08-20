@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"gorm.io/gorm/utils"
+	"goyave.dev/goyave/v3/helper"
 )
 
 var (
@@ -63,6 +64,15 @@ func (i *modelIdentity) cleanColumns(columns []string) []string {
 	}
 
 	return columns
+}
+
+func (i *modelIdentity) addPrimaryKeys(fields []string) []string {
+	for _, k := range i.PrimaryKeys {
+		if !helper.ContainsStr(fields, k) {
+			fields = append(fields, k)
+		}
+	}
+	return fields
 }
 
 func (i *modelIdentity) findColumn(name string) (*column, string) {

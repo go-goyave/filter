@@ -127,11 +127,7 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 				db.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\" to your model`"))
 				return nil, db
 			}
-			for _, k := range modelIdentity.PrimaryKeys {
-				if !helper.ContainsStr(fields, k) {
-					fields = append(fields, k)
-				}
-			}
+			fields = modelIdentity.addPrimaryKeys(fields)
 		}
 		paginator.DB = db.Scopes(selectScope(modelIdentity.cleanColumns(fields)))
 	}

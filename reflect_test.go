@@ -256,6 +256,16 @@ func TestFindColumn(t *testing.T) {
 	assert.Empty(t, name)
 }
 
+func TestAddPrimaryKeys(t *testing.T) {
+	id := &modelIdentity{
+		PrimaryKeys: []string{"id_1", "id_2"},
+	}
+
+	fields := []string{"id_2"}
+	fields = id.addPrimaryKeys(fields)
+	assert.Equal(t, []string{"id_2", "id_1"}, fields)
+}
+
 func TestParseNilModel(t *testing.T) {
 	assert.Nil(t, parseModel(nil, 1))
 }

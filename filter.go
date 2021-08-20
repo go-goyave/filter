@@ -127,7 +127,9 @@ func applyFilters(db *gorm.DB, request *goyave.Request, modelIdentity *modelIden
 			filters, ok := request.Data[queryParam].([]*Filter)
 			if ok {
 				for _, f := range filters {
-					db = db.Scopes(f.Scope(modelIdentity))
+					if s := f.Scope(modelIdentity); s != nil {
+						db = db.Scopes(s)
+					}
 				}
 			}
 		}
@@ -137,11 +139,11 @@ func applyFilters(db *gorm.DB, request *goyave.Request, modelIdentity *modelIden
 
 // Scope returns the GORM scope to use in order to apply this filter.
 func (f *Filter) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
+	_, ok := modelIdentity.Columns[f.Field]
+	if !ok {
+		return nil
+	}
 	return func(tx *gorm.DB) *gorm.DB {
-		_, ok := modelIdentity.Columns[f.Field]
-		if !ok {
-			return tx
-		}
 		return f.Operator.Function(tx, f)
 	}
 }

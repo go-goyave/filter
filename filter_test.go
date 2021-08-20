@@ -98,3 +98,30 @@ func TestSelectScope(t *testing.T) {
 	db = db.Scopes(selectScope([]string{})).Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }
+
+func TestFilterScope(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	filter := &Filter{Field: "notacolumn", Args: []string{"val1"}, Operator: Operators["$eq"]}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"name": {Name: "Name"},
+		},
+	}
+
+	assert.Nil(t, filter.Scope(modelIdentity))
+
+	filter.Field = "name"
+
+	db = db.Scopes(filter.Scope(modelIdentity)).Find(nil)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val1"}},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}

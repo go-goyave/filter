@@ -53,7 +53,6 @@ func selectScope(fields []string) func(*gorm.DB) *gorm.DB {
 		if fields == nil {
 			return tx
 		}
-		fmt.Println(fields)
 		// TODO ability to specify fields that cannot be selected / sorted by, joined, etc
 		// Prevent "select *" to remove the fields that are blacklisted
 
@@ -75,6 +74,7 @@ func selectScope(fields []string) func(*gorm.DB) *gorm.DB {
 // which can be used to check for database errors.
 // The given request is expected to be validated using `ApplyValidation`.
 func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Paginator, *gorm.DB) {
+	// TODO ability to disable certain features (disable sort, join, etc)
 	modelIdentity := parseModel(db, dest)
 
 	db = applyFilters(db, request)
@@ -184,10 +184,12 @@ func (j *Join) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 						columns = append(columns, k)
 					}
 				}
-				foreignKey := relationIdentity.findForeignKey(tx, j.Relation, relationIdentity)
-				if foreignKey != "" && !helper.ContainsStr(columns, foreignKey) {
-					columns = append(columns, foreignKey)
+				for _, f := range relationIdentity.findForeignKey(tx, j.Relation, relationIdentity) {
+					if !helper.ContainsStr(columns, f) {
+						columns = append(columns, f)
+					}
 				}
+
 			case schema.HasMany:
 				for _, v := range relationIdentity.ForeignKeys {
 					if !helper.ContainsStr(columns, v) {

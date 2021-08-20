@@ -24,7 +24,7 @@ type gormTags struct {
 }
 
 type modelIdentity struct {
-	Columns   map[string]column
+	Columns   map[string]*column
 	Relations map[string]*relation
 }
 
@@ -65,6 +65,15 @@ func (i *modelIdentity) cleanColumns(columns []string) []string {
 	return columns
 }
 
+func (i *modelIdentity) findColumn(name string) (*column, string) {
+	for k, v := range i.Columns {
+		if v.Name == name {
+			return v, k
+		}
+	}
+	return nil, ""
+}
+
 func (r *relation) processKeys(db *gorm.DB) {
 	if r.keysProcessed {
 		return
@@ -81,23 +90,27 @@ func (r *relation) findForeignKeys(db *gorm.DB) []string {
 	foreignKeys := []string{}
 
 	for k, v := range r.Relations {
-		if key := r.findForeignKey(db, k, v); key != "" {
-			foreignKeys = append(foreignKeys, key)
-		}
+		foreignKeys = append(foreignKeys, r.findForeignKey(db, k, v)...)
 	}
 
 	return foreignKeys
 }
 
-func (r *relation) findForeignKey(db *gorm.DB, name string, rel *relation) string {
+func (r *relation) findForeignKey(db *gorm.DB, name string, rel *relation) []string {
+	keys := make([]string, 0, 2)
 	if rel.Tags.ForeignKey != "" {
-		return columnName(db, rel.Tags, rel.Tags.ForeignKey)
+		for _, v := range strings.Split(rel.Tags.ForeignKey, ",") {
+			if col, colName := r.findColumn(strings.TrimSpace(v)); col != nil {
+				keys = append(keys, columnName(db, col.Tags, colName))
+			}
+		}
+		return keys
 	}
 	colName := columnName(db, rel.Tags, name) + "_id"
 	if col, ok := r.Columns[colName]; ok {
-		return columnName(db, col.Tags, colName)
+		keys = append(keys, columnName(db, col.Tags, colName))
 	}
-	return ""
+	return keys
 }
 
 func (r *relation) findPrimaryKeys(db *gorm.DB) []string {
@@ -140,7 +153,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 		return cached
 	}
 	identity := &modelIdentity{
-		Columns:   make(map[string]column, 10),
+		Columns:   make(map[string]*column, 10),
 		Relations: make(map[string]*relation, 5),
 	}
 	identityCache[identifier] = identity
@@ -162,7 +175,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 				identity.promote(parseIdentity(db, fieldType, parents), "")
 			} else if field.Type.Implements(reflect.TypeOf((*sql.Scanner)(nil)).Elem()) {
 				// This is not a relation but a field such as sql.NullTime
-				identity.Columns[columnName(db, gormTags, field.Name)] = column{
+				identity.Columns[columnName(db, gormTags, field.Name)] = &column{
 					Name: field.Name,
 					Tags: gormTags,
 				}
@@ -191,7 +204,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 				identity.Relations[field.Name] = r
 			}
 		default:
-			identity.Columns[columnName(db, gormTags, field.Name)] = column{
+			identity.Columns[columnName(db, gormTags, field.Name)] = &column{
 				Name: field.Name,
 				Tags: gormTags,
 			}

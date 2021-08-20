@@ -43,7 +43,7 @@ func TestParseModel(t *testing.T) {
 	identity := parseModel(db, &TestModel{})
 
 	relModelIdentity := &modelIdentity{
-		Columns: map[string]column{
+		Columns: map[string]*column{
 			"name":                  {Name: "Name", Tags: &gormTags{}},
 			"id":                    {Name: "ID", Tags: &gormTags{}},
 			"test_model_id":         {Name: "TestModelID", Tags: &gormTags{}},
@@ -52,7 +52,7 @@ func TestParseModel(t *testing.T) {
 		Relations: map[string]*relation{},
 	}
 	expected := &modelIdentity{
-		Columns: map[string]column{
+		Columns: map[string]*column{
 			"id":            {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
 			"str":           {Name: "Str", Tags: &gormTags{}},
 			"email_address": {Name: "Email", Tags: &gormTags{Column: "email_address"}},
@@ -113,7 +113,7 @@ func TestParseModel(t *testing.T) {
 	assert.Contains(t, identityCache, "goyave.dev/filter|filter.TestModel")
 
 	identity = parseModel(db, []*TestModel{})
-	assert.Equal(t, expected, identity)
+	assertModelIdentityEqual(t, expected, identity, []*modelIdentity{})
 }
 
 func assertModelIdentityEqual(t *testing.T, expected *modelIdentity, actual *modelIdentity, explored []*modelIdentity) {
@@ -161,7 +161,7 @@ func TestParseModelRelationCycle(t *testing.T) {
 
 	rel := &relation{
 		modelIdentity: &modelIdentity{
-			Columns:   map[string]column{},
+			Columns:   map[string]*column{},
 			Relations: map[string]*relation{},
 		},
 		Type:          schema.HasOne,
@@ -171,7 +171,7 @@ func TestParseModelRelationCycle(t *testing.T) {
 		keysProcessed: true,
 	}
 	expected := &modelIdentity{
-		Columns: map[string]column{},
+		Columns: map[string]*column{},
 		Relations: map[string]*relation{
 			"Relation": rel,
 		},
@@ -198,7 +198,7 @@ func TestParseModelEmbeddedStruct(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	identity := parseModel(db, &TestModelEmbedded{})
 	expected := &modelIdentity{
-		Columns: map[string]column{
+		Columns: map[string]*column{
 			"embed_name": {Name: "Name", Tags: &gormTags{}},
 		},
 		Relations: map[string]*relation{},
@@ -234,12 +234,28 @@ func TestParseGormTags(t *testing.T) {
 
 func TestCleanColumns(t *testing.T) {
 	id := &modelIdentity{
-		Columns: map[string]column{
+		Columns: map[string]*column{
 			"id":   {},
 			"name": {},
 		},
 	}
 	assert.Equal(t, []string{"id", "name"}, id.cleanColumns([]string{"id", "test", "name", "notacolumn"}))
+}
+
+func TestFindColumn(t *testing.T) {
+	id := &modelIdentity{
+		Columns: map[string]*column{
+			"id":   {Name: "ID"},
+			"name": {Name: "Name"},
+		},
+	}
+	col, name := id.findColumn("Name")
+	assert.Same(t, id.Columns["name"], col)
+	assert.Equal(t, "name", name)
+
+	col, name = id.findColumn("NotaCol")
+	assert.Nil(t, col)
+	assert.Empty(t, name)
 }
 
 func TestParseNilModel(t *testing.T) {

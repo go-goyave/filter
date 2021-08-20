@@ -95,10 +95,12 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 		}
 	}
 
+	hasJoins := false
 	if request.Has("join") {
 		joins, ok := request.Data["join"].([]*Join)
 		if ok {
 			for _, j := range joins {
+				hasJoins = true
 				if s := j.Scope(modelIdentity); s != nil {
 					db = db.Scopes(s)
 				}
@@ -120,7 +122,17 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 
 	if request.Has("fields") {
 		fields := strings.Split(request.String("fields"), ",")
-		// TODO select primary key if there is at least one join
+		if hasJoins {
+			if len(modelIdentity.PrimaryKeys) == 0 {
+				db.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\" to your model`"))
+				return nil, db
+			}
+			for _, k := range modelIdentity.PrimaryKeys {
+				if !helper.ContainsStr(fields, k) {
+					fields = append(fields, k)
+				}
+			}
+		}
 		paginator.DB = db.Scopes(selectScope(modelIdentity.cleanColumns(fields)))
 	}
 

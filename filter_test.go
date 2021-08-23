@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 	"gorm.io/gorm/utils/tests"
+	"goyave.dev/goyave/v3"
 )
 
 func TestSQLEscape(t *testing.T) {
@@ -293,4 +294,47 @@ func TestJoinScopeHasMany(t *testing.T) {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`table`.`a`", "`table`.`b`", "`table`.`parent_id`"}, tx.Statement.Selects)
 	}
+}
+
+func TestApplyFilters(t *testing.T) {
+	request := &goyave.Request{
+		Data: map[string]interface{}{
+			"filter": []*Filter{
+				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
+			},
+			"or": []*Filter{
+				{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
+			},
+		},
+		Lang: "en-US",
+	}
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":   {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name": {Name: "Name"},
+		},
+		PrimaryKeys: []string{"id"},
+		Relations:   map[string]*relation{},
+	}
+
+	db = applyFilters(db, request, modelIdentity).Find(nil)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.OrConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val3"}},
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
 }

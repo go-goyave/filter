@@ -53,6 +53,8 @@ func Index(response *goyave.Response, request *goyave.Request) {
 
 And **that's it**! Now your front-end can add query parameters to filter as it wants.
 
+### Settings
+
 ### Filter
 
 > ?filter=**field**||**$operator**||**value**

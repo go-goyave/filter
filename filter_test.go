@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm/schema"
 	"gorm.io/gorm/utils/tests"
 	"goyave.dev/goyave/v3"
+	"goyave.dev/goyave/v3/database"
 )
 
 func TestSQLEscape(t *testing.T) {
@@ -87,15 +88,15 @@ func TestFilterWhereOr(t *testing.T) {
 
 func TestSelectScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(nil)).Find(nil)
+	db = db.Scopes((&Settings{}).selectScope(nil)).Find(nil)
 	assert.Empty(t, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope([]string{"a", "b"})).Find(nil)
+	db = db.Scopes((&Settings{}).selectScope([]string{"a", "b"})).Find(nil)
 	assert.Equal(t, []string{"`a`", "`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope([]string{})).Find(nil)
+	db = db.Scopes((&Settings{}).selectScope([]string{})).Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }
 
@@ -108,11 +109,11 @@ func TestFilterScope(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, filter.Scope(modelIdentity))
+	assert.Nil(t, filter.Scope(&Settings{}, modelIdentity))
 
 	filter.Field = "name"
 
-	db = db.Scopes(filter.Scope(modelIdentity)).Find(nil)
+	db = db.Scopes(filter.Scope(&Settings{}, modelIdentity)).Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -126,6 +127,16 @@ func TestFilterScope(t *testing.T) {
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
+func TestFilterScopeBlacklisted(t *testing.T) {
+	filter := &Filter{Field: "name", Args: []string{"val1"}, Operator: Operators["$eq"]}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"name": {Name: "Name"},
+		},
+	}
+	assert.Nil(t, filter.Scope(&Settings{FieldsBlacklist: []string{"name"}}, modelIdentity))
+}
+
 func TestSortScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	sort := &Sort{Field: "notacolumn", Order: SortAscending}
@@ -135,11 +146,11 @@ func TestSortScope(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, sort.Scope(modelIdentity))
+	assert.Nil(t, sort.Scope(&Settings{}, modelIdentity))
 
 	sort.Field = "name"
 
-	db = db.Scopes(sort.Scope(modelIdentity)).Table("table").Find(nil)
+	db = db.Scopes(sort.Scope(&Settings{}, modelIdentity)).Table("table").Find(nil)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -159,9 +170,19 @@ func TestSortScope(t *testing.T) {
 
 	sort.Order = SortDescending
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(sort.Scope(modelIdentity)).Table("table").Find(nil)
+	db = db.Scopes(sort.Scope(&Settings{}, modelIdentity)).Table("table").Find(nil)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestSortScopeBlacklisted(t *testing.T) {
+	sort := &Sort{Field: "name", Order: SortAscending}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"name": {Name: "Name"},
+		},
+	}
+	assert.Nil(t, sort.Scope(&Settings{FieldsBlacklist: []string{"name"}}, modelIdentity))
 }
 
 func TestJoinScope(t *testing.T) {
@@ -188,15 +209,41 @@ func TestJoinScope(t *testing.T) {
 			},
 		},
 	}
-	assert.Nil(t, join.Scope(modelIdentity))
+	assert.Nil(t, join.Scope(&Settings{}, modelIdentity))
 	join.Relation = "Relation"
 
 	results := map[string]interface{}{}
-	db = db.Scopes(join.Scope(modelIdentity)).Table("table").Find(&results)
+	db = db.Scopes(join.Scope(&Settings{}, modelIdentity)).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`table`.`a`", "`table`.`b`"}, tx.Statement.Selects)
 	}
+}
+
+func TestJoinScopeBlacklisted(t *testing.T) {
+	join := &Join{Relation: "Relation", Fields: []string{"a", "b", "notacolumn"}}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a": {Name: "A", Tags: &gormTags{PrimaryKey: true}},
+						"b": {Name: "B"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{"a"},
+				},
+				Type: schema.HasOne,
+				Tags: &gormTags{},
+			},
+		},
+	}
+	assert.Nil(t, join.Scope(&Settings{RelationsBlacklist: []string{"Relation"}}, modelIdentity))
 }
 
 func TestJoinScopeNoPrimaryKey(t *testing.T) {
@@ -224,9 +271,10 @@ func TestJoinScopeNoPrimaryKey(t *testing.T) {
 		},
 	}
 	results := map[string]interface{}{}
-	db = db.Scopes(join.Scope(modelIdentity)).Table("table").Find(&results)
+	db = db.Scopes(join.Scope(&Settings{}, modelIdentity)).Table("table").Find(&results)
 	assert.Empty(t, db.Statement.Preloads)
 	assert.Empty(t, db.Statement.Selects)
+	assert.Equal(t, "Could not find \"Relation\" relation's primary key. Add `gorm:\"primaryKey\"` to your model", db.Error.Error())
 }
 
 func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
@@ -254,7 +302,7 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 		},
 	}
 	results := map[string]interface{}{}
-	db = db.Scopes(join.Scope(modelIdentity)).Table("table").Find(&results)
+	db = db.Scopes(join.Scope(&Settings{}, modelIdentity)).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`table`.`b`", "`table`.`a`"}, tx.Statement.Selects)
@@ -289,7 +337,7 @@ func TestJoinScopeHasMany(t *testing.T) {
 	}
 
 	results := map[string]interface{}{}
-	db = db.Scopes(join.Scope(modelIdentity)).Table("table").Find(&results)
+	db = db.Scopes(join.Scope(&Settings{}, modelIdentity)).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`table`.`a`", "`table`.`b`", "`table`.`parent_id`"}, tx.Statement.Selects)
@@ -319,7 +367,7 @@ func TestApplyFilters(t *testing.T) {
 		Relations:   map[string]*relation{},
 	}
 
-	db = applyFilters(db, request, modelIdentity).Find(nil)
+	db = (&Settings{}).applyFilters(db, request, modelIdentity).Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -356,7 +404,7 @@ type TestScopeModelNoPrimaryKey struct {
 	RelationID uint
 }
 
-func TestScope(t *testing.T) {
+func prepareTestScope(settings *Settings) (*database.Paginator, *gorm.DB) {
 	request := &goyave.Request{
 		Data: map[string]interface{}{
 			"filter": []*Filter{
@@ -377,7 +425,14 @@ func TestScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 
 	results := []*TestScopeModel{}
-	paginator, db := Scope(db, request, results)
+	if settings == nil {
+		return Scope(db, request, results)
+	}
+	return settings.Scope(db, request, results)
+}
+
+func TestScope(t *testing.T) {
+	paginator, db := prepareTestScope(nil)
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -416,6 +471,153 @@ func TestScope(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Contains(t, db.Statement.Preloads, "Relation")
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
+}
+
+func TestScopeDisableFields(t *testing.T) {
+	paginator, db := prepareTestScope(&Settings{DisableFields: true})
+	assert.NotNil(t, paginator)
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.OrConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val3"}},
+						},
+					},
+				},
+			},
+		},
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Table: "test_scope_models",
+							Name:  "name",
+						},
+					},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  15,
+				Offset: 15,
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Empty(t, db.Statement.Selects)
+}
+
+func TestScopeDisableFilter(t *testing.T) {
+	paginator, db := prepareTestScope(&Settings{DisableFilter: true})
+	assert.NotNil(t, paginator)
+
+	expected := map[string]clause.Clause{
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Table: "test_scope_models",
+							Name:  "name",
+						},
+					},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  15,
+				Offset: 15,
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
+}
+
+func TestScopeDisableSort(t *testing.T) {
+	paginator, db := prepareTestScope(&Settings{DisableSort: true})
+	assert.NotNil(t, paginator)
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.OrConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val3"}},
+						},
+					},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  15,
+				Offset: 15,
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
+}
+
+func TestScopeDisableJoin(t *testing.T) {
+	paginator, db := prepareTestScope(&Settings{DisableJoin: true})
+	assert.NotNil(t, paginator)
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.OrConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val3"}},
+						},
+					},
+				},
+			},
+		},
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Table: "test_scope_models",
+							Name:  "name",
+						},
+					},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  15,
+				Offset: 15,
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Empty(t, db.Statement.Preloads)
 	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
 }
 

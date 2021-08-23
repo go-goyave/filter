@@ -15,7 +15,7 @@ func TestSQLEscape(t *testing.T) {
 	tx := &gorm.DB{Config: &gorm.Config{
 		Dialector: tests.DummyDialector{},
 	}}
-	assert.Equal(t, "`name`", SQLEscape(tx, "name"))
+	assert.Equal(t, "`name`", SQLEscape(tx, "  name "))
 }
 
 func TestGetTableName(t *testing.T) {

@@ -246,6 +246,6 @@ func getTableName(tx *gorm.DB) string {
 // SQLEscape escape the given string to prevent SQL injection.
 func SQLEscape(tx *gorm.DB, str string) string {
 	var f strings.Builder
-	tx.QuoteTo(&f, str)
+	tx.QuoteTo(&f, strings.TrimSpace(str))
 	return f.String()
 }

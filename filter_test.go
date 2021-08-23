@@ -338,3 +338,99 @@ func TestApplyFilters(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
+
+type TestScopeRelation struct {
+	A  string
+	B  string
+	ID uint
+}
+type TestScopeModel struct {
+	Relation   *TestScopeRelation
+	Name       string
+	ID         uint
+	RelationID uint
+}
+type TestScopeModelNoPrimaryKey struct {
+	Relation   *TestScopeRelation
+	Name       string
+	RelationID uint
+}
+
+func TestScope(t *testing.T) {
+	request := &goyave.Request{
+		Data: map[string]interface{}{
+			"filter": []*Filter{
+				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
+			},
+			"or": []*Filter{
+				{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
+			},
+			"sort":     []*Sort{{Field: "name", Order: SortAscending}},
+			"join":     []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
+			"page":     2,
+			"per_page": 15,
+			"fields":   "id,name",
+		},
+		Lang: "en-US",
+	}
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+
+	results := []*TestScopeModel{}
+	paginator, db := Scope(db, request, results)
+	assert.NotNil(t, paginator)
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.OrConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val3"}},
+						},
+					},
+				},
+			},
+		},
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Table: "test_scope_models",
+							Name:  "name",
+						},
+					},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  15,
+				Offset: 15,
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
+}
+
+func TestScopeNoPrimaryKey(t *testing.T) {
+	request := &goyave.Request{
+		Data: map[string]interface{}{
+			"fields": "name",
+			"join":   []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
+		},
+		Lang: "en-US",
+	}
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+
+	results := []*TestScopeModelNoPrimaryKey{}
+	paginator, db := Scope(db, request, results)
+	assert.Nil(t, paginator)
+	assert.Equal(t, "Could not find primary key. Add `gorm:\"primaryKey\"` to your model", db.Error.Error())
+}

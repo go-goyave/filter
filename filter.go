@@ -124,7 +124,7 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 		fields := strings.Split(request.String("fields"), ",")
 		if hasJoins {
 			if len(modelIdentity.PrimaryKeys) == 0 {
-				db.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\" to your model`"))
+				db.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\"` to your model"))
 				return nil, db
 			}
 			fields = modelIdentity.addPrimaryKeys(fields)
@@ -204,7 +204,7 @@ func (j *Join) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 	return func(tx *gorm.DB) *gorm.DB {
 		if columns != nil {
 			if len(relationIdentity.PrimaryKeys) == 0 {
-				tx.AddError(fmt.Errorf("Could not find %q relation's primary key. Add `gorm:\"primaryKey\" to your model`", j.Relation))
+				tx.AddError(fmt.Errorf("Could not find %q relation's primary key. Add `gorm:\"primaryKey\"` to your model", j.Relation))
 				return tx
 			}
 			for _, k := range relationIdentity.PrimaryKeys {

@@ -192,11 +192,11 @@ func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *
 			fieldsWithTableName = []string{"1"}
 		} else {
 			fieldsWithTableName = make([]string, 0, len(fields))
+			tableName := getTableName(tx)
+			if tableName != "" {
+				tableName = SQLEscape(tx, tableName) + "."
+			}
 			for _, f := range fields {
-				tableName := getTableName(tx)
-				if tableName != "" {
-					tableName = SQLEscape(tx, tableName) + "."
-				}
 				fieldsWithTableName = append(fieldsWithTableName, tableName+SQLEscape(tx, f))
 			}
 		}

@@ -248,6 +248,52 @@ func TestJoinScopeBlacklisted(t *testing.T) {
 	assert.Nil(t, join.Scopes(&Settings{Blacklist: Blacklist{RelationsBlacklist: []string{"Relation"}}}, modelIdentity))
 }
 
+func TestJoinScopeBlacklistedRelationHop(t *testing.T) {
+	join := &Join{Relation: "Relation.Parent.Relation", Fields: []string{"name", "id"}}
+	join.selectCache = map[string][]string{}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a":         {Name: "A", Tags: &gormTags{PrimaryKey: true}},
+						"b":         {Name: "B"},
+						"parent_id": {Name: "ParentID"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{"a"},
+				},
+				Type:        schema.HasMany,
+				Tags:        &gormTags{},
+				ForeignKeys: []string{"parent_id"},
+			},
+		},
+	}
+	modelIdentity.Relations["Relation"].Relations["Parent"] = &relation{
+		modelIdentity: modelIdentity,
+		Type:          schema.HasOne,
+		Tags:          &gormTags{},
+		ForeignKeys:   []string{"relation_id"},
+	}
+
+	settings := &Settings{
+		Blacklist: Blacklist{
+			Relations: map[string]*Blacklist{
+				"Relation": {
+					RelationsBlacklist: []string{"Parent"},
+				},
+			},
+		},
+	}
+
+	assert.Nil(t, join.Scopes(settings, modelIdentity))
+}
+
 func TestJoinScopeNoPrimaryKey(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	join := &Join{Relation: "Relation", Fields: []string{"a", "b", "notacolumn"}}
@@ -353,7 +399,68 @@ func TestJoinScopeHasMany(t *testing.T) {
 }
 
 func TestJoinScopeNestedRelations(t *testing.T) {
-	// TODO
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	join := &Join{Relation: "Relation.Parent", Fields: []string{"id", "relation_id"}}
+	join.selectCache = map[string][]string{}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a":         {Name: "A", Tags: &gormTags{PrimaryKey: true}},
+						"b":         {Name: "B"},
+						"parent_id": {Name: "ParentID"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{"a"},
+				},
+				Type:        schema.HasMany,
+				Tags:        &gormTags{},
+				ForeignKeys: []string{"parent_id"},
+			},
+		},
+		PrimaryKeys: []string{"id"},
+	}
+	modelIdentity.Relations["Relation"].Relations["Parent"] = &relation{
+		modelIdentity: modelIdentity,
+		Type:          schema.HasOne,
+		Tags:          &gormTags{},
+		ForeignKeys:   []string{"relation_id"},
+	}
+	settings := &Settings{
+		Blacklist: Blacklist{
+			FieldsBlacklist: []string{"name"},
+			Relations: map[string]*Blacklist{
+				"Relation": {
+					FieldsBlacklist: []string{"b"},
+					Relations: map[string]*Blacklist{
+						"Parent": {
+							FieldsBlacklist: []string{"relation_id"},
+							IsFinal:         true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	results := map[string]interface{}{}
+	db = db.Scopes(join.Scopes(settings, modelIdentity)...).Table("table").Find(&results)
+	if assert.Contains(t, db.Statement.Preloads, "Relation.Parent") {
+		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation.Parent"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.Equal(t, []string{"`table`.`id`"}, tx.Statement.Selects)
+	}
+	if assert.Contains(t, db.Statement.Preloads, "Relation") {
+		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.Equal(t, []string{"`table`.`a`", "`table`.`parent_id`"}, tx.Statement.Selects)
+	}
+	assert.NotContains(t, join.selectCache, "Relation")
+	assert.Equal(t, []string{"id", "relation_id"}, join.selectCache["Relation.Parent"])
 }
 
 func TestJoinScopeFinal(t *testing.T) {
@@ -388,7 +495,127 @@ func TestJoinScopeFinal(t *testing.T) {
 }
 
 func TestJoinNestedRelationsWithSelect(t *testing.T) {
-	// TODO
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	join := &Join{Relation: "Relation", Fields: []string{"b"}}
+	join.selectCache = map[string][]string{}
+	join2 := &Join{Relation: "Relation.Parent", Fields: []string{"id", "relation_id"}}
+	join2.selectCache = join.selectCache
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a":         {Name: "A", Tags: &gormTags{PrimaryKey: true}},
+						"b":         {Name: "B"},
+						"parent_id": {Name: "ParentID"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{"a"},
+				},
+				Type:        schema.HasMany,
+				Tags:        &gormTags{},
+				ForeignKeys: []string{"parent_id"},
+			},
+		},
+		PrimaryKeys: []string{"id"},
+	}
+	modelIdentity.Relations["Relation"].Relations["Parent"] = &relation{
+		modelIdentity: modelIdentity,
+		Type:          schema.HasOne,
+		Tags:          &gormTags{},
+		ForeignKeys:   []string{"relation_id"},
+	}
+	settings := &Settings{
+		Blacklist: Blacklist{
+			FieldsBlacklist: []string{"name"},
+			Relations: map[string]*Blacklist{
+				"Relation": {
+					Relations: map[string]*Blacklist{
+						"Parent": {
+							FieldsBlacklist: []string{"relation_id"},
+							IsFinal:         true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	results := map[string]interface{}{}
+	db = db.Scopes(join.Scopes(settings, modelIdentity)...).Scopes(join2.Scopes(settings, modelIdentity)...).Table("table").Find(&results)
+	if assert.Contains(t, db.Statement.Preloads, "Relation.Parent") {
+		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation.Parent"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.Equal(t, []string{"`table`.`id`"}, tx.Statement.Selects)
+	}
+	if assert.Contains(t, db.Statement.Preloads, "Relation") {
+		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.Equal(t, []string{"`table`.`b`", "`table`.`a`", "`table`.`parent_id`"}, tx.Statement.Selects)
+	}
+	assert.Equal(t, []string{"b"}, join.selectCache["Relation"])
+	assert.Equal(t, []string{"id", "relation_id"}, join.selectCache["Relation.Parent"])
+}
+
+func TestJoinScopeInvalidSyntax(t *testing.T) {
+	join := &Join{Relation: "Relation.", Fields: []string{"a", "b"}} // A dot at the end of the relation name is invalid
+	join.selectCache = map[string][]string{}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a":         {Name: "A", Tags: &gormTags{PrimaryKey: true}},
+						"b":         {Name: "B"},
+						"parent_id": {Name: "ParentID"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{"a"},
+				},
+				Type:        schema.HasMany,
+				Tags:        &gormTags{},
+				ForeignKeys: []string{"parent_id"},
+			},
+		},
+	}
+	assert.Nil(t, join.Scopes(&Settings{}, modelIdentity))
+}
+
+func TestJoinScopeNonExistingRelation(t *testing.T) {
+	join := &Join{Relation: "Relation.NotARelation.Parent", Fields: []string{"a", "b"}}
+	join.selectCache = map[string][]string{}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a":         {Name: "A", Tags: &gormTags{PrimaryKey: true}},
+						"b":         {Name: "B"},
+						"parent_id": {Name: "ParentID"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{"a"},
+				},
+				Type:        schema.HasMany,
+				Tags:        &gormTags{},
+				ForeignKeys: []string{"parent_id"},
+			},
+		},
+	}
+	assert.Nil(t, join.Scopes(&Settings{}, modelIdentity))
 }
 
 func TestApplyFilters(t *testing.T) {
@@ -698,7 +925,7 @@ func TestScopeWithFieldsBlacklist(t *testing.T) {
 	results := []*TestScopeModel{}
 	paginator, db := settings.Scope(db, request, results)
 	assert.NotNil(t, paginator)
-	assert.Equal(t, []string{"`id`", "`relation_id`"}, db.Statement.Selects)
+	assert.ElementsMatch(t, []string{"`id`", "`relation_id`"}, db.Statement.Selects)
 }
 
 func TestBlacklistGetSelectableFields(t *testing.T) {

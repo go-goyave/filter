@@ -273,7 +273,7 @@ func (j *Join) applyRelation(modelIdentity *modelIdentity, blacklist *Blacklist,
 			return nil
 		}
 
-		b, _ := blacklist.Relations[trimmedRelationName]
+		b := blacklist.Relations[trimmedRelationName]
 		r, ok := modelIdentity.Relations[trimmedRelationName]
 		if !ok {
 			return nil
@@ -293,7 +293,7 @@ func (j *Join) applyRelation(modelIdentity *modelIdentity, blacklist *Blacklist,
 		if helper.ContainsStr(blacklist.RelationsBlacklist, name) {
 			return nil
 		}
-		b, _ = blacklist.Relations[name]
+		b = blacklist.Relations[name]
 	}
 	r, ok := modelIdentity.Relations[name]
 	if !ok {
@@ -314,12 +314,7 @@ func joinScope(relationName string, relationIdentity *relation, fields []string,
 	if blacklist != nil {
 		b = blacklist.FieldsBlacklist
 	}
-	var columns []string
-	if fields != nil {
-		columns = relationIdentity.cleanColumns(fields, b)
-	} else if blacklist != nil {
-		columns = blacklist.getSelectableFields(relationIdentity.Columns)
-	}
+	columns := relationIdentity.cleanColumns(fields, b)
 
 	return func(tx *gorm.DB) *gorm.DB {
 		if columns != nil {

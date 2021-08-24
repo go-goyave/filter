@@ -730,8 +730,7 @@ func TestScope(t *testing.T) {
 				Columns: []clause.OrderByColumn{
 					{
 						Column: clause.Column{
-							Table: "test_scope_models",
-							Name:  "name",
+							Name: "name",
 						},
 					},
 				},
@@ -746,7 +745,7 @@ func TestScope(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Contains(t, db.Statement.Preloads, "Relation")
-	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`id`", "`name`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableFields(t *testing.T) {
@@ -774,8 +773,7 @@ func TestScopeDisableFields(t *testing.T) {
 				Columns: []clause.OrderByColumn{
 					{
 						Column: clause.Column{
-							Table: "test_scope_models",
-							Name:  "name",
+							Name: "name",
 						},
 					},
 				},
@@ -803,8 +801,7 @@ func TestScopeDisableFilter(t *testing.T) {
 				Columns: []clause.OrderByColumn{
 					{
 						Column: clause.Column{
-							Table: "test_scope_models",
-							Name:  "name",
+							Name: "name",
 						},
 					},
 				},
@@ -818,7 +815,7 @@ func TestScopeDisableFilter(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`id`", "`name`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableSort(t *testing.T) {
@@ -848,7 +845,7 @@ func TestScopeDisableSort(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`id`", "`name`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableJoin(t *testing.T) {
@@ -876,8 +873,7 @@ func TestScopeDisableJoin(t *testing.T) {
 				Columns: []clause.OrderByColumn{
 					{
 						Column: clause.Column{
-							Table: "test_scope_models",
-							Name:  "name",
+							Name: "name",
 						},
 					},
 				},
@@ -892,7 +888,7 @@ func TestScopeDisableJoin(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Empty(t, db.Statement.Preloads)
-	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`id`", "`name`"}, db.Statement.Selects)
 }
 
 func TestScopeNoPrimaryKey(t *testing.T) {

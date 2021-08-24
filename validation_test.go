@@ -24,6 +24,23 @@ func TestApplyValidation(t *testing.T) {
 	assert.Contains(t, set, "per_page")
 }
 
+func TestApplyValidationRules(t *testing.T) {
+	set := &validation.Rules{Fields: validation.FieldMap{}}
+	ApplyValidationRules(set)
+
+	assert.Contains(t, set.Fields, "filter")
+	assert.Contains(t, set.Fields, "filter[]")
+	assert.Contains(t, set.Fields, "or")
+	assert.Contains(t, set.Fields, "or[]")
+	assert.Contains(t, set.Fields, "sort")
+	assert.Contains(t, set.Fields, "sort[]")
+	assert.Contains(t, set.Fields, "join")
+	assert.Contains(t, set.Fields, "join[]")
+	assert.Contains(t, set.Fields, "fields")
+	assert.Contains(t, set.Fields, "page")
+	assert.Contains(t, set.Fields, "per_page")
+}
+
 func TestParseFilter(t *testing.T) {
 	f, err := ParseFilter("field||$eq||value1,value2")
 	assert.Nil(t, err)

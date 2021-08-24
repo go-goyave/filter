@@ -80,7 +80,20 @@ func ApplyValidation(set validation.RuleSet) {
 	set["per_page"] = validation.List{"integer", "between:1,500"}
 }
 
-// TODO apply validation to validation.Rules too
+// ApplyValidationRules add all fields used by the filter module to the given *Rules.
+func ApplyValidationRules(set *validation.Rules) {
+	set.Fields["filter"] = &validation.Field{Rules: []*validation.Rule{{Name: "array"}}}
+	set.Fields["filter[]"] = &validation.Field{Rules: []*validation.Rule{{Name: "filter"}}}
+	set.Fields["or"] = &validation.Field{Rules: []*validation.Rule{{Name: "array"}}}
+	set.Fields["or[]"] = &validation.Field{Rules: []*validation.Rule{{Name: "filter", Params: []string{"or"}}}}
+	set.Fields["sort"] = &validation.Field{Rules: []*validation.Rule{{Name: "array"}}}
+	set.Fields["sort[]"] = &validation.Field{Rules: []*validation.Rule{{Name: "sort"}}}
+	set.Fields["join"] = &validation.Field{Rules: []*validation.Rule{{Name: "array"}}}
+	set.Fields["join[]"] = &validation.Field{Rules: []*validation.Rule{{Name: "join"}}}
+	set.Fields["fields"] = &validation.Field{Rules: []*validation.Rule{{Name: "string"}}}
+	set.Fields["page"] = &validation.Field{Rules: []*validation.Rule{{Name: "integer"}, {Name: "min", Params: []string{"1"}}}}
+	set.Fields["per_page"] = &validation.Field{Rules: []*validation.Rule{{Name: "integer"}, {Name: "between", Params: []string{"1", "500"}}}}
+}
 
 // ParseFilter parse a string in format "field||$operator||value" and return
 // a Filter struct. The filter string must satisfy the used operator's "RequiredArguments"

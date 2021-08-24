@@ -188,6 +188,7 @@ func TestSortScopeBlacklisted(t *testing.T) {
 func TestJoinScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	join := &Join{Relation: "notarelation", Fields: []string{"a", "b", "notacolumn"}}
+	join.selectCache = map[string][]string{}
 	modelIdentity := &modelIdentity{
 		Columns: map[string]*column{
 			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
@@ -209,15 +210,16 @@ func TestJoinScope(t *testing.T) {
 			},
 		},
 	}
-	assert.Nil(t, join.Scope(&Settings{}, modelIdentity))
+	assert.Nil(t, join.Scopes(&Settings{}, modelIdentity))
 	join.Relation = "Relation"
 
 	results := map[string]interface{}{}
-	db = db.Scopes(join.Scope(&Settings{}, modelIdentity)).Table("table").Find(&results)
+	db = db.Scopes(join.Scopes(&Settings{}, modelIdentity)...).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`table`.`a`", "`table`.`b`"}, tx.Statement.Selects)
 	}
+	assert.Equal(t, []string{"a", "b", "notacolumn"}, join.selectCache["Relation"])
 }
 
 func TestJoinScopeBlacklisted(t *testing.T) {
@@ -243,12 +245,13 @@ func TestJoinScopeBlacklisted(t *testing.T) {
 			},
 		},
 	}
-	assert.Nil(t, join.Scope(&Settings{Blacklist: Blacklist{RelationsBlacklist: []string{"Relation"}}}, modelIdentity))
+	assert.Nil(t, join.Scopes(&Settings{Blacklist: Blacklist{RelationsBlacklist: []string{"Relation"}}}, modelIdentity))
 }
 
 func TestJoinScopeNoPrimaryKey(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	join := &Join{Relation: "Relation", Fields: []string{"a", "b", "notacolumn"}}
+	join.selectCache = map[string][]string{}
 	modelIdentity := &modelIdentity{
 		Columns: map[string]*column{
 			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
@@ -271,15 +274,17 @@ func TestJoinScopeNoPrimaryKey(t *testing.T) {
 		},
 	}
 	results := map[string]interface{}{}
-	db = db.Scopes(join.Scope(&Settings{}, modelIdentity)).Table("table").Find(&results)
+	db = db.Scopes(join.Scopes(&Settings{}, modelIdentity)...).Table("table").Find(&results)
 	assert.Empty(t, db.Statement.Preloads)
 	assert.Empty(t, db.Statement.Selects)
 	assert.Equal(t, "Could not find \"Relation\" relation's primary key. Add `gorm:\"primaryKey\"` to your model", db.Error.Error())
+	assert.Equal(t, []string{"a", "b", "notacolumn"}, join.selectCache["Relation"])
 }
 
 func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	join := &Join{Relation: "Relation", Fields: []string{"b"}}
+	join.selectCache = map[string][]string{}
 	modelIdentity := &modelIdentity{
 		Columns: map[string]*column{
 			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
@@ -302,16 +307,18 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 		},
 	}
 	results := map[string]interface{}{}
-	db = db.Scopes(join.Scope(&Settings{}, modelIdentity)).Table("table").Find(&results)
+	db = db.Scopes(join.Scopes(&Settings{}, modelIdentity)...).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`table`.`b`", "`table`.`a`"}, tx.Statement.Selects)
 	}
+	assert.Equal(t, []string{"b"}, join.selectCache["Relation"])
 }
 
 func TestJoinScopeHasMany(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	join := &Join{Relation: "Relation", Fields: []string{"a", "b"}}
+	join.selectCache = map[string][]string{}
 	modelIdentity := &modelIdentity{
 		Columns: map[string]*column{
 			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
@@ -337,11 +344,12 @@ func TestJoinScopeHasMany(t *testing.T) {
 	}
 
 	results := map[string]interface{}{}
-	db = db.Scopes(join.Scope(&Settings{}, modelIdentity)).Table("table").Find(&results)
+	db = db.Scopes(join.Scopes(&Settings{}, modelIdentity)...).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`table`.`a`", "`table`.`b`", "`table`.`parent_id`"}, tx.Statement.Selects)
 	}
+	assert.Equal(t, []string{"a", "b"}, join.selectCache["Relation"])
 }
 
 func TestApplyFilters(t *testing.T) {

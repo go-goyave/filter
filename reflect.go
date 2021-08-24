@@ -22,6 +22,7 @@ type gormTags struct {
 	EmbeddedPrefix string
 	Embedded       bool
 	PrimaryKey     bool
+	Ignored        bool
 }
 
 type modelIdentity struct {
@@ -157,6 +158,9 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 			fieldType = fieldType.Elem()
 		}
 		gormTags := parseGormTags(field)
+		if gormTags.Ignored {
+			continue
+		}
 
 		switch fieldType.Kind() {
 		case reflect.Struct:

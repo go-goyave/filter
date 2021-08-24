@@ -33,7 +33,8 @@ type TestModel struct {
 	DeletedAt *gorm.DeletedAt
 	*PromotedPtr
 	Promoted
-	Str string `gorm:"column:"`
+	Str     string `gorm:"column:"`
+	Ignored string `gorm:"-"`
 	PromotedRelation
 	ID uint `gorm:"primaryKey"`
 }
@@ -211,6 +212,7 @@ func TestParseGormTags(t *testing.T) {
 		Embedded     string `gorm:"embedded;embeddedPrefix:prefix_"`
 		ID           int    `gorm:"primaryKey"`
 		IDAlt        int    `gorm:"primary_key"`
+		Ignored      int    `gorm:"-"`
 	}
 
 	ty := reflect.TypeOf(gormTagsModel{})
@@ -228,6 +230,9 @@ func TestParseGormTags(t *testing.T) {
 
 	expected = &gormTags{PrimaryKey: true}
 	assert.Equal(t, expected, parseGormTags(ty.Field(4)))
+
+	expected = &gormTags{Ignored: true}
+	assert.Equal(t, expected, parseGormTags(ty.Field(5)))
 }
 
 func TestCleanColumns(t *testing.T) {
@@ -237,7 +242,7 @@ func TestCleanColumns(t *testing.T) {
 			"name": {},
 		},
 	}
-	assert.Equal(t, []string{"id", "name"}, id.cleanColumns([]string{"id", "test", "name", "notacolumn"}))
+	assert.Equal(t, []string{"id"}, id.cleanColumns([]string{"id", "test", "name", "notacolumn"}, []string{"name"}))
 }
 
 func TestFindColumn(t *testing.T) {

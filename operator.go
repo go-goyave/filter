@@ -78,7 +78,6 @@ var (
 			},
 			RequiredArguments: 2,
 		},
-		// TODO add more operators (case-insensitive LIKE for example)
 	}
 )
 

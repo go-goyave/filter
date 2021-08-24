@@ -5,9 +5,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/go-goyave/filter/badge.svg)](https://coveralls.io/github/go-goyave/filter)
 [![Go Reference](https://pkg.go.dev/badge/goyave.dev/filter.svg)](https://pkg.go.dev/goyave.dev/filter)
 
-## 🚧 Work in progress
-
-**Requires at least Goyave v4!**
+**Minimum Goyave version: `v4.0.0-rc1`**
 
 `goyave.dev/filter` allows powerful filtering using query parameters. Inspired by [nestjsx/crud](https://github.com/nestjsx/crud/wiki/Requests).
 
@@ -55,7 +53,35 @@ And **that's it**! Now your front-end can add query parameters to filter as it w
 
 ### Settings
 
-TODO
+You can disable certain features, or blacklist certain fields using `filter.Settings`:
+
+```go
+settings := &filter.Settings{
+	DisableFields: true, // Prevent usage of "fields"
+	DisableFilter: true, // Prevent usage of "filter"
+	DisableSort:   true, // Prevent usage of "sort"
+	DisableJoin:   true, // Prevent usage of "join"
+
+	Blacklist: filter.Blacklist{
+		// Prevent selecting, sorting and filtering on these fields
+		FieldsBlacklist: []string{"a", "b"},
+
+		// Prevent joining these relations
+		RelationsBlacklist: []string{"Relation"},
+
+		Relations: map[string]*filter.Blacklist{
+			// Blacklist settings to apply to this relation
+			"Relation": &filter.Blacklist{
+				FieldsBlacklist:    []string{"c", "d"},
+				RelationsBlacklist: []string{"Parent"},
+				Relations:          map[string]*filter.Blacklist{ /*...*/ },
+				IsFinal:            true, // Prevent joining any child relation if true
+			},
+		},
+	},
+}
+paginator, tx := settings.Scope(database.GetConnection(), request, &results)
+```
 
 ### Filter
 
@@ -91,8 +117,6 @@ You can use `OR` conditions using `?or` instead, or in combination:
 | **`$isnull`**  | `IS NULL`, is NULL (doesn't accept value)               |
 | **`$notnull`** | `IS NOT NULL`, not NULL (doesn't accept value)          |
 | **`$between`** | `BETWEEN val1 AND val2`, between (accepts two values)   |
-
-*More operators coming in the future*
 
 ### Fields / Select
 

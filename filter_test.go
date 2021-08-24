@@ -352,6 +352,45 @@ func TestJoinScopeHasMany(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, join.selectCache["Relation"])
 }
 
+func TestJoinScopeNestedRelations(t *testing.T) {
+	// TODO
+}
+
+func TestJoinScopeFinal(t *testing.T) {
+	join := &Join{Relation: "Relation", Fields: []string{"a", "b"}}
+	join.selectCache = map[string][]string{}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":          {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name":        {Name: "Name"},
+			"relation_id": {Name: "RelID"},
+		},
+		Relations: map[string]*relation{
+			"Relation": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"a":         {Name: "A", Tags: &gormTags{PrimaryKey: true}},
+						"b":         {Name: "B"},
+						"parent_id": {Name: "ParentID"},
+					},
+					Relations:   map[string]*relation{},
+					PrimaryKeys: []string{"a"},
+				},
+				Type:        schema.HasMany,
+				Tags:        &gormTags{},
+				ForeignKeys: []string{"parent_id"},
+			},
+		},
+	}
+	settings := &Settings{Blacklist: Blacklist{IsFinal: true}}
+
+	assert.Nil(t, join.Scopes(settings, modelIdentity))
+}
+
+func TestJoinNestedRelationsWithSelect(t *testing.T) {
+	// TODO
+}
+
 func TestApplyFilters(t *testing.T) {
 	request := &goyave.Request{
 		Data: map[string]interface{}{
@@ -643,4 +682,34 @@ func TestScopeNoPrimaryKey(t *testing.T) {
 	paginator, db := Scope(db, request, results)
 	assert.Nil(t, paginator)
 	assert.Equal(t, "Could not find primary key. Add `gorm:\"primaryKey\"` to your model", db.Error.Error())
+}
+
+func TestScopeWithFieldsBlacklist(t *testing.T) {
+	request := &goyave.Request{
+		Data: map[string]interface{}{},
+		Lang: "en-US",
+	}
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	settings := &Settings{
+		Blacklist: Blacklist{
+			FieldsBlacklist: []string{"name"},
+		},
+	}
+	results := []*TestScopeModel{}
+	paginator, db := settings.Scope(db, request, results)
+	assert.NotNil(t, paginator)
+	assert.Equal(t, []string{"`id`", "`relation_id`"}, db.Statement.Selects)
+}
+
+func TestBlacklistGetSelectableFields(t *testing.T) {
+	blacklist := &Blacklist{
+		FieldsBlacklist: []string{"name"},
+	}
+	fields := map[string]*column{
+		"id":    {},
+		"name":  {},
+		"email": {},
+	}
+
+	assert.ElementsMatch(t, []string{"id", "email"}, blacklist.getSelectableFields(fields))
 }

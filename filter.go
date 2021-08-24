@@ -166,7 +166,7 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, modelIdent
 	return db
 }
 
-func (b *Blacklist) getSelectableFields(fields map[string]*column) []string { // TODO test fields blacklist
+func (b *Blacklist) getSelectableFields(fields map[string]*column) []string {
 	if b.FieldsBlacklist == nil {
 		return nil
 	}
@@ -257,10 +257,6 @@ func (j *Join) Scopes(settings *Settings, modelIdentity *modelIdentity) []func(*
 	// TODO joins with conditions (and may not want to select relation content)
 	scopes := j.applyRelation(modelIdentity, &settings.Blacklist, j.Relation, 0, make([]func(*gorm.DB) *gorm.DB, 0, strings.Count(j.Relation, ".")+1))
 	if scopes != nil {
-		// Reverse order
-		for i, j := 0, len(scopes)-1; i < j; i, j = i+1, j-1 {
-			scopes[i], scopes[j] = scopes[j], scopes[i]
-		}
 		return scopes
 	}
 	return nil

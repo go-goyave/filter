@@ -56,9 +56,10 @@ func (i *modelIdentity) promote(identity *modelIdentity, prefix string) {
 
 // cleanColumns returns a slice of column names containing only the valid
 // column names from the input columns slice.
-func (i *modelIdentity) cleanColumns(columns []string) []string {
+func (i *modelIdentity) cleanColumns(columns []string, blacklist []string) []string {
 	for j := 0; j < len(columns); j++ {
-		if _, ok := i.Columns[columns[j]]; !ok {
+		_, ok := i.Columns[columns[j]]
+		if !ok || helper.ContainsStr(blacklist, columns[j]) {
 			columns = append(columns[:j], columns[j+1:]...)
 			j--
 		}
@@ -245,6 +246,8 @@ func parseGormTags(field reflect.StructField) *gormTags {
 			res.PrimaryKey = utils.CheckTruth(v)
 		case "PRIMARY_KEY":
 			res.PrimaryKey = utils.CheckTruth(v)
+		case "-":
+			res.Ignored = true
 		}
 	}
 

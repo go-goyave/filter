@@ -88,15 +88,15 @@ func TestFilterWhereOr(t *testing.T) {
 
 func TestSelectScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes((&Settings{}).selectScope(nil)).Find(nil)
+	db = db.Scopes(selectScope(nil, nil)).Find(nil)
 	assert.Empty(t, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes((&Settings{}).selectScope([]string{"a", "b"})).Find(nil)
+	db = db.Scopes(selectScope(nil, []string{"a", "b"})).Find(nil)
 	assert.Equal(t, []string{"`a`", "`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes((&Settings{}).selectScope([]string{})).Find(nil)
+	db = db.Scopes(selectScope(nil, []string{})).Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }
 
@@ -134,7 +134,7 @@ func TestFilterScopeBlacklisted(t *testing.T) {
 			"name": {Name: "Name"},
 		},
 	}
-	assert.Nil(t, filter.Scope(&Settings{FieldsBlacklist: []string{"name"}}, modelIdentity))
+	assert.Nil(t, filter.Scope(&Settings{Blacklist: Blacklist{FieldsBlacklist: []string{"name"}}}, modelIdentity))
 }
 
 func TestSortScope(t *testing.T) {
@@ -182,7 +182,7 @@ func TestSortScopeBlacklisted(t *testing.T) {
 			"name": {Name: "Name"},
 		},
 	}
-	assert.Nil(t, sort.Scope(&Settings{FieldsBlacklist: []string{"name"}}, modelIdentity))
+	assert.Nil(t, sort.Scope(&Settings{Blacklist: Blacklist{FieldsBlacklist: []string{"name"}}}, modelIdentity))
 }
 
 func TestJoinScope(t *testing.T) {
@@ -243,7 +243,7 @@ func TestJoinScopeBlacklisted(t *testing.T) {
 			},
 		},
 	}
-	assert.Nil(t, join.Scope(&Settings{RelationsBlacklist: []string{"Relation"}}, modelIdentity))
+	assert.Nil(t, join.Scope(&Settings{Blacklist: Blacklist{RelationsBlacklist: []string{"Relation"}}}, modelIdentity))
 }
 
 func TestJoinScopeNoPrimaryKey(t *testing.T) {

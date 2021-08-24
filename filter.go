@@ -15,12 +15,7 @@ import (
 // Settings settings to disable certain features and/or blacklist fields
 // and relations.
 type Settings struct {
-	// FieldsBlacklist prevent the fields in this list to be selected or to
-	// be used in filters and sorts. To blacklist relation fields, use a
-	// dot-separated syntax: "Relation.field"
-	FieldsBlacklist []string
-	// RelationsBlacklist prevent joining the relations in this list.
-	RelationsBlacklist []string
+	Blacklist
 	// DisableFields ignore the "fields" query if true.
 	DisableFields bool
 	// DisableFilter ignore the "filter" query if true.
@@ -29,6 +24,17 @@ type Settings struct {
 	DisableSort bool
 	// DisableJoin ignore the "join" query if true.
 	DisableJoin bool
+}
+
+// Blacklist definition of blacklisted relations and fields.
+type Blacklist struct {
+	Relations map[string]*Blacklist
+
+	// FieldsBlacklist prevent the fields in this list to be selected or to
+	// be used in filters and sorts.
+	FieldsBlacklist []string
+	// RelationsBlacklist prevent joining the relations in this list.
+	RelationsBlacklist []string
 }
 
 // Filter structured representation of a filter query.
@@ -126,7 +132,9 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 			}
 			fields = modelIdentity.addPrimaryKeys(fields)
 		}
-		paginator.DB = db.Scopes(s.selectScope(modelIdentity.cleanColumns(fields)))
+		paginator.DB = db.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist)))
+	} else {
+		paginator.DB = db.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns)))
 	}
 
 	return paginator, paginator.Find()
@@ -151,13 +159,26 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, modelIdent
 	return db
 }
 
-func (s *Settings) selectScope(fields []string) func(*gorm.DB) *gorm.DB {
+func (b *Blacklist) getSelectableFields(fields map[string]*column) []string { // TODO test fields blacklist
+	if b.FieldsBlacklist == nil {
+		return nil
+	}
+	columns := make([]string, 0, len(fields))
+	for k := range fields {
+		if !helper.ContainsStr(b.FieldsBlacklist, k) {
+			columns = append(columns, k)
+		}
+	}
+
+	return columns
+}
+
+func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *gorm.DB {
 	return func(tx *gorm.DB) *gorm.DB {
 
 		if fields == nil {
 			return tx
 		}
-		// TODO Prevent "select *" to remove the fields that are blacklisted
 
 		var fieldsWithTableName []string
 		if len(fields) == 0 {
@@ -226,16 +247,22 @@ func (s *Sort) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gor
 
 // Scope returns the GORM scope to use in order to apply this joint.
 func (j *Join) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
-	if helper.ContainsStr(settings.RelationsBlacklist, j.Relation) {
-		return nil
-	}
-	relationIdentity, ok := modelIdentity.Relations[j.Relation]
+	relationIdentity, blacklist, ok := getRelation(modelIdentity, &settings.Blacklist, j.Relation)
 	if !ok {
 		return nil
 	}
 
-	columns := relationIdentity.cleanColumns(j.Fields)
-	// TODO handle fields blacklist
+	var b []string
+	if blacklist != nil {
+		b = blacklist.FieldsBlacklist
+	}
+	var columns []string
+	if j.Fields != nil {
+		columns = relationIdentity.cleanColumns(j.Fields, b)
+	} else if blacklist != nil {
+		columns = blacklist.getSelectableFields(relationIdentity.Columns)
+	}
+	// FIXME nested relations: if there is a blacklist on parent relation, they're not applied
 
 	return func(tx *gorm.DB) *gorm.DB {
 		if columns != nil {
@@ -256,11 +283,39 @@ func (j *Join) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gor
 				}
 			}
 		}
-		return tx.Preload(j.Relation, settings.selectScope(columns))
+		return tx.Preload(j.Relation, selectScope(relationIdentity.modelIdentity, columns))
 	}
 
 	// TODO joins with conditions (and may not want to select relation content)
-	// TODO handle nested relations
+}
+
+func getRelation(modelIdentity *modelIdentity, blacklist *Blacklist, relationName string) (*relation, *Blacklist, bool) {
+	i := strings.Index(relationName, ".")
+	if i == -1 {
+		if blacklist != nil && helper.ContainsStr(blacklist.RelationsBlacklist, relationName) {
+			return nil, nil, false
+		}
+
+		b, _ := blacklist.Relations[relationName]
+		r, ok := modelIdentity.Relations[relationName]
+		return r, b, ok
+	}
+
+	if i+1 >= len(relationName) {
+		return nil, nil, false
+	}
+
+	name := relationName[:i]
+	var b *Blacklist
+	if blacklist != nil {
+		b, _ = blacklist.Relations[name]
+	}
+	r, ok := modelIdentity.Relations[name]
+	if !ok {
+		return r, b, false
+	}
+
+	return getRelation(r.modelIdentity, b, relationName[i+1:])
 }
 
 func getTableName(tx *gorm.DB) string {

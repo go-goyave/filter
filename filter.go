@@ -308,6 +308,9 @@ func getRelation(modelIdentity *modelIdentity, blacklist *Blacklist, relationNam
 	name := relationName[:i]
 	var b *Blacklist
 	if blacklist != nil {
+		if helper.ContainsStr(blacklist.RelationsBlacklist, name) {
+			return nil, nil, false
+		}
 		b, _ = blacklist.Relations[name]
 	}
 	r, ok := modelIdentity.Relations[name]

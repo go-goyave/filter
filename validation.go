@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"goyave.dev/goyave/v3/lang"
 	"goyave.dev/goyave/v3/validation"
 )
 
@@ -17,8 +18,9 @@ func init() {
 	validation.AddRule("join", &validation.RuleDefinition{
 		Function: validateJoin,
 	})
-
-	// TODO add language entries
+	lang.SetDefaultValidationRule("filter.array", "The filter format is invalid.")
+	lang.SetDefaultValidationRule("join.array", "The join format is invalid.")
+	lang.SetDefaultValidationRule("sort.array", "The sort format is invalid.")
 }
 
 func validateFilter(ctx *validation.Context) bool {

@@ -19,28 +19,32 @@ type Filter struct {
 
 // Scope returns the GORM scope to use in order to apply this filter.
 func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
-	blacklist := settings.Blacklist
+	blacklist := &settings.Blacklist
 	field := f.Field
 	joinName := ""
+	m := modelIdentity
 	if i := strings.LastIndex(f.Field, "."); i != -1 && i+1 < len(f.Field) {
 		rel := f.Field[:i]
 		field = f.Field[i+1:]
 		for _, v := range strings.Split(rel, ".") {
-			if helper.ContainsStr(blacklist.RelationsBlacklist, v) {
+			if blacklist != nil && helper.ContainsStr(blacklist.RelationsBlacklist, v) {
 				return nil
 			}
-			relation, ok := modelIdentity.Relations[v]
+			relation, ok := m.Relations[v]
 			if !ok || relation.Type != schema.HasOne {
 				return nil
 			}
-			modelIdentity = relation.modelIdentity
+			m = relation.modelIdentity
+			if blacklist != nil {
+				blacklist = blacklist.Relations[v]
+			}
 		}
 		joinName = rel
 	}
-	if helper.ContainsStr(blacklist.FieldsBlacklist, field) {
+	if blacklist != nil && helper.ContainsStr(blacklist.FieldsBlacklist, field) {
 		return nil
 	}
-	_, ok := modelIdentity.Columns[field]
+	_, ok := m.Columns[field]
 	if !ok {
 		return nil
 	}
@@ -52,7 +56,7 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 			}
 			tx = join(tx, joinName, modelIdentity)
 		}
-		tableName := tx.Statement.Quote(modelIdentity.TableName) + "."
+		tableName := tx.Statement.Quote(m.TableName) + "."
 		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field))
 	}
 }
@@ -68,36 +72,42 @@ func (f *Filter) Where(tx *gorm.DB, query string, args ...interface{}) *gorm.DB 
 
 func join(tx *gorm.DB, joinName string, modelIdentity *modelIdentity) *gorm.DB {
 
-	relation := tx.Statement.Schema.Relationships.Relations[joinName]
-	exprs := make([]clause.Expression, len(relation.References))
-	for idx, ref := range relation.References {
-		if ref.OwnPrimaryKey {
-			exprs[idx] = clause.Eq{
-				Column: clause.Column{Table: clause.CurrentTable, Name: ref.PrimaryKey.DBName},
-				Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
-			}
-		} else {
-			if ref.PrimaryValue == "" {
+	lastTable := clause.CurrentTable
+	joins := make([]clause.Join, 0, strings.Count(joinName, ".")+1)
+	schema := tx.Statement.Schema
+	for _, rel := range strings.Split(joinName, ".") {
+		modelIdentity = modelIdentity.Relations[rel].modelIdentity
+		relation := schema.Relationships.Relations[rel]
+		exprs := make([]clause.Expression, len(relation.References))
+		for idx, ref := range relation.References {
+			if ref.OwnPrimaryKey {
 				exprs[idx] = clause.Eq{
-					Column: clause.Column{Table: clause.CurrentTable, Name: ref.ForeignKey.DBName},
-					Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.PrimaryKey.DBName},
+					Column: clause.Column{Table: lastTable, Name: ref.PrimaryKey.DBName},
+					Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
 				}
 			} else {
-				exprs[idx] = clause.Eq{
-					Column: clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
-					Value:  ref.PrimaryValue,
+				if ref.PrimaryValue == "" {
+					exprs[idx] = clause.Eq{
+						Column: clause.Column{Table: lastTable, Name: ref.ForeignKey.DBName},
+						Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.PrimaryKey.DBName},
+					}
+				} else {
+					exprs[idx] = clause.Eq{
+						Column: clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
+						Value:  ref.PrimaryValue,
+					}
 				}
 			}
 		}
-	}
-	return tx.Clauses(clause.From{Joins: []clause.Join{
-		{
+		joins = append(joins, clause.Join{
 			Type:  clause.LeftJoin,
 			Table: clause.Table{Name: modelIdentity.TableName},
 			ON:    clause.Where{Exprs: exprs},
-		},
-	}})
-	// TODO test nested relations
+		})
+		lastTable = modelIdentity.TableName
+		schema = relation.FieldSchema
+	}
+	return tx.Clauses(clause.From{Joins: joins})
 	// TODO test what happens if there are multiple joins
 }
 

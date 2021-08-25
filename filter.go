@@ -98,7 +98,7 @@ func join(tx *gorm.DB, joinName string, modelIdentity *modelIdentity) *gorm.DB {
 		},
 	}})
 	// TODO test nested relations
-	// FIXME foreignkey not force-selected
+	// TODO test what happens if there are multiple joins
 }
 
 func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *gorm.DB {

@@ -1,6 +1,8 @@
 package filter
 
 import (
+	"fmt"
+
 	"gorm.io/gorm"
 	"goyave.dev/goyave/v3/helper"
 )
@@ -12,7 +14,7 @@ import (
 // RequiredArguments define the minimum number of arguments a client must send in order to
 // use this operator in a filter. RequiredArguments is checked during Filter parsing.
 type Operator struct {
-	Function          func(tx *gorm.DB, filter *Filter) *gorm.DB
+	Function          func(tx *gorm.DB, filter *Filter, column string) *gorm.DB
 	RequiredArguments uint8
 }
 
@@ -26,32 +28,32 @@ var (
 		"$gte": {Function: basicComparison(">="), RequiredArguments: 1},
 		"$lte": {Function: basicComparison("<="), RequiredArguments: 1},
 		"$starts": {
-			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := tx.Statement.Quote(filter.Field) + "LIKE ?"
+			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+				query := column + " LIKE ?"
 				value := helper.EscapeLike(filter.Args[0]) + "%"
 				return filter.Where(tx, query, value)
 			},
 			RequiredArguments: 1,
 		},
 		"$ends": {
-			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := tx.Statement.Quote(filter.Field) + "LIKE ?"
+			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+				query := column + " LIKE ?"
 				value := "%" + helper.EscapeLike(filter.Args[0])
 				return filter.Where(tx, query, value)
 			},
 			RequiredArguments: 1,
 		},
 		"$cont": {
-			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := tx.Statement.Quote(filter.Field) + "LIKE ?"
+			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+				query := column + " LIKE ?"
 				value := "%" + helper.EscapeLike(filter.Args[0]) + "%"
 				return filter.Where(tx, query, value)
 			},
 			RequiredArguments: 1,
 		},
 		"$excl": {
-			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := tx.Statement.Quote(filter.Field) + "NOT LIKE ?"
+			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+				query := column + " NOT LIKE ?"
 				value := "%" + helper.EscapeLike(filter.Args[0]) + "%"
 				return filter.Where(tx, query, value)
 			},
@@ -60,20 +62,20 @@ var (
 		"$in":    {Function: multiComparison("IN"), RequiredArguments: 1},
 		"$notin": {Function: multiComparison("NOT IN"), RequiredArguments: 1},
 		"$isnull": {
-			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				return filter.Where(tx, tx.Statement.Quote(filter.Field)+" IS NULL")
+			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+				return filter.Where(tx, column+" IS NULL")
 			},
 			RequiredArguments: 0,
 		},
 		"$notnull": {
-			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				return filter.Where(tx, tx.Statement.Quote(filter.Field)+" IS NOT NULL")
+			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+				return filter.Where(tx, column+" IS NOT NULL")
 			},
 			RequiredArguments: 0,
 		},
 		"$between": {
-			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := tx.Statement.Quote(filter.Field) + " BETWEEN ? AND ?"
+			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+				query := column + " BETWEEN ? AND ?"
 				return filter.Where(tx, query, filter.Args[0], filter.Args[1])
 			},
 			RequiredArguments: 2,
@@ -81,16 +83,16 @@ var (
 	}
 )
 
-func basicComparison(op string) func(tx *gorm.DB, filter *Filter) *gorm.DB {
-	return func(tx *gorm.DB, filter *Filter) *gorm.DB {
-		query := tx.Statement.Quote(filter.Field) + op + " ?"
+func basicComparison(op string) func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+	return func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+		query := fmt.Sprintf("%s %s ?", column, op)
 		return filter.Where(tx, query, filter.Args[0])
 	}
 }
 
-func multiComparison(op string) func(tx *gorm.DB, filter *Filter) *gorm.DB {
-	return func(tx *gorm.DB, filter *Filter) *gorm.DB {
-		query := tx.Statement.Quote(filter.Field) + op + " ?"
+func multiComparison(op string) func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+	return func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+		query := fmt.Sprintf("%s %s ?", column, op)
 		return filter.Where(tx, query, filter.Args)
 	}
 }

@@ -12,26 +12,6 @@ import (
 	"goyave.dev/goyave/v3/database"
 )
 
-func TestGetTableName(t *testing.T) {
-	type testModel struct {
-		Name string
-		ID   uint
-	}
-
-	tx := &gorm.DB{
-		Config:    &gorm.Config{Dialector: tests.DummyDialector{}},
-		Statement: &gorm.Statement{},
-	}
-	tx.Statement.DB = tx
-
-	modelIdentity := &modelIdentity{TableName: "test_models"}
-	assert.Equal(t, "test_models", getTableName(tx, modelIdentity))
-
-	tx = tx.Table("users")
-
-	assert.Equal(t, "users", getTableName(tx, modelIdentity))
-}
-
 func TestFilterWhere(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	filter := &Filter{Field: "name", Args: []string{"val1"}}
@@ -92,6 +72,7 @@ func TestFilterScope(t *testing.T) {
 		Columns: map[string]*column{
 			"name": {Name: "Name"},
 		},
+		TableName: "test_scope_models",
 	}
 
 	assert.Nil(t, filter.Scope(&Settings{}, modelIdentity))
@@ -104,7 +85,7 @@ func TestFilterScope(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val1"}},
 				},
 			},
 		},
@@ -129,6 +110,7 @@ func TestSortScope(t *testing.T) {
 		Columns: map[string]*column{
 			"name": {Name: "Name"},
 		},
+		TableName: "test_models",
 	}
 
 	assert.Nil(t, sort.Scope(&Settings{}, modelIdentity))
@@ -143,7 +125,7 @@ func TestSortScope(t *testing.T) {
 				Columns: []clause.OrderByColumn{
 					{
 						Column: clause.Column{
-							Table: "table",
+							Table: "test_models",
 							Name:  "name",
 						},
 					},
@@ -166,6 +148,7 @@ func TestSortScopeBlacklisted(t *testing.T) {
 		Columns: map[string]*column{
 			"name": {Name: "Name"},
 		},
+		TableName: "test_models",
 	}
 	assert.Nil(t, sort.Scope(&Settings{Blacklist: Blacklist{FieldsBlacklist: []string{"name"}}}, modelIdentity))
 }
@@ -189,11 +172,13 @@ func TestJoinScope(t *testing.T) {
 					},
 					Relations:   map[string]*relation{},
 					PrimaryKeys: []string{"a"},
+					TableName:   "relation",
 				},
 				Type: schema.HasOne,
 				Tags: &gormTags{},
 			},
 		},
+		TableName: "table",
 	}
 	assert.Nil(t, join.Scopes(&Settings{}, modelIdentity))
 	join.Relation = "Relation"
@@ -202,7 +187,7 @@ func TestJoinScope(t *testing.T) {
 	db = db.Scopes(join.Scopes(&Settings{}, modelIdentity)...).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`table`.`a`", "`table`.`b`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`"}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"a", "b", "notacolumn"}, join.selectCache["Relation"])
 }
@@ -331,17 +316,19 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 					},
 					Relations:   map[string]*relation{},
 					PrimaryKeys: []string{"a"},
+					TableName:   "relation",
 				},
 				Type: schema.HasOne,
 				Tags: &gormTags{},
 			},
 		},
+		TableName: "table",
 	}
 	results := map[string]interface{}{}
 	db = db.Scopes(join.Scopes(&Settings{}, modelIdentity)...).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`table`.`b`", "`table`.`a`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`a`"}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"b"}, join.selectCache["Relation"])
 }
@@ -366,19 +353,21 @@ func TestJoinScopeHasMany(t *testing.T) {
 					},
 					Relations:   map[string]*relation{},
 					PrimaryKeys: []string{"a"},
+					TableName:   "relation",
 				},
 				Type:        schema.HasMany,
 				Tags:        &gormTags{},
 				ForeignKeys: []string{"parent_id"},
 			},
 		},
+		TableName: "table",
 	}
 
 	results := map[string]interface{}{}
 	db = db.Scopes(join.Scopes(&Settings{}, modelIdentity)...).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`table`.`a`", "`table`.`b`", "`table`.`parent_id`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`", "`relation`.`parent_id`"}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"a", "b"}, join.selectCache["Relation"])
 }
@@ -403,6 +392,7 @@ func TestJoinScopeNestedRelations(t *testing.T) {
 					},
 					Relations:   map[string]*relation{},
 					PrimaryKeys: []string{"a"},
+					TableName:   "relation",
 				},
 				Type:        schema.HasMany,
 				Tags:        &gormTags{},
@@ -410,6 +400,7 @@ func TestJoinScopeNestedRelations(t *testing.T) {
 			},
 		},
 		PrimaryKeys: []string{"id"},
+		TableName:   "table",
 	}
 	modelIdentity.Relations["Relation"].Relations["Parent"] = &relation{
 		modelIdentity: modelIdentity,
@@ -442,7 +433,7 @@ func TestJoinScopeNestedRelations(t *testing.T) {
 	}
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`table`.`a`", "`table`.`parent_id`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`parent_id`"}, tx.Statement.Selects)
 	}
 	assert.NotContains(t, join.selectCache, "Relation")
 	assert.Equal(t, []string{"id", "relation_id"}, join.selectCache["Relation.Parent"])
@@ -501,6 +492,7 @@ func TestJoinNestedRelationsWithSelect(t *testing.T) {
 					},
 					Relations:   map[string]*relation{},
 					PrimaryKeys: []string{"a"},
+					TableName:   "relation",
 				},
 				Type:        schema.HasMany,
 				Tags:        &gormTags{},
@@ -508,6 +500,7 @@ func TestJoinNestedRelationsWithSelect(t *testing.T) {
 			},
 		},
 		PrimaryKeys: []string{"id"},
+		TableName:   "table",
 	}
 	modelIdentity.Relations["Relation"].Relations["Parent"] = &relation{
 		modelIdentity: modelIdentity,
@@ -539,7 +532,7 @@ func TestJoinNestedRelationsWithSelect(t *testing.T) {
 	}
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`table`.`b`", "`table`.`a`", "`table`.`parent_id`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`a`", "`relation`.`parent_id`"}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"b"}, join.selectCache["Relation"])
 	assert.Equal(t, []string{"id", "relation_id"}, join.selectCache["Relation.Parent"])
@@ -624,6 +617,7 @@ func TestApplyFilters(t *testing.T) {
 		},
 		PrimaryKeys: []string{"id"},
 		Relations:   map[string]*relation{},
+		TableName:   `test_scope_models`,
 	}
 
 	db = (&Settings{}).applyFilters(db, request, modelIdentity).Find(nil)
@@ -632,11 +626,11 @@ func TestApplyFilters(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
 					clause.OrConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
 						},
 					},
 				},
@@ -699,11 +693,11 @@ func TestScope(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
 					clause.OrConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
 						},
 					},
 				},
@@ -743,11 +737,11 @@ func TestScopeDisableFields(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
 					clause.OrConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
 						},
 					},
 				},
@@ -815,11 +809,11 @@ func TestScopeDisableSort(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
 					clause.OrConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
 						},
 					},
 				},
@@ -845,11 +839,11 @@ func TestScopeDisableJoin(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
 					clause.OrConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
 						},
 					},
 				},

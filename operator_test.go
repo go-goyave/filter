@@ -11,14 +11,14 @@ import (
 
 func TestEquals(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$eq"].Function(db, &Filter{Field: "name", Args: []string{"test"}})
+	db = Operators["$eq"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`= ?", Vars: []interface{}{"test"}},
+					clause.Expr{SQL: "`test_models`.`name` = ?", Vars: []interface{}{"test"}},
 				},
 			},
 		},
@@ -28,14 +28,14 @@ func TestEquals(t *testing.T) {
 
 func TestNotEquals(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$ne"].Function(db, &Filter{Field: "name", Args: []string{"test"}})
+	db = Operators["$ne"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`<> ?", Vars: []interface{}{"test"}},
+					clause.Expr{SQL: "`test_models`.`name` <> ?", Vars: []interface{}{"test"}},
 				},
 			},
 		},
@@ -45,14 +45,14 @@ func TestNotEquals(t *testing.T) {
 
 func TestGreaterThan(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$gt"].Function(db, &Filter{Field: "age", Args: []string{"18"}})
+	db = Operators["$gt"].Function(db, &Filter{Field: "age", Args: []string{"18"}}, "`test_models`.`age`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`age`> ?", Vars: []interface{}{"18"}},
+					clause.Expr{SQL: "`test_models`.`age` > ?", Vars: []interface{}{"18"}},
 				},
 			},
 		},
@@ -62,14 +62,14 @@ func TestGreaterThan(t *testing.T) {
 
 func TestLowerThan(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$lt"].Function(db, &Filter{Field: "age", Args: []string{"18"}})
+	db = Operators["$lt"].Function(db, &Filter{Field: "age", Args: []string{"18"}}, "`test_models`.`age`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`age`< ?", Vars: []interface{}{"18"}},
+					clause.Expr{SQL: "`test_models`.`age` < ?", Vars: []interface{}{"18"}},
 				},
 			},
 		},
@@ -79,14 +79,14 @@ func TestLowerThan(t *testing.T) {
 
 func TestGreaterThanEqual(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$gte"].Function(db, &Filter{Field: "age", Args: []string{"18"}})
+	db = Operators["$gte"].Function(db, &Filter{Field: "age", Args: []string{"18"}}, "`test_models`.`age`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`age`>= ?", Vars: []interface{}{"18"}},
+					clause.Expr{SQL: "`test_models`.`age` >= ?", Vars: []interface{}{"18"}},
 				},
 			},
 		},
@@ -96,14 +96,14 @@ func TestGreaterThanEqual(t *testing.T) {
 
 func TestLowerThanEqual(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$lte"].Function(db, &Filter{Field: "age", Args: []string{"18"}})
+	db = Operators["$lte"].Function(db, &Filter{Field: "age", Args: []string{"18"}}, "`test_models`.`age`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`age`<= ?", Vars: []interface{}{"18"}},
+					clause.Expr{SQL: "`test_models`.`age` <= ?", Vars: []interface{}{"18"}},
 				},
 			},
 		},
@@ -113,14 +113,14 @@ func TestLowerThanEqual(t *testing.T) {
 
 func TestStarts(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$starts"].Function(db, &Filter{Field: "name", Args: []string{"test"}})
+	db = Operators["$starts"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"test%"}},
+					clause.Expr{SQL: "`test_models`.`name` LIKE ?", Vars: []interface{}{"test%"}},
 				},
 			},
 		},
@@ -130,14 +130,14 @@ func TestStarts(t *testing.T) {
 
 func TestEnds(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$ends"].Function(db, &Filter{Field: "name", Args: []string{"test"}})
+	db = Operators["$ends"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%test"}},
+					clause.Expr{SQL: "`test_models`.`name` LIKE ?", Vars: []interface{}{"%test"}},
 				},
 			},
 		},
@@ -147,14 +147,14 @@ func TestEnds(t *testing.T) {
 
 func TestContains(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$cont"].Function(db, &Filter{Field: "name", Args: []string{"test"}})
+	db = Operators["$cont"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`LIKE ?", Vars: []interface{}{"%test%"}},
+					clause.Expr{SQL: "`test_models`.`name` LIKE ?", Vars: []interface{}{"%test%"}},
 				},
 			},
 		},
@@ -164,14 +164,14 @@ func TestContains(t *testing.T) {
 
 func TestNotContains(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$excl"].Function(db, &Filter{Field: "name", Args: []string{"test"}})
+	db = Operators["$excl"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`NOT LIKE ?", Vars: []interface{}{"%test%"}},
+					clause.Expr{SQL: "`test_models`.`name` NOT LIKE ?", Vars: []interface{}{"%test%"}},
 				},
 			},
 		},
@@ -181,14 +181,14 @@ func TestNotContains(t *testing.T) {
 
 func TestIn(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$in"].Function(db, &Filter{Field: "name", Args: []string{"val1", "val2"}})
+	db = Operators["$in"].Function(db, &Filter{Field: "name", Args: []string{"val1", "val2"}}, "`test_models`.`name`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`IN ?", Vars: []interface{}{[]string{"val1", "val2"}}},
+					clause.Expr{SQL: "`test_models`.`name` IN ?", Vars: []interface{}{[]string{"val1", "val2"}}},
 				},
 			},
 		},
@@ -198,14 +198,14 @@ func TestIn(t *testing.T) {
 
 func TestNotIn(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$notin"].Function(db, &Filter{Field: "name", Args: []string{"val1", "val2"}})
+	db = Operators["$notin"].Function(db, &Filter{Field: "name", Args: []string{"val1", "val2"}}, "`test_models`.`name`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name`NOT IN ?", Vars: []interface{}{[]string{"val1", "val2"}}},
+					clause.Expr{SQL: "`test_models`.`name` NOT IN ?", Vars: []interface{}{[]string{"val1", "val2"}}},
 				},
 			},
 		},
@@ -215,14 +215,14 @@ func TestNotIn(t *testing.T) {
 
 func TestIsNull(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$isnull"].Function(db, &Filter{Field: "name"})
+	db = Operators["$isnull"].Function(db, &Filter{Field: "name"}, "`test_models`.`name`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name` IS NULL"},
+					clause.Expr{SQL: "`test_models`.`name` IS NULL"},
 				},
 			},
 		},
@@ -232,14 +232,14 @@ func TestIsNull(t *testing.T) {
 
 func TestNotNull(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$notnull"].Function(db, &Filter{Field: "name"})
+	db = Operators["$notnull"].Function(db, &Filter{Field: "name"}, "`test_models`.`name`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`name` IS NOT NULL"},
+					clause.Expr{SQL: "`test_models`.`name` IS NOT NULL"},
 				},
 			},
 		},
@@ -249,14 +249,14 @@ func TestNotNull(t *testing.T) {
 
 func TestBetween(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = Operators["$between"].Function(db, &Filter{Field: "age", Args: []string{"18", "25"}})
+	db = Operators["$between"].Function(db, &Filter{Field: "age", Args: []string{"18", "25"}}, "`test_models`.`age`")
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`age` BETWEEN ? AND ?", Vars: []interface{}{"18", "25"}},
+					clause.Expr{SQL: "`test_models`.`age` BETWEEN ? AND ?", Vars: []interface{}{"18", "25"}},
 				},
 			},
 		},

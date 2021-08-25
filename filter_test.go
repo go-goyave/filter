@@ -768,7 +768,7 @@ func TestScopeDisableFields(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Empty(t, db.Statement.Selects)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableFilter(t *testing.T) {

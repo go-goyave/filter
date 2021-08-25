@@ -127,6 +127,7 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 		pageSize = request.Integer("per_page")
 	}
 
+	db = db.Model(dest)
 	paginator := database.NewPaginator(db, page, pageSize, dest)
 	paginator.UpdatePageInfo()
 
@@ -167,12 +168,13 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, modelIdent
 }
 
 func (b *Blacklist) getSelectableFields(fields map[string]*column) []string {
-	if b.FieldsBlacklist == nil {
-		return nil
+	blacklist := []string{}
+	if b.FieldsBlacklist != nil {
+		blacklist = b.FieldsBlacklist
 	}
 	columns := make([]string, 0, len(fields))
 	for k := range fields {
-		if !helper.ContainsStr(b.FieldsBlacklist, k) {
+		if !helper.ContainsStr(blacklist, k) {
 			columns = append(columns, k)
 		}
 	}
@@ -229,12 +231,45 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 		return nil
 	}
 	return func(tx *gorm.DB) *gorm.DB {
-		tableName := tx.Statement.Quote(modelIdentity.TableName) + "."
-		if join != "" && !alreadyJoined(tx, join) {
-			tx = tx.Joins(join)    // TODO maybe don't join in the filter? Or make it so relation fields are not selected
-			tableName = join + "." // FIXME non escaped
-			// FIXME all fields from relation are selected
+		if join != "" {
+			if err := tx.Statement.Parse(tx.Statement.Model); err != nil {
+				tx.AddError(err)
+				return tx
+			}
+			relation := tx.Statement.Schema.Relationships.Relations[join]
+			exprs := make([]clause.Expression, len(relation.References))
+			for idx, ref := range relation.References {
+				if ref.OwnPrimaryKey {
+					exprs[idx] = clause.Eq{
+						Column: clause.Column{Table: clause.CurrentTable, Name: ref.PrimaryKey.DBName},
+						Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
+					}
+				} else {
+					if ref.PrimaryValue == "" {
+						exprs[idx] = clause.Eq{
+							Column: clause.Column{Table: clause.CurrentTable, Name: ref.ForeignKey.DBName},
+							Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.PrimaryKey.DBName},
+						}
+					} else {
+						exprs[idx] = clause.Eq{
+							Column: clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
+							Value:  ref.PrimaryValue,
+						}
+					}
+				}
+			}
+			tx.Clauses(clause.From{Joins: []clause.Join{
+				{
+					Type:  clause.LeftJoin,
+					Table: clause.Table{Name: modelIdentity.TableName},
+					ON:    clause.Where{Exprs: exprs},
+				},
+			}})
+			// TODO refactor
+			// TODO test nested relations
+			// FIXME foreignkey not force-selected
 		}
+		tableName := tx.Statement.Quote(modelIdentity.TableName) + "."
 		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field))
 	}
 }
@@ -355,13 +390,4 @@ func joinScope(relationName string, relationIdentity *relation, fields []string,
 		}
 		return tx.Preload(relationName, selectScope(relationIdentity.modelIdentity, columns))
 	}
-}
-
-func alreadyJoined(tx *gorm.DB, join string) bool {
-	for _, j := range tx.Statement.Joins {
-		if j.Name == join {
-			return true
-		}
-	}
-	return false
 }

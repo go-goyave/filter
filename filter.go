@@ -194,10 +194,10 @@ func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *
 			fieldsWithTableName = make([]string, 0, len(fields))
 			tableName := getTableName(tx)
 			if tableName != "" {
-				tableName = SQLEscape(tx, tableName) + "."
+				tableName = tx.Statement.Quote(tableName) + "."
 			}
 			for _, f := range fields {
-				fieldsWithTableName = append(fieldsWithTableName, tableName+SQLEscape(tx, f))
+				fieldsWithTableName = append(fieldsWithTableName, tableName+tx.Statement.Quote(f))
 			}
 		}
 		return tx.Select(fieldsWithTableName)
@@ -354,11 +354,4 @@ func getTableName(tx *gorm.DB) string {
 	}
 
 	return ""
-}
-
-// SQLEscape escape the given string to prevent SQL injection.
-func SQLEscape(tx *gorm.DB, str string) string {
-	var f strings.Builder
-	tx.QuoteTo(&f, strings.TrimSpace(str))
-	return f.String()
 }

@@ -12,13 +12,6 @@ import (
 	"goyave.dev/goyave/v3/database"
 )
 
-func TestSQLEscape(t *testing.T) {
-	tx := &gorm.DB{Config: &gorm.Config{
-		Dialector: tests.DummyDialector{},
-	}}
-	assert.Equal(t, "`name`", SQLEscape(tx, "  name "))
-}
-
 func TestGetTableName(t *testing.T) {
 	type testModel struct {
 		Name string

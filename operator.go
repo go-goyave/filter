@@ -27,7 +27,7 @@ var (
 		"$lte": {Function: basicComparison("<="), RequiredArguments: 1},
 		"$starts": {
 			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := SQLEscape(tx, filter.Field) + "LIKE ?"
+				query := tx.Statement.Quote(filter.Field) + "LIKE ?"
 				value := helper.EscapeLike(filter.Args[0]) + "%"
 				return filter.Where(tx, query, value)
 			},
@@ -35,7 +35,7 @@ var (
 		},
 		"$ends": {
 			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := SQLEscape(tx, filter.Field) + "LIKE ?"
+				query := tx.Statement.Quote(filter.Field) + "LIKE ?"
 				value := "%" + helper.EscapeLike(filter.Args[0])
 				return filter.Where(tx, query, value)
 			},
@@ -43,7 +43,7 @@ var (
 		},
 		"$cont": {
 			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := SQLEscape(tx, filter.Field) + "LIKE ?"
+				query := tx.Statement.Quote(filter.Field) + "LIKE ?"
 				value := "%" + helper.EscapeLike(filter.Args[0]) + "%"
 				return filter.Where(tx, query, value)
 			},
@@ -51,7 +51,7 @@ var (
 		},
 		"$excl": {
 			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := SQLEscape(tx, filter.Field) + "NOT LIKE ?"
+				query := tx.Statement.Quote(filter.Field) + "NOT LIKE ?"
 				value := "%" + helper.EscapeLike(filter.Args[0]) + "%"
 				return filter.Where(tx, query, value)
 			},
@@ -61,19 +61,19 @@ var (
 		"$notin": {Function: multiComparison("NOT IN"), RequiredArguments: 1},
 		"$isnull": {
 			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				return filter.Where(tx, SQLEscape(tx, filter.Field)+" IS NULL")
+				return filter.Where(tx, tx.Statement.Quote(filter.Field)+" IS NULL")
 			},
 			RequiredArguments: 0,
 		},
 		"$notnull": {
 			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				return filter.Where(tx, SQLEscape(tx, filter.Field)+" IS NOT NULL")
+				return filter.Where(tx, tx.Statement.Quote(filter.Field)+" IS NOT NULL")
 			},
 			RequiredArguments: 0,
 		},
 		"$between": {
 			Function: func(tx *gorm.DB, filter *Filter) *gorm.DB {
-				query := SQLEscape(tx, filter.Field) + " BETWEEN ? AND ?"
+				query := tx.Statement.Quote(filter.Field) + " BETWEEN ? AND ?"
 				return filter.Where(tx, query, filter.Args[0], filter.Args[1])
 			},
 			RequiredArguments: 2,
@@ -83,14 +83,14 @@ var (
 
 func basicComparison(op string) func(tx *gorm.DB, filter *Filter) *gorm.DB {
 	return func(tx *gorm.DB, filter *Filter) *gorm.DB {
-		query := SQLEscape(tx, filter.Field) + op + " ?"
+		query := tx.Statement.Quote(filter.Field) + op + " ?"
 		return filter.Where(tx, query, filter.Args[0])
 	}
 }
 
 func multiComparison(op string) func(tx *gorm.DB, filter *Filter) *gorm.DB {
 	return func(tx *gorm.DB, filter *Filter) *gorm.DB {
-		query := SQLEscape(tx, filter.Field) + op + " ?"
+		query := tx.Statement.Quote(filter.Field) + op + " ?"
 		return filter.Where(tx, query, filter.Args)
 	}
 }

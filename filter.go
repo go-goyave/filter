@@ -207,7 +207,7 @@ func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *
 func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 	blacklist := settings.Blacklist
 	field := f.Field
-	join := ""
+	joinName := ""
 	if i := strings.LastIndex(f.Field, "."); i != -1 && i+1 < len(f.Field) {
 		rel := f.Field[:i]
 		field = f.Field[i+1:]
@@ -221,7 +221,7 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 			}
 			modelIdentity = relation.modelIdentity
 		}
-		join = rel
+		joinName = rel
 	}
 	if helper.ContainsStr(blacklist.FieldsBlacklist, field) {
 		return nil
@@ -231,47 +231,51 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 		return nil
 	}
 	return func(tx *gorm.DB) *gorm.DB {
-		if join != "" {
+		if joinName != "" {
 			if err := tx.Statement.Parse(tx.Statement.Model); err != nil {
 				tx.AddError(err)
 				return tx
 			}
-			relation := tx.Statement.Schema.Relationships.Relations[join]
-			exprs := make([]clause.Expression, len(relation.References))
-			for idx, ref := range relation.References {
-				if ref.OwnPrimaryKey {
-					exprs[idx] = clause.Eq{
-						Column: clause.Column{Table: clause.CurrentTable, Name: ref.PrimaryKey.DBName},
-						Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
-					}
-				} else {
-					if ref.PrimaryValue == "" {
-						exprs[idx] = clause.Eq{
-							Column: clause.Column{Table: clause.CurrentTable, Name: ref.ForeignKey.DBName},
-							Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.PrimaryKey.DBName},
-						}
-					} else {
-						exprs[idx] = clause.Eq{
-							Column: clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
-							Value:  ref.PrimaryValue,
-						}
-					}
-				}
-			}
-			tx.Clauses(clause.From{Joins: []clause.Join{
-				{
-					Type:  clause.LeftJoin,
-					Table: clause.Table{Name: modelIdentity.TableName},
-					ON:    clause.Where{Exprs: exprs},
-				},
-			}})
-			// TODO refactor
-			// TODO test nested relations
-			// FIXME foreignkey not force-selected
+			tx = join(tx, joinName, modelIdentity)
 		}
 		tableName := tx.Statement.Quote(modelIdentity.TableName) + "."
 		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field))
 	}
+}
+
+func join(tx *gorm.DB, joinName string, modelIdentity *modelIdentity) *gorm.DB {
+
+	relation := tx.Statement.Schema.Relationships.Relations[joinName]
+	exprs := make([]clause.Expression, len(relation.References))
+	for idx, ref := range relation.References {
+		if ref.OwnPrimaryKey {
+			exprs[idx] = clause.Eq{
+				Column: clause.Column{Table: clause.CurrentTable, Name: ref.PrimaryKey.DBName},
+				Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
+			}
+		} else {
+			if ref.PrimaryValue == "" {
+				exprs[idx] = clause.Eq{
+					Column: clause.Column{Table: clause.CurrentTable, Name: ref.ForeignKey.DBName},
+					Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.PrimaryKey.DBName},
+				}
+			} else {
+				exprs[idx] = clause.Eq{
+					Column: clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
+					Value:  ref.PrimaryValue,
+				}
+			}
+		}
+	}
+	return tx.Clauses(clause.From{Joins: []clause.Join{
+		{
+			Type:  clause.LeftJoin,
+			Table: clause.Table{Name: modelIdentity.TableName},
+			ON:    clause.Where{Exprs: exprs},
+		},
+	}})
+	// TODO test nested relations
+	// FIXME foreignkey not force-selected
 }
 
 // Where applies a condition to given transaction, automatically taking the "Or"
@@ -307,7 +311,6 @@ func (s *Sort) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gor
 
 // Scopes returns the GORM scopes to use in order to apply this joint.
 func (j *Join) Scopes(settings *Settings, modelIdentity *modelIdentity) []func(*gorm.DB) *gorm.DB {
-	// TODO joins with conditions (and may not want to select relation content)
 	scopes := j.applyRelation(modelIdentity, &settings.Blacklist, j.Relation, 0, make([]func(*gorm.DB) *gorm.DB, 0, strings.Count(j.Relation, ".")+1))
 	if scopes != nil {
 		return scopes

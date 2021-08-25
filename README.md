@@ -98,6 +98,10 @@ You can use `OR` conditions using `?or` instead, or in combination:
 > ?filter=**name**||**$cont**||**Jack**&or=**name**||**$cont**||**John**  (`WHERE name LIKE %Jack% OR name LIKE %John%`)  
 > ?filter=**age**||**$eq**||**50**&filter=**name**||**$cont**||**Jack**&or=**name**||**$cont**||**John** (`WHERE age = 50 AND name LIKE %Jack% OR name LIKE %John%`)
 
+You can filter using columns from one-to-one relations ("has one" or "belongs to"):
+
+> ?filter=**Relation.name**||**$cont**||**Jack**
+
 #### Operators
 
 |                |                                                         |

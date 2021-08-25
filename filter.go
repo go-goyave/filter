@@ -379,18 +379,19 @@ func joinScope(relationName string, relationIdentity *relation, fields []string,
 				return tx
 			}
 			for _, k := range relationIdentity.PrimaryKeys {
-				if !helper.ContainsStr(columns, k) {
+				if !helper.ContainsStr(columns, k) && !helper.ContainsStr(blacklist.FieldsBlacklist, k) {
 					columns = append(columns, k)
 				}
 			}
 			if relationIdentity.Type == schema.HasMany {
 				for _, v := range relationIdentity.ForeignKeys {
-					if !helper.ContainsStr(columns, v) {
+					if !helper.ContainsStr(columns, v) && !helper.ContainsStr(blacklist.FieldsBlacklist, v) {
 						columns = append(columns, v)
 					}
 				}
 			}
 		}
+
 		return tx.Preload(relationName, selectScope(relationIdentity.modelIdentity, columns))
 	}
 }

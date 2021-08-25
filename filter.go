@@ -108,7 +108,6 @@ func join(tx *gorm.DB, joinName string, modelIdentity *modelIdentity) *gorm.DB {
 		schema = relation.FieldSchema
 	}
 	return tx.Clauses(clause.From{Joins: joins})
-	// TODO test what happens if there are multiple joins
 }
 
 func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *gorm.DB {

@@ -24,21 +24,12 @@ func TestGetTableName(t *testing.T) {
 	}
 	tx.Statement.DB = tx
 
-	assert.Empty(t, getTableName(tx))
+	modelIdentity := &modelIdentity{TableName: "test_models"}
+	assert.Equal(t, "test_models", getTableName(tx, modelIdentity))
 
 	tx = tx.Table("users")
 
-	assert.Equal(t, "users", getTableName(tx))
-
-	tx, _ = gorm.Open(tests.DummyDialector{}, nil)
-	tx = tx.Model(&testModel{})
-
-	assert.Equal(t, "test_models", getTableName(tx))
-
-	tx, _ = gorm.Open(tests.DummyDialector{}, nil)
-	tx = tx.Model(1)
-	getTableName(tx)
-	assert.Equal(t, "unsupported data type: 1", tx.Error.Error())
+	assert.Equal(t, "users", getTableName(tx, modelIdentity))
 }
 
 func TestFilterWhere(t *testing.T) {
@@ -84,12 +75,13 @@ func TestSelectScope(t *testing.T) {
 	db = db.Scopes(selectScope(nil, nil)).Find(nil)
 	assert.Empty(t, db.Statement.Selects)
 
+	modelIdentity := &modelIdentity{TableName: "test_models"}
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(nil, []string{"a", "b"})).Find(nil)
-	assert.Equal(t, []string{"`a`", "`b`"}, db.Statement.Selects)
+	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"})).Find(nil)
+	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(nil, []string{})).Find(nil)
+	db = db.Scopes(selectScope(modelIdentity, []string{})).Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }
 
@@ -723,7 +715,8 @@ func TestScope(t *testing.T) {
 				Columns: []clause.OrderByColumn{
 					{
 						Column: clause.Column{
-							Name: "name",
+							Table: "test_scope_models",
+							Name:  "name",
 						},
 					},
 				},
@@ -738,7 +731,7 @@ func TestScope(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Contains(t, db.Statement.Preloads, "Relation")
-	assert.Equal(t, []string{"`id`", "`name`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableFields(t *testing.T) {
@@ -766,7 +759,8 @@ func TestScopeDisableFields(t *testing.T) {
 				Columns: []clause.OrderByColumn{
 					{
 						Column: clause.Column{
-							Name: "name",
+							Table: "test_scope_models",
+							Name:  "name",
 						},
 					},
 				},
@@ -794,7 +788,8 @@ func TestScopeDisableFilter(t *testing.T) {
 				Columns: []clause.OrderByColumn{
 					{
 						Column: clause.Column{
-							Name: "name",
+							Table: "test_scope_models",
+							Name:  "name",
 						},
 					},
 				},
@@ -808,7 +803,7 @@ func TestScopeDisableFilter(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Equal(t, []string{"`id`", "`name`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableSort(t *testing.T) {
@@ -838,7 +833,7 @@ func TestScopeDisableSort(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Equal(t, []string{"`id`", "`name`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableJoin(t *testing.T) {
@@ -866,7 +861,8 @@ func TestScopeDisableJoin(t *testing.T) {
 				Columns: []clause.OrderByColumn{
 					{
 						Column: clause.Column{
-							Name: "name",
+							Table: "test_scope_models",
+							Name:  "name",
 						},
 					},
 				},
@@ -881,7 +877,7 @@ func TestScopeDisableJoin(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Empty(t, db.Statement.Preloads)
-	assert.Equal(t, []string{"`id`", "`name`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
 }
 
 func TestScopeNoPrimaryKey(t *testing.T) {
@@ -914,7 +910,7 @@ func TestScopeWithFieldsBlacklist(t *testing.T) {
 	results := []*TestScopeModel{}
 	paginator, db := settings.Scope(db, request, results)
 	assert.NotNil(t, paginator)
-	assert.ElementsMatch(t, []string{"`id`", "`relation_id`"}, db.Statement.Selects)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
 }
 
 func TestBlacklistGetSelectableFields(t *testing.T) {

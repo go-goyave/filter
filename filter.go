@@ -192,7 +192,7 @@ func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *
 			fieldsWithTableName = []string{"1"}
 		} else {
 			fieldsWithTableName = make([]string, 0, len(fields))
-			tableName := getTableName(tx)
+			tableName := getTableName(tx, modelIdentity)
 			if tableName != "" {
 				tableName = tx.Statement.Quote(tableName) + "."
 			}
@@ -206,6 +206,10 @@ func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *
 
 // Scope returns the GORM scope to use in order to apply this filter.
 func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
+	// if i := strings.LastIndex(f.Field, "."); i != -1 && i+1 < len(f.Field) {
+	// 	rel := f.Field[:i]
+	// 	field := f.Field[i+1:]
+	// }
 	if helper.ContainsStr(settings.FieldsBlacklist, f.Field) {
 		return nil
 	}
@@ -239,12 +243,10 @@ func (s *Sort) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gor
 	}
 
 	return func(tx *gorm.DB) *gorm.DB {
-		field := s.Field
-		table := getTableName(tx)
 		c := clause.OrderByColumn{
 			Column: clause.Column{
-				Table: table,
-				Name:  field,
+				Table: getTableName(tx, modelIdentity),
+				Name:  s.Field,
 			},
 			Desc: s.Order == SortDescending,
 		}
@@ -339,19 +341,9 @@ func joinScope(relationName string, relationIdentity *relation, fields []string,
 	}
 }
 
-func getTableName(tx *gorm.DB) string {
+func getTableName(tx *gorm.DB, modelIdentity *modelIdentity) string {
 	if tx.Statement.Table != "" {
 		return tx.Statement.Table
 	}
-
-	if tx.Statement.Model != nil {
-		stmt := &gorm.Statement{DB: tx}
-		if err := stmt.Parse(tx.Statement.Model); err != nil {
-			tx.AddError(err)
-			return ""
-		}
-		return stmt.Schema.Table
-	}
-
-	return ""
+	return modelIdentity.TableName
 }

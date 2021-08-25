@@ -28,6 +28,7 @@ type gormTags struct {
 type modelIdentity struct {
 	Columns     map[string]*column
 	Relations   map[string]*relation
+	TableName   string
 	PrimaryKeys []string
 }
 
@@ -148,6 +149,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 		Columns:     make(map[string]*column, 10),
 		Relations:   make(map[string]*relation, 5),
 		PrimaryKeys: make([]string, 0, 2),
+		TableName:   db.NamingStrategy.TableName(t.Name()),
 	}
 	identityCache[identifier] = identity
 	count := t.NumField()
@@ -221,7 +223,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 }
 
 func actualType(t reflect.Type) reflect.Type {
-	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Slice {
+	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Slice || t.Kind() == reflect.Array {
 		t = t.Elem()
 	}
 	return t

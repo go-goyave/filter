@@ -162,6 +162,7 @@ func TestParseModelRelationCycle(t *testing.T) {
 			Columns:     map[string]*column{},
 			Relations:   map[string]*relation{},
 			PrimaryKeys: []string{},
+			TableName:   "test_relation_cycles",
 		},
 		Type:          schema.HasOne,
 		Tags:          &gormTags{},
@@ -174,6 +175,7 @@ func TestParseModelRelationCycle(t *testing.T) {
 			"Relation": rel,
 		},
 		PrimaryKeys: []string{},
+		TableName:   "test_model_relation_cycles",
 	}
 	rel.Relations["Parent"] = &relation{
 		modelIdentity: expected,
@@ -201,6 +203,7 @@ func TestParseModelEmbeddedStruct(t *testing.T) {
 		},
 		Relations:   map[string]*relation{},
 		PrimaryKeys: []string{},
+		TableName:   "test_model_embeddeds",
 	}
 	assert.Equal(t, expected, identity)
 }

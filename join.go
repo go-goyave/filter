@@ -32,18 +32,20 @@ func (j *Join) applyRelation(modelIdentity *modelIdentity, blacklist *Blacklist,
 	trimmedRelationName := relationName[startIndex:]
 	i := strings.Index(trimmedRelationName, ".")
 	if i == -1 {
-		if blacklist != nil && helper.ContainsStr(blacklist.RelationsBlacklist, trimmedRelationName) {
-			return nil
+		if blacklist != nil {
+			if helper.ContainsStr(blacklist.RelationsBlacklist, trimmedRelationName) {
+				return nil
+			}
+			blacklist = blacklist.Relations[trimmedRelationName]
 		}
 
-		b := blacklist.Relations[trimmedRelationName]
 		r, ok := modelIdentity.Relations[trimmedRelationName]
 		if !ok {
 			return nil
 		}
 
 		j.selectCache[relationName] = j.Fields
-		return append(scopes, joinScope(relationName, r, j.Fields, b))
+		return append(scopes, joinScope(relationName, r, j.Fields, blacklist))
 	}
 
 	if startIndex+i+1 >= len(relationName) {

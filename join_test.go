@@ -187,6 +187,22 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`a`"}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"b"}, join.selectCache["Relation"])
+
+	// Don't select it if it's blacklisted
+	settings := &Settings{
+		Blacklist: Blacklist{
+			Relations: map[string]*Blacklist{
+				"Relation": {
+					FieldsBlacklist: []string{"a"},
+				},
+			},
+		},
+	}
+	db = db.Scopes(join.Scopes(settings, modelIdentity)...).Table("table").Find(&results)
+	if assert.Contains(t, db.Statement.Preloads, "Relation") {
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.Equal(t, []string{"`relation`.`b`"}, tx.Statement.Selects)
+	}
 }
 
 func TestJoinScopeHasMany(t *testing.T) {
@@ -226,6 +242,22 @@ func TestJoinScopeHasMany(t *testing.T) {
 		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`", "`relation`.`parent_id`"}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"a", "b"}, join.selectCache["Relation"])
+
+	// Don't select parent_id if blacklisted
+	settings := &Settings{
+		Blacklist: Blacklist{
+			Relations: map[string]*Blacklist{
+				"Relation": {
+					FieldsBlacklist: []string{"parent_id"},
+				},
+			},
+		},
+	}
+	db = db.Scopes(join.Scopes(settings, modelIdentity)...).Table("table").Find(&results)
+	if assert.Contains(t, db.Statement.Preloads, "Relation") {
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`"}, tx.Statement.Selects)
+	}
 }
 
 func TestJoinScopeNestedRelations(t *testing.T) {

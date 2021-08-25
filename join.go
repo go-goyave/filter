@@ -86,7 +86,7 @@ func joinScope(relationName string, relationIdentity *relation, fields []string,
 				return tx
 			}
 			for _, k := range relationIdentity.PrimaryKeys {
-				if !helper.ContainsStr(columns, k) && (blacklist == nil || !helper.ContainsStr(blacklist.FieldsBlacklist, k)) { // TODO test this case
+				if !helper.ContainsStr(columns, k) && (blacklist == nil || !helper.ContainsStr(blacklist.FieldsBlacklist, k)) {
 					columns = append(columns, k)
 				}
 			}

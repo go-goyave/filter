@@ -205,16 +205,21 @@ func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *
 func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 	blacklist := settings.Blacklist
 	field := f.Field
+	join := ""
 	if i := strings.LastIndex(f.Field, "."); i != -1 && i+1 < len(f.Field) {
+		rel := f.Field[:i]
 		field = f.Field[i+1:]
-		for _, v := range strings.Split(f.Field[:i], ".") {
+		for _, v := range strings.Split(rel, ".") {
+			if helper.ContainsStr(blacklist.RelationsBlacklist, v) {
+				return nil
+			}
 			relation, ok := modelIdentity.Relations[v]
-			if !ok {
+			if !ok || relation.Type != schema.HasOne {
 				return nil
 			}
 			modelIdentity = relation.modelIdentity
 		}
-		fmt.Println(field, f.Field[:i])
+		join = rel
 	}
 	if helper.ContainsStr(blacklist.FieldsBlacklist, field) {
 		return nil
@@ -225,6 +230,11 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 	}
 	return func(tx *gorm.DB) *gorm.DB {
 		tableName := tx.Statement.Quote(modelIdentity.TableName) + "."
+		if join != "" && !alreadyJoined(tx, join) {
+			tx = tx.Joins(join)    // TODO maybe don't join in the filter? Or make it so relation fields are not selected
+			tableName = join + "." // FIXME non escaped
+			// FIXME all fields from relation are selected
+		}
 		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field))
 	}
 }
@@ -345,4 +355,13 @@ func joinScope(relationName string, relationIdentity *relation, fields []string,
 		}
 		return tx.Preload(relationName, selectScope(relationIdentity.modelIdentity, columns))
 	}
+}
+
+func alreadyJoined(tx *gorm.DB, join string) bool {
+	for _, j := range tx.Statement.Joins {
+		if j.Name == join {
+			return true
+		}
+	}
+	return false
 }

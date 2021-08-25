@@ -167,6 +167,7 @@ func TestParseModelRelationCycle(t *testing.T) {
 		Type:          schema.HasOne,
 		Tags:          &gormTags{},
 		ForeignKeys:   []string{},
+		LocalKeys:     []string{},
 		keysProcessed: true,
 	}
 	expected := &modelIdentity{
@@ -182,7 +183,54 @@ func TestParseModelRelationCycle(t *testing.T) {
 		Type:          schema.HasOne,
 		Tags:          &gormTags{},
 		ForeignKeys:   []string{},
+		LocalKeys:     []string{},
 		keysProcessed: true,
+	}
+	assert.Equal(t, expected, identity)
+}
+
+type TestModelBelongsTo struct {
+	Parent      *TestModelBelongsToParent `gorm:"foreignKey:BelongsToID"`
+	BelongsToID uint
+}
+
+type TestModelBelongsToParent struct {
+	ID uint
+}
+
+func TestParseModelLocalKeys(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	identity := parseModel(db, &TestModelBelongsTo{})
+
+	expected := &modelIdentity{
+		Columns: map[string]*column{
+			"belongs_to_id": {
+				Name: "BelongsToID",
+				Tags: &gormTags{},
+			},
+		},
+		Relations: map[string]*relation{
+			"Parent": {
+				modelIdentity: &modelIdentity{
+					Columns: map[string]*column{
+						"id": {
+							Name: "ID",
+							Tags: &gormTags{},
+						},
+					},
+					Relations:   map[string]*relation{},
+					TableName:   "test_model_belongs_to_parents",
+					PrimaryKeys: []string{"id"},
+				},
+				Type:          schema.HasOne,
+				Tags:          &gormTags{ForeignKey: "BelongsToID"},
+				ForeignKeys:   []string{},
+				LocalKeys:     []string{"belongs_to_id"},
+				keysProcessed: true,
+			},
+		},
+		PrimaryKeys: []string{},
+		TableName:   "test_model_belongs_tos",
 	}
 	assert.Equal(t, expected, identity)
 }

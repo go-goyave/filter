@@ -2,6 +2,7 @@ package filter
 
 import (
 	"database/sql"
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -37,6 +38,7 @@ type relation struct {
 	Type        schema.RelationshipType
 	Tags        *gormTags
 	ForeignKeys []string
+	LocalKeys   []string
 
 	keysProcessed bool
 }
@@ -78,6 +80,18 @@ func (i *modelIdentity) addPrimaryKeys(fields []string) []string {
 	return fields
 }
 
+func (i *modelIdentity) addForeignKeys(fields []string) []string {
+	for _, r := range i.Relations {
+		for _, k := range r.LocalKeys {
+			if !helper.ContainsStr(fields, k) {
+				fmt.Println("add", k)
+				fields = append(fields, k)
+			}
+		}
+	}
+	return fields
+}
+
 func (i *modelIdentity) findColumn(name string) (*column, string) {
 	for k, v := range i.Columns {
 		if v.Name == name {
@@ -87,50 +101,51 @@ func (i *modelIdentity) findColumn(name string) (*column, string) {
 	return nil, ""
 }
 
-func (r *relation) processKeys(db *gorm.DB) {
+func (r *relation) processKeys(db *gorm.DB, parent *modelIdentity) {
 	if r.keysProcessed {
 		return
 	}
 	r.keysProcessed = true
-	r.ForeignKeys = r.findForeignKeys(db)
+	r.ForeignKeys = findForeignKeys(db, r.modelIdentity)
+	r.LocalKeys = findForeignKeys(db, parent)
 	for _, rel := range r.Relations {
-		rel.processKeys(db)
+		rel.processKeys(db, r.modelIdentity)
 	}
 }
 
-func (r *relation) findForeignKeys(db *gorm.DB) []string {
-	foreignKeys := []string{}
+func findForeignKeys(db *gorm.DB, parent *modelIdentity) []string {
+	foreignKeys := make([]string, 0, 4)
 
-	for k, v := range r.Relations {
-		foreignKeys = append(foreignKeys, r.findForeignKey(db, k, v)...)
+	for k, v := range parent.Relations {
+		foreignKeys = append(foreignKeys, parent.findForeignKey(db, k, v)...)
 	}
 
 	return foreignKeys
 }
 
-func (r *relation) findForeignKey(db *gorm.DB, name string, rel *relation) []string {
+func (i *modelIdentity) findForeignKey(db *gorm.DB, name string, rel *relation) []string {
 	keys := make([]string, 0, 2)
 	if rel.Tags.ForeignKey != "" {
 		for _, v := range strings.Split(rel.Tags.ForeignKey, ",") {
-			if col, colName := r.findColumn(strings.TrimSpace(v)); col != nil {
+			if col, colName := i.findColumn(strings.TrimSpace(v)); col != nil {
 				keys = append(keys, columnName(db, col.Tags, colName))
 			}
 		}
 		return keys
 	}
 	colName := columnName(db, rel.Tags, name) + "_id"
-	if col, ok := r.Columns[colName]; ok {
+	if col, ok := i.Columns[colName]; ok {
 		keys = append(keys, columnName(db, col.Tags, colName))
 	}
 	return keys
 }
 
-func parseModel(db *gorm.DB, model interface{}) *modelIdentity {
+func parseModel(db *gorm.DB, model interface{}) *modelIdentity { // TODO use gorm schema.Schema instead?
 	t := reflect.TypeOf(model)
 	i := parseIdentity(db, t, []reflect.Type{t})
 	if i != nil {
 		for _, r := range i.Relations {
-			r.processKeys(db)
+			r.processKeys(db, i)
 		}
 	}
 	return i

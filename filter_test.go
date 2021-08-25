@@ -86,10 +86,17 @@ func TestFilterScopeBlacklisted(t *testing.T) {
 	assert.Nil(t, filter.Scope(&Settings{Blacklist: Blacklist{FieldsBlacklist: []string{"name"}}}, modelIdentity))
 }
 
-type FilterTestRelation struct {
-	Name     string
+type FilterTestNestedRelation struct {
+	Field    string
 	ID       uint
 	ParentID uint
+}
+
+type FilterTestRelation struct {
+	NestedRelation *FilterTestNestedRelation `gorm:"foreignKey:ParentID"`
+	Name           string
+	ID             uint
+	ParentID       uint
 }
 
 type FilterTestModel struct {
@@ -182,4 +189,72 @@ func TestFilterScopeWithJoinInvalidModel(t *testing.T) {
 
 	db = db.Scopes(filter.Scope(&Settings{}, modelIdentity)).Find(&results)
 	assert.Equal(t, "unsupported data type: <nil>", db.Error.Error())
+}
+
+func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	filter := &Filter{Field: "Relation.NestedRelation.field", Args: []string{"val1"}, Operator: Operators["$eq"]}
+
+	results := []*FilterTestModel{}
+	modelIdentity := parseModel(db, &results)
+
+	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, modelIdentity)).Find(&results)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`filter_test_nested_relations`.`field` = ?", Vars: []interface{}{"val1"}},
+				},
+			},
+		},
+		"FROM": {
+			Name: "FROM",
+			Expression: clause.From{
+				Joins: []clause.Join{
+					{
+						Type: clause.LeftJoin,
+						Table: clause.Table{
+							Name: "filter_test_relations",
+						},
+						ON: clause.Where{
+							Exprs: []clause.Expression{
+								clause.Eq{
+									Column: clause.Column{
+										Table: clause.CurrentTable,
+										Name:  "id",
+									},
+									Value: clause.Column{
+										Table: "filter_test_relations",
+										Name:  "parent_id",
+									},
+								},
+							},
+						},
+					},
+					{
+						Type: clause.LeftJoin,
+						Table: clause.Table{
+							Name: "filter_test_nested_relations",
+						},
+						ON: clause.Where{
+							Exprs: []clause.Expression{
+								clause.Eq{
+									Column: clause.Column{
+										Table: "filter_test_relations",
+										Name:  "parent_id",
+									},
+									Value: clause.Column{
+										Table: "filter_test_nested_relations",
+										Name:  "id",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
-	"goyave.dev/goyave/v3/helper"
+	"goyave.dev/goyave/v4/helper"
 )
 
 // Operator used by filters to build the SQL query.

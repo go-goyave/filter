@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"goyave.dev/goyave/v3/validation"
+	"goyave.dev/goyave/v4/validation"
 )
 
 func TestApplyValidation(t *testing.T) {

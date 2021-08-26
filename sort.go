@@ -3,7 +3,7 @@ package filter
 import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"goyave.dev/goyave/v3/helper"
+	"goyave.dev/goyave/v4/helper"
 )
 
 // Sort structured representation of a sort query.

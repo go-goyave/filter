@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"goyave.dev/goyave/v3/lang"
-	"goyave.dev/goyave/v3/validation"
+	"goyave.dev/goyave/v4/lang"
+	"goyave.dev/goyave/v4/validation"
 )
 
 func init() {

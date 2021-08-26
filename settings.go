@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
-	"goyave.dev/goyave/v3"
-	"goyave.dev/goyave/v3/database"
-	"goyave.dev/goyave/v3/helper"
+	"goyave.dev/goyave/v4"
+	"goyave.dev/goyave/v4/database"
+	"goyave.dev/goyave/v4/helper"
 )
 
 // Settings settings to disable certain features and/or blacklist fields

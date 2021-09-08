@@ -24,6 +24,9 @@ func init() {
 }
 
 func validateFilter(ctx *validation.Context) bool {
+	if _, ok := ctx.Value.(*Filter); ok {
+		return true
+	}
 	str, ok := ctx.Value.(string)
 	if !ok {
 		return false
@@ -40,6 +43,9 @@ func validateFilter(ctx *validation.Context) bool {
 }
 
 func validateSort(ctx *validation.Context) bool {
+	if _, ok := ctx.Value.(*Sort); ok {
+		return true
+	}
 	str, ok := ctx.Value.(string)
 	if !ok {
 		return false
@@ -53,6 +59,9 @@ func validateSort(ctx *validation.Context) bool {
 }
 
 func validateJoin(ctx *validation.Context) bool {
+	if _, ok := ctx.Value.(*Join); ok {
+		return true
+	}
 	str, ok := ctx.Value.(string)
 	if !ok {
 		return false

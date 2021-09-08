@@ -221,6 +221,9 @@ func TestValidateFilter(t *testing.T) {
 	ctx.Value = ""
 	assert.False(t, validateFilter(ctx))
 	assert.Equal(t, "", ctx.Value)
+
+	ctx.Value = expected
+	assert.True(t, validateFilter(ctx))
 }
 
 func TestValidateSort(t *testing.T) {
@@ -245,6 +248,9 @@ func TestValidateSort(t *testing.T) {
 	ctx.Value = ""
 	assert.False(t, validateSort(ctx))
 	assert.Equal(t, "", ctx.Value)
+
+	ctx.Value = expected
+	assert.True(t, validateSort(ctx))
 }
 
 func TestValidateJoin(t *testing.T) {
@@ -269,4 +275,7 @@ func TestValidateJoin(t *testing.T) {
 	ctx.Value = ""
 	assert.False(t, validateJoin(ctx))
 	assert.Equal(t, "", ctx.Value)
+
+	ctx.Value = expected
+	assert.True(t, validateJoin(ctx))
 }

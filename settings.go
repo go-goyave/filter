@@ -59,17 +59,6 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 
 	db = s.applyFilters(db, request, modelIdentity)
 
-	if !s.DisableSort && request.Has("sort") {
-		sorts, ok := request.Data["sort"].([]*Sort)
-		if ok {
-			for _, sort := range sorts {
-				if scope := sort.Scope(s, modelIdentity); scope != nil {
-					db = db.Scopes(scope)
-				}
-			}
-		}
-	}
-
 	hasJoins := false
 	if !s.DisableJoin && request.Has("join") {
 		joins, ok := request.Data["join"].([]*Join)
@@ -98,19 +87,30 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 	paginator := database.NewPaginator(db, page, pageSize, dest)
 	paginator.UpdatePageInfo()
 
+	if !s.DisableSort && request.Has("sort") {
+		sorts, ok := request.Data["sort"].([]*Sort)
+		if ok {
+			for _, sort := range sorts {
+				if scope := sort.Scope(s, modelIdentity); scope != nil {
+					paginator.DB = paginator.DB.Scopes(scope)
+				}
+			}
+		}
+	}
+
 	if !s.DisableFields && request.Has("fields") {
 		fields := strings.Split(request.String("fields"), ",")
 		if hasJoins {
 			if len(modelIdentity.PrimaryKeys) == 0 {
-				db.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\"` to your model"))
-				return nil, db
+				paginator.DB.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\"` to your model"))
+				return nil, paginator.DB
 			}
 			fields = modelIdentity.addPrimaryKeys(fields)
 			fields = modelIdentity.addForeignKeys(fields)
 		}
-		paginator.DB = db.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist)))
+		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist)))
 	} else {
-		paginator.DB = db.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns)))
+		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns)))
 	}
 
 	return paginator, paginator.Find()

@@ -325,3 +325,22 @@ func TestAddPrimaryKeys(t *testing.T) {
 func TestParseNilModel(t *testing.T) {
 	assert.Nil(t, parseModel(nil, 1))
 }
+
+type Numbers []int
+
+func (n *Numbers) Scan(value interface{}) error {
+	return nil
+}
+
+func TestParseModelSliceField(t *testing.T) {
+	type DataTypeModel struct {
+		Numbers    *Numbers
+		SliceOfInt []int
+		ID         uint
+	}
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	identity := parseModel(db, &DataTypeModel{})
+
+	assert.Contains(t, identity.Columns, "numbers")
+	assert.NotContains(t, identity.Columns, "slice_of_int")
+}

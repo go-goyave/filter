@@ -206,9 +206,14 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 				}
 			}
 		case reflect.Slice:
-			// "has many" relation
 			parents = append(parents, t)
-			if i := parseIdentity(db, fieldType.Elem(), parents); i != nil {
+			if field.Type.Implements(reflect.TypeOf((*sql.Scanner)(nil)).Elem()) {
+				identity.Columns[columnName(db, gormTags, field.Name)] = &column{
+					Name: field.Name,
+					Tags: gormTags,
+				}
+			} else if i := parseIdentity(db, fieldType.Elem(), parents); i != nil {
+				// "has many" relation
 				r := &relation{
 					modelIdentity: i,
 					Tags:          gormTags,

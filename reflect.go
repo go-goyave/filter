@@ -183,10 +183,14 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 		switch fieldType.Kind() {
 		case reflect.Struct:
 			parents = append(parents, t)
+			t := field.Type
+			for t.Kind() == reflect.Ptr {
+				t = t.Elem()
+			}
 			if field.Anonymous {
 				// Promoted fields
 				identity.promote(parseIdentity(db, fieldType, parents), "")
-			} else if field.Type.Implements(reflect.TypeOf((*sql.Scanner)(nil)).Elem()) {
+			} else if _, ok := reflect.New(t).Interface().(sql.Scanner); ok {
 				// This is not a relation but a field such as sql.NullTime
 				identity.Columns[columnName(db, gormTags, field.Name)] = &column{
 					Name: field.Name,
@@ -207,7 +211,11 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 			}
 		case reflect.Slice:
 			parents = append(parents, t)
-			if field.Type.Implements(reflect.TypeOf((*sql.Scanner)(nil)).Elem()) {
+			t := field.Type
+			for t.Kind() == reflect.Ptr {
+				t = t.Elem()
+			}
+			if _, ok := reflect.New(t).Interface().(sql.Scanner); ok {
 				identity.Columns[columnName(db, gormTags, field.Name)] = &column{
 					Name: field.Name,
 					Tags: gormTags,

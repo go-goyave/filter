@@ -334,7 +334,8 @@ func (n *Numbers) Scan(value interface{}) error {
 
 func TestParseModelSliceField(t *testing.T) {
 	type DataTypeModel struct {
-		Numbers    *Numbers
+		Numbers    Numbers
+		NumbersPtr *Numbers
 		SliceOfInt []int
 		ID         uint
 	}
@@ -342,5 +343,6 @@ func TestParseModelSliceField(t *testing.T) {
 	identity := parseModel(db, &DataTypeModel{})
 
 	assert.Contains(t, identity.Columns, "numbers")
+	assert.Contains(t, identity.Columns, "numbers_ptr")
 	assert.NotContains(t, identity.Columns, "slice_of_int")
 }

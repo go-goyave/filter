@@ -18,9 +18,13 @@ func init() {
 	validation.AddRule("join", &validation.RuleDefinition{
 		Function: validateJoin,
 	})
+	validation.AddRule("search", &validation.RuleDefinition{
+		Function: validateSearch,
+	})
 	lang.SetDefaultValidationRule("filter.array", "The filter format is invalid.")
 	lang.SetDefaultValidationRule("join.array", "The join format is invalid.")
 	lang.SetDefaultValidationRule("sort.array", "The sort format is invalid.")
+	lang.SetDefaultValidationRule("search.string", "The search format is invalid.")
 }
 
 func validateFilter(ctx *validation.Context) bool {
@@ -74,6 +78,14 @@ func validateJoin(ctx *validation.Context) bool {
 	return true
 }
 
+func validateSearch(ctx *validation.Context) bool {
+	if _, ok := ctx.Value.(string); ok {
+		return true
+	}
+
+	return false
+}
+
 // ApplyValidation add all fields used by the filter module to the given RuleSet.
 func ApplyValidation(set validation.RuleSet) {
 	set["filter"] = validation.List{"array"}
@@ -87,6 +99,7 @@ func ApplyValidation(set validation.RuleSet) {
 	set["fields"] = validation.List{"string"}
 	set["page"] = validation.List{"integer", "min:1"}
 	set["per_page"] = validation.List{"integer", "between:1,500"}
+	set["search"] = validation.List{"string"}
 }
 
 // ApplyValidationRules add all fields used by the filter module to the given *Rules.
@@ -102,6 +115,7 @@ func ApplyValidationRules(set *validation.Rules) {
 	set.Fields["fields"] = &validation.Field{Rules: []*validation.Rule{{Name: "string"}}}
 	set.Fields["page"] = &validation.Field{Rules: []*validation.Rule{{Name: "integer"}, {Name: "min", Params: []string{"1"}}}}
 	set.Fields["per_page"] = &validation.Field{Rules: []*validation.Rule{{Name: "integer"}, {Name: "between", Params: []string{"1", "500"}}}}
+	set.Fields["search"] = &validation.Field{Rules: []*validation.Rule{{Name: "string"}}}
 }
 
 // ParseFilter parse a string in format "field||$operator||value" and return

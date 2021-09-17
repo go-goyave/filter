@@ -23,6 +23,11 @@ type Settings struct {
 	DisableSort bool
 	// DisableJoin ignore the "join" query if true.
 	DisableJoin bool
+	// DisableSearch ignore the "search" query if true.
+	DisableSearch bool
+
+	// FieldsSearch allows search for these fields
+	FieldsSearch []string
 }
 
 // Blacklist definition of blacklisted relations and fields.
@@ -69,6 +74,32 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 				j.selectCache = selectCache
 				if s := j.Scopes(s, modelIdentity); s != nil {
 					db = db.Scopes(s...)
+				}
+			}
+		}
+	}
+
+	if !s.DisableSearch && request.Has("search") {
+		query, ok := request.Data["search"].(string)
+		if ok {
+			if len(s.FieldsSearch) > 0 {
+				var scopes []func(*gorm.DB) *gorm.DB
+
+				for i := 0; i < len(s.FieldsSearch); i++ {
+					search := &Search{
+						Field: s.FieldsSearch[i],
+						Query: query,
+					}
+
+					if scope := search.Scope(s, modelIdentity); scope != nil {
+						scopes = append(scopes, scope)
+					}
+				}
+
+				fmt.Println(len(scopes))
+
+				if len(scopes) > 0 {
+					db = db.Scopes(scopes...)
 				}
 			}
 		}

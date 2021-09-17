@@ -21,6 +21,7 @@ type TestScopeModel struct {
 	Name       string
 	ID         uint
 	RelationID uint
+	Email      string
 }
 type TestScopeModelNoPrimaryKey struct {
 	Relation   *TestScopeRelation
@@ -42,7 +43,8 @@ func prepareTestScope(settings *Settings) (*database.Paginator, *gorm.DB) {
 			"join":     []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
 			"page":     2,
 			"per_page": 15,
-			"fields":   "id,name",
+			"fields":   "id,name,email",
+			"search": "val",
 		},
 		Lang: "en-US",
 	}
@@ -52,11 +54,12 @@ func prepareTestScope(settings *Settings) (*database.Paginator, *gorm.DB) {
 	if settings == nil {
 		return Scope(db, request, results)
 	}
+
 	return settings.Scope(db, request, results)
 }
 
 func TestScope(t *testing.T) {
-	paginator, db := prepareTestScope(nil)
+	paginator, db := prepareTestScope(&Settings{FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -69,6 +72,11 @@ func TestScope(t *testing.T) {
 					clause.OrConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+						},
+					},
+					clause.OrConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "(lower(CAST(`test_scope_models`.`email` AS TEXT))) LIKE lower(?)", Vars: []interface{}{"%val%"}},
 						},
 					},
 				},
@@ -96,7 +104,7 @@ func TestScope(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Contains(t, db.Statement.Preloads, "Relation")
-	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableFields(t *testing.T) {
@@ -139,7 +147,7 @@ func TestScopeDisableFields(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableFilter(t *testing.T) {
@@ -168,7 +176,7 @@ func TestScopeDisableFilter(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableSort(t *testing.T) {
@@ -198,7 +206,7 @@ func TestScopeDisableSort(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
 }
 
 func TestScopeDisableJoin(t *testing.T) {
@@ -242,7 +250,51 @@ func TestScopeDisableJoin(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Empty(t, db.Statement.Preloads)
-	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`"}, db.Statement.Selects)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`"}, db.Statement.Selects)
+}
+
+func TestScopeDisableSearch(t *testing.T) {
+	paginator, db := prepareTestScope(&Settings{DisableSearch: true, FieldsSearch: []string{"name"}})
+	assert.NotNil(t, paginator)
+
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+					clause.OrConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+						},
+					},
+				},
+			},
+		},
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Table: "test_scope_models",
+							Name:  "name",
+						},
+					},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  15,
+				Offset: 15,
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
 }
 
 func TestScopeNoPrimaryKey(t *testing.T) {
@@ -275,7 +327,7 @@ func TestScopeWithFieldsBlacklist(t *testing.T) {
 	results := []*TestScopeModel{}
 	paginator, db := settings.Scope(db, request, results)
 	assert.NotNil(t, paginator)
-	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`", "`test_scope_models`.`email`"}, db.Statement.Selects)
 }
 
 func TestBlacklistGetSelectableFields(t *testing.T) {

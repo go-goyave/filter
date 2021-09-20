@@ -96,8 +96,6 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 					}
 				}
 
-				fmt.Println(len(scopes))
-
 				if len(scopes) > 0 {
 					db = db.Scopes(scopes...)
 				}
@@ -140,8 +138,6 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 			fields = modelIdentity.addForeignKeys(fields)
 		}
 		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist)))
-	} else {
-		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns)))
 	}
 
 	return paginator, paginator.Find()

@@ -263,3 +263,37 @@ func TestBetween(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
+
+func TestIsTrue(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db = Operators["$istrue"].Function(db, &Filter{Field: "isActive"}, "`test_models`.`is_active`")
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`test_models`.`is_active` IS TRUE"},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestIsFalse(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db = Operators["$isfalse"].Function(db, &Filter{Field: "isActive"}, "`test_models`.`is_active`")
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`test_models`.`is_active` IS FALSE"},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}

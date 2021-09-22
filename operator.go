@@ -67,6 +67,18 @@ var (
 			},
 			RequiredArguments: 0,
 		},
+		"$istrue": {
+			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+				return filter.Where(tx, column+" IS TRUE")
+			},
+			RequiredArguments: 0,
+		},
+		"$isfalse": {
+			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+				return filter.Where(tx, column+" IS FALSE")
+			},
+			RequiredArguments: 0,
+		},
 		"$notnull": {
 			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
 				return filter.Where(tx, column+" IS NOT NULL")

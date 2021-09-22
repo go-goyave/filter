@@ -2,29 +2,42 @@ package filter
 
 import (
 	"gorm.io/gorm"
-	"goyave.dev/goyave/v4/helper"
-	"strings"
 )
 
 type Search struct {
-	Field string
-	Query string
+	Fields []string
+	Query  string
 }
 
-// Scope returns the GORM scope to use in order to apply sorting.
-func (s *Search) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
-	if !helper.ContainsStr(settings.FieldsSearch, s.Field) {
-		return nil
+func (s *Search) Scopes(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
+	var fields []string
+
+	// Remove columns that not exist in the table
+	for _, field := range s.Fields {
+		_, ok := modelIdentity.Columns[field]
+		if ok {
+			fields = append(fields, field)
+		}
 	}
 
-	_, ok := modelIdentity.Columns[s.Field]
-	if !ok {
+	if len(fields) == 0 {
 		return nil
 	}
 
 	return func(tx *gorm.DB) *gorm.DB {
-		tableWithColumn := []string{tx.Statement.Quote(modelIdentity.TableName), tx.Statement.Quote(s.Field)}
+		searchQuery := tx.Session(&gorm.Session{})
 
-		return tx.Or("(lower(CAST("+ strings.Join(tableWithColumn, ".") + " AS TEXT))) LIKE lower(?)", "%" + helper.EscapeLike(s.Query) + "%")
+		for _, field := range fields {
+			filter := &Filter{
+				Field:    field,
+				Operator: settings.SearchOperator,
+				Args:     []string{s.Query},
+				Or:       true,
+			}
+
+			searchQuery = settings.SearchOperator.Function(searchQuery, filter, field)
+		}
+
+		return tx.Where(searchQuery)
 	}
 }

@@ -2,7 +2,6 @@ package filter
 
 import (
 	"database/sql"
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -84,7 +83,6 @@ func (i *modelIdentity) addForeignKeys(fields []string) []string {
 	for _, r := range i.Relations {
 		for _, k := range r.LocalKeys {
 			if !helper.ContainsStr(fields, k) {
-				fmt.Println("add", k)
 				fields = append(fields, k)
 			}
 		}

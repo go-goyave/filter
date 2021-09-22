@@ -110,7 +110,7 @@ func join(tx *gorm.DB, joinName string, modelIdentity *modelIdentity) *gorm.DB {
 	return tx.Clauses(clause.From{Joins: joins})
 }
 
-func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *gorm.DB {
+func selectScope(modelIdentity *modelIdentity, fields []string, withSelects bool) func(*gorm.DB) *gorm.DB {
 	return func(tx *gorm.DB) *gorm.DB {
 
 		if fields == nil {
@@ -127,6 +127,11 @@ func selectScope(modelIdentity *modelIdentity, fields []string) func(*gorm.DB) *
 				fieldsWithTableName = append(fieldsWithTableName, tableName+tx.Statement.Quote(f))
 			}
 		}
+
+		if withSelects {
+			return tx.Select(tx.Statement.Selects, fieldsWithTableName)
+		}
+
 		return tx.Select(fieldsWithTableName)
 	}
 }

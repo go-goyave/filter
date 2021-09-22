@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,7 +45,7 @@ func prepareTestScope(settings *Settings) (*database.Paginator, *gorm.DB) {
 			"page":     2,
 			"per_page": 15,
 			"fields":   "id,name,email",
-			"search": "val",
+			"search":   "val",
 		},
 		Lang: "en-US",
 	}
@@ -59,7 +60,15 @@ func prepareTestScope(settings *Settings) (*database.Paginator, *gorm.DB) {
 }
 
 func TestScope(t *testing.T) {
-	paginator, db := prepareTestScope(&Settings{FieldsSearch: []string{"email"}})
+	paginator, db := prepareTestScope(&Settings{
+		FieldsSearch: []string{"email"},
+		SearchOperator: &Operator{
+			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
+				return tx.Or(fmt.Sprintf("%s LIKE (?)", filter.Field), filter.Args[0])
+			},
+			RequiredArguments: 1,
+		},
+	})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -74,9 +83,36 @@ func TestScope(t *testing.T) {
 							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
 						},
 					},
-					clause.OrConditions{
+					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "(lower(CAST(`test_scope_models`.`email` AS TEXT))) LIKE lower(?)", Vars: []interface{}{"%val%"}},
+							clause.Expr{
+								SQL:                "`test_scope_models`.`name` LIKE ?",
+								Vars:               []interface{}{"%val1%"},
+								WithoutParentheses: false,
+							},
+							clause.Expr{
+								SQL:                "`test_scope_models`.`name` LIKE ?",
+								Vars:               []interface{}{"%val2%"},
+								WithoutParentheses: false,
+							},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.Expr{
+										SQL:                "`test_scope_models`.`name` = ?",
+										Vars:               []interface{}{"val3"},
+										WithoutParentheses: false,
+									},
+								},
+							},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.Expr{
+										SQL:                "email LIKE (?)",
+										Vars:               []interface{}{"val"},
+										WithoutParentheses: false,
+									},
+								},
+							},
 						},
 					},
 				},
@@ -257,7 +293,6 @@ func TestScopeDisableSearch(t *testing.T) {
 	paginator, db := prepareTestScope(&Settings{DisableSearch: true, FieldsSearch: []string{"name"}})
 	assert.NotNil(t, paginator)
 
-
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -389,15 +424,15 @@ func TestApplyFilters(t *testing.T) {
 
 func TestSelectScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(nil, nil)).Find(nil)
+	db = db.Scopes(selectScope(nil, nil, true)).Find(nil)
 	assert.Empty(t, db.Statement.Selects)
 
 	modelIdentity := &modelIdentity{TableName: "test_models"}
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"})).Find(nil)
+	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, true)).Find(nil)
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{})).Find(nil)
+	db = db.Scopes(selectScope(modelIdentity, []string{}, true)).Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }

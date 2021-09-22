@@ -27,7 +27,8 @@ type Settings struct {
 	DisableSearch bool
 
 	// FieldsSearch allows search for these fields
-	FieldsSearch []string
+	FieldsSearch   []string
+	SearchOperator *Operator
 }
 
 // Blacklist definition of blacklisted relations and fields.
@@ -79,25 +80,23 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 		}
 	}
 
-	if !s.DisableSearch && request.Has("search") {
+	if !s.DisableSearch && s.SearchOperator != nil && request.Has("search") {
 		query, ok := request.Data["search"].(string)
 		if ok {
+			if len(s.FieldsSearch) == 0 {
+				s.FieldsSearch = s.getSelectableFields(modelIdentity.Columns)
+			}
+
 			if len(s.FieldsSearch) > 0 {
-				var scopes []func(*gorm.DB) *gorm.DB
-
-				for i := 0; i < len(s.FieldsSearch); i++ {
-					search := &Search{
-						Field: s.FieldsSearch[i],
-						Query: query,
-					}
-
-					if scope := search.Scope(s, modelIdentity); scope != nil {
-						scopes = append(scopes, scope)
-					}
+				search := &Search{
+					Fields: s.FieldsSearch,
+					Query:  query,
 				}
 
-				if len(scopes) > 0 {
-					db = db.Scopes(scopes...)
+				scope := search.Scopes(s, modelIdentity)
+
+				if scope != nil {
+					db = db.Scopes(scope)
 				}
 			}
 		}
@@ -137,7 +136,9 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 			fields = modelIdentity.addPrimaryKeys(fields)
 			fields = modelIdentity.addForeignKeys(fields)
 		}
-		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist)))
+		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist), true))
+	} else {
+		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns), true))
 	}
 
 	return paginator, paginator.Find()

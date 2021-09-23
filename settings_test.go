@@ -86,32 +86,9 @@ func TestScope(t *testing.T) {
 					clause.AndConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{
-								SQL:                "`test_scope_models`.`name` LIKE ?",
-								Vars:               []interface{}{"%val1%"},
+								SQL:                "email LIKE (?)",
+								Vars:               []interface{}{"val"},
 								WithoutParentheses: false,
-							},
-							clause.Expr{
-								SQL:                "`test_scope_models`.`name` LIKE ?",
-								Vars:               []interface{}{"%val2%"},
-								WithoutParentheses: false,
-							},
-							clause.OrConditions{
-								Exprs: []clause.Expression{
-									clause.Expr{
-										SQL:                "`test_scope_models`.`name` = ?",
-										Vars:               []interface{}{"val3"},
-										WithoutParentheses: false,
-									},
-								},
-							},
-							clause.OrConditions{
-								Exprs: []clause.Expression{
-									clause.Expr{
-										SQL:                "email LIKE (?)",
-										Vars:               []interface{}{"val"},
-										WithoutParentheses: false,
-									},
-								},
 							},
 						},
 					},
@@ -144,7 +121,7 @@ func TestScope(t *testing.T) {
 }
 
 func TestScopeDisableFields(t *testing.T) {
-	paginator, db := prepareTestScope(&Settings{DisableFields: true})
+	paginator, db := prepareTestScope(&Settings{DisableFields: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -157,6 +134,15 @@ func TestScopeDisableFields(t *testing.T) {
 					clause.OrConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+						},
+					},
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{
+								SQL:                "email LIKE ?",
+								Vars:               []interface{}{"%val%"},
+								WithoutParentheses: false,
+							},
 						},
 					},
 				},
@@ -187,10 +173,26 @@ func TestScopeDisableFields(t *testing.T) {
 }
 
 func TestScopeDisableFilter(t *testing.T) {
-	paginator, db := prepareTestScope(&Settings{DisableFilter: true})
+	paginator, db := prepareTestScope(&Settings{DisableFilter: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{
+								SQL:                "email LIKE ?",
+								Vars:               []interface{}{"%val%"},
+								WithoutParentheses: false,
+							},
+						},
+					},
+				},
+			},
+		},
 		"ORDER BY": {
 			Name: "ORDER BY",
 			Expression: clause.OrderBy{
@@ -216,7 +218,7 @@ func TestScopeDisableFilter(t *testing.T) {
 }
 
 func TestScopeDisableSort(t *testing.T) {
-	paginator, db := prepareTestScope(&Settings{DisableSort: true})
+	paginator, db := prepareTestScope(&Settings{DisableSort: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -229,6 +231,15 @@ func TestScopeDisableSort(t *testing.T) {
 					clause.OrConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+						},
+					},
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{
+								SQL:                "email LIKE ?",
+								Vars:               []interface{}{"%val%"},
+								WithoutParentheses: false,
+							},
 						},
 					},
 				},
@@ -246,7 +257,7 @@ func TestScopeDisableSort(t *testing.T) {
 }
 
 func TestScopeDisableJoin(t *testing.T) {
-	paginator, db := prepareTestScope(&Settings{DisableJoin: true})
+	paginator, db := prepareTestScope(&Settings{DisableJoin: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -259,6 +270,15 @@ func TestScopeDisableJoin(t *testing.T) {
 					clause.OrConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+						},
+					},
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{
+								SQL:                "email LIKE ?",
+								Vars:               []interface{}{"%val%"},
+								WithoutParentheses: false,
+							},
 						},
 					},
 				},
@@ -424,15 +444,21 @@ func TestApplyFilters(t *testing.T) {
 
 func TestSelectScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(nil, nil, true)).Find(nil)
+	db = db.Scopes(selectScope(nil, nil, func(tx *gorm.DB, fields []string) *gorm.DB {
+		return tx.Select(fields)
+	})).Find(nil)
 	assert.Empty(t, db.Statement.Selects)
 
 	modelIdentity := &modelIdentity{TableName: "test_models"}
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, true)).Find(nil)
+	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, func(tx *gorm.DB, fields []string) *gorm.DB {
+		return tx.Select(fields)
+	})).Find(nil)
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{}, true)).Find(nil)
+	db = db.Scopes(selectScope(modelIdentity, []string{}, func(tx *gorm.DB, fields []string) *gorm.DB {
+		return tx.Select(fields)
+	})).Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }

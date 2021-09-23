@@ -101,6 +101,8 @@ func joinScope(relationName string, relationIdentity *relation, fields []string,
 			}
 		}
 
-		return tx.Preload(relationName, selectScope(relationIdentity.modelIdentity, columns, false))
+		return tx.Preload(relationName, selectScope(relationIdentity.modelIdentity, columns, func(tx *gorm.DB, fields []string) *gorm.DB {
+			return tx.Select(fields)
+		}))
 	}
 }

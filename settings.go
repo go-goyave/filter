@@ -27,7 +27,8 @@ type Settings struct {
 	DisableSearch bool
 
 	// FieldsSearch allows search for these fields
-	FieldsSearch   []string
+	FieldsSearch []string
+	// SearchOperator is used by the search scope, by default it use the $cont operator
 	SearchOperator *Operator
 }
 
@@ -80,7 +81,7 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 		}
 	}
 
-	if !s.DisableSearch && s.SearchOperator != nil && request.Has("search") {
+	if !s.DisableSearch && request.Has("search") {
 		query, ok := request.Data["search"].(string)
 		if ok {
 			if len(s.FieldsSearch) == 0 {
@@ -136,9 +137,13 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 			fields = modelIdentity.addPrimaryKeys(fields)
 			fields = modelIdentity.addForeignKeys(fields)
 		}
-		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist), true))
+		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist), func(tx *gorm.DB, fields []string) *gorm.DB {
+			return tx.Select(tx.Statement.Selects, fields)
+		}))
 	} else {
-		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns), true))
+		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns), func(tx *gorm.DB, fields []string) *gorm.DB {
+			return tx.Select(tx.Statement.Selects, fields)
+		}))
 	}
 
 	return paginator, paginator.Find()

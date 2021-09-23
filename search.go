@@ -25,7 +25,7 @@ func (s *Search) Scopes(settings *Settings, modelIdentity *modelIdentity) func(*
 	}
 
 	return func(tx *gorm.DB) *gorm.DB {
-		searchQuery := tx.Session(&gorm.Session{})
+		searchQuery := tx.Session(&gorm.Session{NewDB: true})
 
 		for _, field := range fields {
 			filter := &Filter{
@@ -35,7 +35,11 @@ func (s *Search) Scopes(settings *Settings, modelIdentity *modelIdentity) func(*
 				Or:       true,
 			}
 
-			searchQuery = settings.SearchOperator.Function(searchQuery, filter, field)
+			if settings.SearchOperator != nil {
+				searchQuery = settings.SearchOperator.Function(searchQuery, filter, field)
+			} else {
+				searchQuery = Operators["$cont"].Function(searchQuery, filter, field)
+			}
 		}
 
 		return tx.Where(searchQuery)

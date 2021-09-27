@@ -137,13 +137,9 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 			fields = modelIdentity.addPrimaryKeys(fields)
 			fields = modelIdentity.addForeignKeys(fields)
 		}
-		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist), func(tx *gorm.DB, fields []string) *gorm.DB {
-			return tx.Select(tx.Statement.Selects, fields)
-		}))
+		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist), true))
 	} else {
-		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns), func(tx *gorm.DB, fields []string) *gorm.DB {
-			return tx.Select(tx.Statement.Selects, fields)
-		}))
+		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns), true))
 	}
 
 	return paginator, paginator.Find()

@@ -444,21 +444,27 @@ func TestApplyFilters(t *testing.T) {
 
 func TestSelectScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(nil, nil, func(tx *gorm.DB, fields []string) *gorm.DB {
-		return tx.Select(fields)
-	})).Find(nil)
+	db = db.Scopes(selectScope(nil, nil, false)).Find(nil)
+	assert.Empty(t, db.Statement.Selects)
+
+	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
+	db = db.Scopes(selectScope(nil, nil, true)).Find(nil)
 	assert.Empty(t, db.Statement.Selects)
 
 	modelIdentity := &modelIdentity{TableName: "test_models"}
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, func(tx *gorm.DB, fields []string) *gorm.DB {
-		return tx.Select(fields)
-	})).Find(nil)
+	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, false)).Find(nil)
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{}, func(tx *gorm.DB, fields []string) *gorm.DB {
-		return tx.Select(fields)
-	})).Find(nil)
+	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, true)).Find(nil)
+	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
+
+	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
+	db = db.Scopes(selectScope(modelIdentity, []string{}, false)).Find(nil)
+	assert.Equal(t, []string{"1"}, db.Statement.Selects)
+
+	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
+	db = db.Scopes(selectScope(modelIdentity, []string{}, true)).Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }

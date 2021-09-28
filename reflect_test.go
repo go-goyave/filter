@@ -45,20 +45,20 @@ func TestParseModel(t *testing.T) {
 
 	relModelIdentity := &modelIdentity{
 		Columns: map[string]*column{
-			"name":                  {Name: "Name", Tags: &gormTags{}},
-			"id":                    {Name: "ID", Tags: &gormTags{}},
-			"test_model_id":         {Name: "TestModelID", Tags: &gormTags{}},
-			"test_model_guessed_id": {Name: "TestModelGuessedID", Tags: &gormTags{}},
+			"name":                  {Name: "Name", Tags: &gormTags{}, Type: schema.String},
+			"id":                    {Name: "ID", Tags: &gormTags{}, Type: schema.Uint},
+			"test_model_id":         {Name: "TestModelID", Tags: &gormTags{}, Type: schema.Uint},
+			"test_model_guessed_id": {Name: "TestModelGuessedID", Tags: &gormTags{}, Type: schema.Uint},
 		},
 		Relations:   map[string]*relation{},
 		PrimaryKeys: []string{"id"},
 	}
 	expected := &modelIdentity{
 		Columns: map[string]*column{
-			"id":            {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
-			"str":           {Name: "Str", Tags: &gormTags{}},
-			"email_address": {Name: "Email", Tags: &gormTags{Column: "email_address"}},
-			"deleted_at":    {Name: "DeletedAt", Tags: &gormTags{}},
+			"id":            {Name: "ID", Tags: &gormTags{PrimaryKey: true}, Type: schema.Uint},
+			"str":           {Name: "Str", Tags: &gormTags{}, Type: schema.String},
+			"email_address": {Name: "Email", Tags: &gormTags{Column: "email_address"}, Type: schema.String},
+			"deleted_at":    {Name: "DeletedAt", Tags: &gormTags{}, Type: schema.Time},
 		},
 		PrimaryKeys: []string{"id"},
 		Relations: map[string]*relation{
@@ -207,6 +207,7 @@ func TestParseModelLocalKeys(t *testing.T) {
 			"belongs_to_id": {
 				Name: "BelongsToID",
 				Tags: &gormTags{},
+				Type: schema.Uint,
 			},
 		},
 		Relations: map[string]*relation{
@@ -216,6 +217,7 @@ func TestParseModelLocalKeys(t *testing.T) {
 						"id": {
 							Name: "ID",
 							Tags: &gormTags{},
+							Type: schema.Uint,
 						},
 					},
 					Relations:   map[string]*relation{},
@@ -247,7 +249,7 @@ func TestParseModelEmbeddedStruct(t *testing.T) {
 	identity := parseModel(db, &TestModelEmbedded{})
 	expected := &modelIdentity{
 		Columns: map[string]*column{
-			"embed_name": {Name: "Name", Tags: &gormTags{}},
+			"embed_name": {Name: "Name", Tags: &gormTags{}, Type: schema.String},
 		},
 		Relations:   map[string]*relation{},
 		PrimaryKeys: []string{},

@@ -45,7 +45,7 @@ type relation struct {
 type column struct {
 	Tags *gormTags
 	Name string
-	Type string
+	Type schema.DataType
 }
 
 func (i *modelIdentity) promote(identity *modelIdentity, prefix string) {
@@ -195,7 +195,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 				identity.Columns[columnName(db, gormTags, field.Name)] = &column{
 					Name: field.Name,
 					Tags: gormTags,
-					Type: fieldType.Name(),
+					Type: (&schema.Schema{}).ParseField(field).DataType,
 				}
 			} else if i := parseIdentity(db, fieldType, parents); i != nil {
 				if gormTags.Embedded {
@@ -220,7 +220,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 				identity.Columns[columnName(db, gormTags, field.Name)] = &column{
 					Name: field.Name,
 					Tags: gormTags,
-					Type: fieldType.Name(),
+					Type: (&schema.Schema{}).ParseField(field).DataType,
 				}
 			} else if i := parseIdentity(db, fieldType.Elem(), parents); i != nil {
 				// "has many" relation
@@ -239,7 +239,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 			identity.Columns[colName] = &column{
 				Name: field.Name,
 				Tags: gormTags,
-				Type: fieldType.Name(),
+				Type: (&schema.Schema{}).ParseField(field).DataType,
 			}
 		}
 	}

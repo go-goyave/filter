@@ -453,6 +453,7 @@ func TestSelectScope(t *testing.T) {
 	assert.Empty(t, db.Statement.Selects)
 
 	modelIdentity := &modelIdentity{TableName: "test_models"}
+
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
 	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, false)).Find(nil)
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
@@ -462,10 +463,10 @@ func TestSelectScope(t *testing.T) {
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{}, false)).Find(nil)
-	assert.Equal(t, []string{"1"}, db.Statement.Selects)
+	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, false)).Select("1 + 1 AS count").Find(nil)
+	assert.Equal(t, []string{"1 + 1 AS count", "`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{}, true)).Find(nil)
+	db = db.Scopes(selectScope(modelIdentity, []string{}, true)).Select("*, 1 + 1 AS count").Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }

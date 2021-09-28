@@ -130,9 +130,9 @@ func selectScope(modelIdentity *modelIdentity, fields []string, override bool) f
 		}
 
 		if override {
-			return tx.Select(tx.Statement.Selects, fieldsWithTableName)
+			return tx.Select(fieldsWithTableName)
 		}
 
-		return tx.Select(fieldsWithTableName)
+		return tx.Select(tx.Statement.Selects, fieldsWithTableName)
 	}
 }

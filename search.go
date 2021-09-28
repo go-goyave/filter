@@ -21,19 +21,16 @@ func (s *Search) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 		searchQuery := tx.Session(&gorm.Session{NewDB: true})
 
 		for _, field := range s.Fields {
-			operator := s.Operator
-			if operator == nil {
-				operator = Operators["$cont"]
-			}
+
 			filter := &Filter{
 				Field:    field,
-				Operator: operator,
+				Operator: s.Operator,
 				Args:     []string{s.Query},
 				Or:       true,
 			}
 
 			tableName := tx.Statement.Quote(modelIdentity.TableName) + "."
-			searchQuery = operator.Function(searchQuery, filter, tableName+tx.Statement.Quote(field), modelIdentity.Columns[field].Type)
+			searchQuery = s.Operator.Function(searchQuery, filter, tableName+tx.Statement.Quote(field), modelIdentity.Columns[field].Type)
 		}
 
 		return tx.Where(searchQuery)

@@ -82,19 +82,7 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 	}
 
 	if !s.DisableSearch && request.Has("search") {
-		query, ok := request.Data["search"].(string)
-		if ok {
-			fields := s.FieldsSearch
-			if fields == nil {
-				// TODO test this
-				fields = s.getSelectableFields(modelIdentity.Columns)
-			}
-			search := &Search{
-				Query:    query,
-				Operator: s.SearchOperator,
-				Fields:   fields,
-			}
-
+		if search := s.applySearch(request, modelIdentity); search != nil {
 			if scope := search.Scope(modelIdentity); scope != nil {
 				db = db.Scopes(scope)
 			}
@@ -160,6 +148,31 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, modelIdent
 		}
 	}
 	return db
+}
+
+func (s *Settings) applySearch(request *goyave.Request, modelIdentity *modelIdentity) *Search {
+	query, ok := request.Data["search"].(string)
+	if ok {
+		fields := s.FieldsSearch
+		if fields == nil {
+			fields = s.getSelectableFields(modelIdentity.Columns)
+		}
+
+		operator := s.SearchOperator
+		if operator == nil {
+			operator = Operators["$cont"]
+		}
+
+		search := &Search{
+			Query:    query,
+			Operator: operator,
+			Fields:   fields,
+		}
+
+		return search
+	}
+
+	return nil
 }
 
 func (b *Blacklist) getSelectableFields(fields map[string]*column) []string {

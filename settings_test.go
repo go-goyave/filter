@@ -349,6 +349,7 @@ func TestScopeDisableSearch(t *testing.T) {
 			},
 		},
 	}
+
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
 }
@@ -441,6 +442,30 @@ func TestApplyFilters(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestApplySearch(t *testing.T) {
+	request := &goyave.Request{
+		Data: map[string]interface{}{
+			"search": "val",
+		},
+		Lang: "en-US",
+	}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"id":   {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
+			"name": {Name: "Name"},
+		},
+		PrimaryKeys: []string{"id"},
+		Relations:   map[string]*relation{},
+		TableName:   `test_scope_models`,
+	}
+
+	search := (&Settings{}).applySearch(request, modelIdentity)
+	assert.NotNil(t, search)
+	assert.ElementsMatch(t, []string{"id", "name"}, search.Fields)
+	assert.Equal(t, "val", search.Query)
+	assert.Equal(t, Operators["$cont"], search.Operator)
 }
 
 func TestSelectScope(t *testing.T) {

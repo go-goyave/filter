@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 	"gorm.io/gorm/utils/tests"
 	"goyave.dev/goyave/v4"
 	"goyave.dev/goyave/v4/database"
@@ -20,9 +21,9 @@ type TestScopeRelation struct {
 type TestScopeModel struct {
 	Relation   *TestScopeRelation
 	Name       string
+	Email      string
 	ID         uint
 	RelationID uint
-	Email      string
 }
 type TestScopeModelNoPrimaryKey struct {
 	Relation   *TestScopeRelation
@@ -63,8 +64,8 @@ func TestScope(t *testing.T) {
 	paginator, db := prepareTestScope(&Settings{
 		FieldsSearch: []string{"email"},
 		SearchOperator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
-				return tx.Or(fmt.Sprintf("%s LIKE (?)", filter.Field), filter.Args[0])
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,
 		},
@@ -86,7 +87,7 @@ func TestScope(t *testing.T) {
 					clause.AndConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{
-								SQL:                "email LIKE (?)",
+								SQL:                "`test_scope_models`.`email` LIKE (?)",
 								Vars:               []interface{}{"val"},
 								WithoutParentheses: false,
 							},
@@ -139,7 +140,7 @@ func TestScopeDisableFields(t *testing.T) {
 					clause.AndConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{
-								SQL:                "email LIKE ?",
+								SQL:                "`test_scope_models`.`email` LIKE ?",
 								Vars:               []interface{}{"%val%"},
 								WithoutParentheses: false,
 							},
@@ -184,7 +185,7 @@ func TestScopeDisableFilter(t *testing.T) {
 					clause.AndConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{
-								SQL:                "email LIKE ?",
+								SQL:                "`test_scope_models`.`email` LIKE ?",
 								Vars:               []interface{}{"%val%"},
 								WithoutParentheses: false,
 							},
@@ -236,7 +237,7 @@ func TestScopeDisableSort(t *testing.T) {
 					clause.AndConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{
-								SQL:                "email LIKE ?",
+								SQL:                "`test_scope_models`.`email` LIKE ?",
 								Vars:               []interface{}{"%val%"},
 								WithoutParentheses: false,
 							},
@@ -275,7 +276,7 @@ func TestScopeDisableJoin(t *testing.T) {
 					clause.AndConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{
-								SQL:                "email LIKE ?",
+								SQL:                "`test_scope_models`.`email` LIKE ?",
 								Vars:               []interface{}{"%val%"},
 								WithoutParentheses: false,
 							},

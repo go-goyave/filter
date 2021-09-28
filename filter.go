@@ -57,15 +57,8 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 			tx = join(tx, joinName, modelIdentity)
 		}
 
-		// Skip the query if someone try to filter on non boolean column type
-		if f.Operator.Name == "$istrue" || f.Operator.Name == "$isfalse" {
-			if col.Type != "bool" {
-				return tx
-			}
-		}
-
 		tableName := tx.Statement.Quote(m.TableName) + "."
-		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field))
+		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field), col.Type)
 	}
 }
 

@@ -2,16 +2,27 @@ package filter
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 	"gorm.io/gorm/utils/tests"
-	"testing"
 )
 
 func TestSearchScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	search := &Search{Fields: []string{"name", "email"}, Query: "My Query"}
+	search := &Search{
+		Fields: []string{"name", "email"},
+		Query:  "My Query",
+		Operator: &Operator{
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
+			},
+			RequiredArguments: 1,
+		},
+	}
 	modelIdentity := &modelIdentity{
 		Columns: map[string]*column{
 			"name":  {Name: "Name"},
@@ -21,15 +32,7 @@ func TestSearchScope(t *testing.T) {
 		TableName: "test_models",
 	}
 
-	db = db.Scopes(search.Scopes(&Settings{
-		FieldsSearch: []string{"name", "email"},
-		SearchOperator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string) *gorm.DB {
-				return tx.Or(fmt.Sprintf("%s LIKE (?)", filter.Field), filter.Args[0])
-			},
-			RequiredArguments: 1,
-		},
-	}, modelIdentity)).Table("table").Find(nil)
+	db = db.Scopes(search.Scope(modelIdentity)).Table("table").Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -40,7 +43,7 @@ func TestSearchScope(t *testing.T) {
 							clause.OrConditions{
 								Exprs: []clause.Expression{
 									clause.Expr{
-										SQL:                "name LIKE (?)",
+										SQL:                "`test_models`.`name` LIKE (?)",
 										Vars:               []interface{}{"My Query"},
 										WithoutParentheses: false,
 									},
@@ -49,7 +52,7 @@ func TestSearchScope(t *testing.T) {
 							clause.OrConditions{
 								Exprs: []clause.Expression{
 									clause.Expr{
-										SQL:                "email LIKE (?)",
+										SQL:                "`test_models`.`email` LIKE (?)",
 										Vars:               []interface{}{"My Query"},
 										WithoutParentheses: false,
 									},

@@ -13,6 +13,11 @@ import (
 // Settings settings to disable certain features and/or blacklist fields
 // and relations.
 type Settings struct {
+	// FieldsSearch allows search for these fields
+	FieldsSearch []string
+	// SearchOperator is used by the search scope, by default it use the $cont operator
+	SearchOperator *Operator
+
 	Blacklist
 
 	// DisableFields ignore the "fields" query if true.
@@ -25,11 +30,6 @@ type Settings struct {
 	DisableJoin bool
 	// DisableSearch ignore the "search" query if true.
 	DisableSearch bool
-
-	// FieldsSearch allows search for these fields
-	FieldsSearch []string
-	// SearchOperator is used by the search scope, by default it use the $cont operator
-	SearchOperator *Operator
 }
 
 // Blacklist definition of blacklisted relations and fields.
@@ -84,21 +84,19 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 	if !s.DisableSearch && request.Has("search") {
 		query, ok := request.Data["search"].(string)
 		if ok {
-			if len(s.FieldsSearch) == 0 {
-				s.FieldsSearch = s.getSelectableFields(modelIdentity.Columns)
+			fields := s.FieldsSearch
+			if fields == nil {
+				// TODO test this
+				fields = s.getSelectableFields(modelIdentity.Columns)
+			}
+			search := &Search{
+				Query:    query,
+				Operator: s.SearchOperator,
+				Fields:   fields,
 			}
 
-			if len(s.FieldsSearch) > 0 {
-				search := &Search{
-					Fields: s.FieldsSearch,
-					Query:  query,
-				}
-
-				scope := search.Scopes(s, modelIdentity)
-
-				if scope != nil {
-					db = db.Scopes(scope)
-				}
+			if scope := search.Scope(modelIdentity); scope != nil {
+				db = db.Scopes(scope)
 			}
 		}
 	}

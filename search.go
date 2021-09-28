@@ -6,28 +6,33 @@ import (
 
 // Search structured representation of a search query.
 type Search struct {
-	Fields []string
-	Query  string
+	Query    string
+	Operator *Operator
+	Fields   []string
 }
 
-// Scopes returns the GORM scopes with the search query.
-func (s *Search) Scopes(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
+// Scope returns the GORM scopes with the search query.
+func (s *Search) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
+	if len(s.Fields) == 0 {
+		return nil // TODO test this
+	}
 	return func(tx *gorm.DB) *gorm.DB {
 		searchQuery := tx.Session(&gorm.Session{NewDB: true})
 
-		for _, field := range settings.FieldsSearch {
+		for _, field := range s.Fields {
+			operator := s.Operator
+			if operator == nil {
+				operator = Operators["$cont"]
+			}
 			filter := &Filter{
 				Field:    field,
-				Operator: settings.SearchOperator,
+				Operator: operator,
 				Args:     []string{s.Query},
 				Or:       true,
 			}
 
-			if settings.SearchOperator != nil {
-				searchQuery = settings.SearchOperator.Function(searchQuery, filter, field)
-			} else {
-				searchQuery = Operators["$cont"].Function(searchQuery, filter, field)
-			}
+			tableName := tx.Statement.Quote(modelIdentity.TableName) + "."
+			searchQuery = operator.Function(searchQuery, filter, tableName+tx.Statement.Quote(field), modelIdentity.Columns[field].Type)
 		}
 
 		return tx.Where(searchQuery)

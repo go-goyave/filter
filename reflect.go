@@ -2,7 +2,6 @@ package filter
 
 import (
 	"database/sql"
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -46,6 +45,7 @@ type relation struct {
 type column struct {
 	Tags *gormTags
 	Name string
+	Type schema.DataType
 }
 
 func (i *modelIdentity) promote(identity *modelIdentity, prefix string) {
@@ -84,7 +84,6 @@ func (i *modelIdentity) addForeignKeys(fields []string) []string {
 	for _, r := range i.Relations {
 		for _, k := range r.LocalKeys {
 			if !helper.ContainsStr(fields, k) {
-				fmt.Println("add", k)
 				fields = append(fields, k)
 			}
 		}
@@ -175,6 +174,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 		if fieldType.Kind() == reflect.Ptr {
 			fieldType = fieldType.Elem()
 		}
+
 		gormTags := parseGormTags(field)
 		if gormTags.Ignored {
 			continue
@@ -195,6 +195,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 				identity.Columns[columnName(db, gormTags, field.Name)] = &column{
 					Name: field.Name,
 					Tags: gormTags,
+					Type: (&schema.Schema{}).ParseField(field).DataType,
 				}
 			} else if i := parseIdentity(db, fieldType, parents); i != nil {
 				if gormTags.Embedded {
@@ -219,6 +220,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 				identity.Columns[columnName(db, gormTags, field.Name)] = &column{
 					Name: field.Name,
 					Tags: gormTags,
+					Type: (&schema.Schema{}).ParseField(field).DataType,
 				}
 			} else if i := parseIdentity(db, fieldType.Elem(), parents); i != nil {
 				// "has many" relation
@@ -237,6 +239,7 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 			identity.Columns[colName] = &column{
 				Name: field.Name,
 				Tags: gormTags,
+				Type: (&schema.Schema{}).ParseField(field).DataType,
 			}
 		}
 	}

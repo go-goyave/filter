@@ -87,6 +87,7 @@ func ApplyValidation(set validation.RuleSet) {
 	set["fields"] = validation.List{"string"}
 	set["page"] = validation.List{"integer", "min:1"}
 	set["per_page"] = validation.List{"integer", "between:1,500"}
+	set["search"] = validation.List{"string"}
 }
 
 // ApplyValidationRules add all fields used by the filter module to the given *Rules.
@@ -102,6 +103,7 @@ func ApplyValidationRules(set *validation.Rules) {
 	set.Fields["fields"] = &validation.Field{Rules: []*validation.Rule{{Name: "string"}}}
 	set.Fields["page"] = &validation.Field{Rules: []*validation.Rule{{Name: "integer"}, {Name: "min", Params: []string{"1"}}}}
 	set.Fields["per_page"] = &validation.Field{Rules: []*validation.Rule{{Name: "integer"}, {Name: "between", Params: []string{"1", "500"}}}}
+	set.Fields["search"] = &validation.Field{Rules: []*validation.Rule{{Name: "string"}}}
 }
 
 // ParseFilter parse a string in format "field||$operator||value" and return

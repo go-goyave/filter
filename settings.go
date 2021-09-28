@@ -13,6 +13,11 @@ import (
 // Settings settings to disable certain features and/or blacklist fields
 // and relations.
 type Settings struct {
+	// FieldsSearch allows search for these fields
+	FieldsSearch []string
+	// SearchOperator is used by the search scope, by default it use the $cont operator
+	SearchOperator *Operator
+
 	Blacklist
 
 	// DisableFields ignore the "fields" query if true.
@@ -23,6 +28,8 @@ type Settings struct {
 	DisableSort bool
 	// DisableJoin ignore the "join" query if true.
 	DisableJoin bool
+	// DisableSearch ignore the "search" query if true.
+	DisableSearch bool
 }
 
 // Blacklist definition of blacklisted relations and fields.
@@ -74,6 +81,14 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 		}
 	}
 
+	if !s.DisableSearch && request.Has("search") {
+		if search := s.applySearch(request, modelIdentity); search != nil {
+			if scope := search.Scope(modelIdentity); scope != nil {
+				db = db.Scopes(scope)
+			}
+		}
+	}
+
 	page := 1
 	if request.Has("page") {
 		page = request.Integer("page")
@@ -108,9 +123,9 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 			fields = modelIdentity.addPrimaryKeys(fields)
 			fields = modelIdentity.addForeignKeys(fields)
 		}
-		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist)))
+		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist), false))
 	} else {
-		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns)))
+		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns), false))
 	}
 
 	return paginator, paginator.Find()
@@ -133,6 +148,31 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, modelIdent
 		}
 	}
 	return db
+}
+
+func (s *Settings) applySearch(request *goyave.Request, modelIdentity *modelIdentity) *Search {
+	query, ok := request.Data["search"].(string)
+	if ok {
+		fields := s.FieldsSearch
+		if fields == nil {
+			fields = s.getSelectableFields(modelIdentity.Columns)
+		}
+
+		operator := s.SearchOperator
+		if operator == nil {
+			operator = Operators["$cont"]
+		}
+
+		search := &Search{
+			Query:    query,
+			Operator: operator,
+			Fields:   fields,
+		}
+
+		return search
+	}
+
+	return nil
 }
 
 func (b *Blacklist) getSelectableFields(fields map[string]*column) []string {

@@ -14,8 +14,9 @@ type Search struct {
 // Scope returns the GORM scopes with the search query.
 func (s *Search) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 	if len(s.Fields) == 0 {
-		return nil // TODO test this
+		return nil
 	}
+
 	return func(tx *gorm.DB) *gorm.DB {
 		searchQuery := tx.Session(&gorm.Session{NewDB: true})
 

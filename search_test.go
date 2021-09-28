@@ -66,3 +66,26 @@ func TestSearchScope(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
+
+func TestSearchScopeEmptyField(t *testing.T) {
+	search := &Search{
+		Fields: []string{},
+		Query:  "My Query",
+		Operator: &Operator{
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
+			},
+			RequiredArguments: 1,
+		},
+	}
+	modelIdentity := &modelIdentity{
+		Columns: map[string]*column{
+			"name":  {Name: "Name"},
+			"email": {Name: "Email"},
+			"role":  {Name: "role"},
+		},
+		TableName: "test_models",
+	}
+
+	assert.Nil(t, search.Scope(modelIdentity))
+}

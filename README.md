@@ -5,7 +5,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/go-goyave/filter/badge.svg)](https://coveralls.io/github/go-goyave/filter)
 [![Go Reference](https://pkg.go.dev/badge/goyave.dev/filter.svg)](https://pkg.go.dev/goyave.dev/filter)
 
-**Minimum Goyave version: `v4.0.0-rc1`**
+**Minimum Goyave version: `v4.0.0-rc2`**
 
 `goyave.dev/filter` allows powerful filtering using query parameters. Inspired by [nestjsx/crud](https://github.com/nestjsx/crud/wiki/Requests).
 

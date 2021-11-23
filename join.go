@@ -6,7 +6,7 @@ import (
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v4/helper"
+	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
 // Join structured representation of a join query.
@@ -33,7 +33,7 @@ func (j *Join) applyRelation(modelIdentity *modelIdentity, blacklist *Blacklist,
 	i := strings.Index(trimmedRelationName, ".")
 	if i == -1 {
 		if blacklist != nil {
-			if helper.ContainsStr(blacklist.RelationsBlacklist, trimmedRelationName) {
+			if sliceutil.ContainsStr(blacklist.RelationsBlacklist, trimmedRelationName) {
 				return nil
 			}
 			blacklist = blacklist.Relations[trimmedRelationName]
@@ -55,7 +55,7 @@ func (j *Join) applyRelation(modelIdentity *modelIdentity, blacklist *Blacklist,
 	name := trimmedRelationName[:i]
 	var b *Blacklist
 	if blacklist != nil {
-		if helper.ContainsStr(blacklist.RelationsBlacklist, name) {
+		if sliceutil.ContainsStr(blacklist.RelationsBlacklist, name) {
 			return nil
 		}
 		b = blacklist.Relations[name]
@@ -88,13 +88,13 @@ func joinScope(relationName string, relationIdentity *relation, fields []string,
 				return tx
 			}
 			for _, k := range relationIdentity.PrimaryKeys {
-				if !helper.ContainsStr(columns, k) && (blacklist == nil || !helper.ContainsStr(blacklist.FieldsBlacklist, k)) {
+				if !sliceutil.ContainsStr(columns, k) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, k)) {
 					columns = append(columns, k)
 				}
 			}
 			if relationIdentity.Type == schema.HasMany {
 				for _, v := range relationIdentity.ForeignKeys {
-					if !helper.ContainsStr(columns, v) && (blacklist == nil || !helper.ContainsStr(blacklist.FieldsBlacklist, v)) {
+					if !sliceutil.ContainsStr(columns, v) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, v)) {
 						columns = append(columns, v)
 					}
 				}

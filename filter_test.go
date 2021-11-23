@@ -242,11 +242,11 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 								clause.Eq{
 									Column: clause.Column{
 										Table: "filter_test_relations",
-										Name:  "parent_id",
+										Name:  "id",
 									},
 									Value: clause.Column{
 										Table: "filter_test_nested_relations",
-										Name:  "id",
+										Name:  "parent_id",
 									},
 								},
 							},

@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"gorm.io/gorm/utils"
-	"goyave.dev/goyave/v4/helper"
+	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
 var (
@@ -62,7 +62,7 @@ func (i *modelIdentity) promote(identity *modelIdentity, prefix string) {
 func (i *modelIdentity) cleanColumns(columns []string, blacklist []string) []string {
 	for j := 0; j < len(columns); j++ {
 		_, ok := i.Columns[columns[j]]
-		if !ok || helper.ContainsStr(blacklist, columns[j]) {
+		if !ok || sliceutil.ContainsStr(blacklist, columns[j]) {
 			columns = append(columns[:j], columns[j+1:]...)
 			j--
 		}
@@ -73,7 +73,7 @@ func (i *modelIdentity) cleanColumns(columns []string, blacklist []string) []str
 
 func (i *modelIdentity) addPrimaryKeys(fields []string) []string {
 	for _, k := range i.PrimaryKeys {
-		if !helper.ContainsStr(fields, k) {
+		if !sliceutil.ContainsStr(fields, k) {
 			fields = append(fields, k)
 		}
 	}
@@ -83,7 +83,7 @@ func (i *modelIdentity) addPrimaryKeys(fields []string) []string {
 func (i *modelIdentity) addForeignKeys(fields []string) []string {
 	for _, r := range i.Relations {
 		for _, k := range r.LocalKeys {
-			if !helper.ContainsStr(fields, k) {
+			if !sliceutil.ContainsStr(fields, k) {
 				fields = append(fields, k)
 			}
 		}

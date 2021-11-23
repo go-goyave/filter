@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v4/helper"
+	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
 // Filter structured representation of a filter query.
@@ -27,7 +27,7 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 		rel := f.Field[:i]
 		field = f.Field[i+1:]
 		for _, v := range strings.Split(rel, ".") {
-			if blacklist != nil && helper.ContainsStr(blacklist.RelationsBlacklist, v) {
+			if blacklist != nil && sliceutil.ContainsStr(blacklist.RelationsBlacklist, v) {
 				return nil
 			}
 			relation, ok := m.Relations[v]
@@ -41,7 +41,7 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 		}
 		joinName = rel
 	}
-	if blacklist != nil && helper.ContainsStr(blacklist.FieldsBlacklist, field) {
+	if blacklist != nil && sliceutil.ContainsStr(blacklist.FieldsBlacklist, field) {
 		return nil
 	}
 	col, ok := m.Columns[field]

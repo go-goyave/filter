@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 	"goyave.dev/goyave/v4"
 	"goyave.dev/goyave/v4/database"
-	"goyave.dev/goyave/v4/helper"
+	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
 // Settings settings to disable certain features and/or blacklist fields
@@ -182,7 +182,7 @@ func (b *Blacklist) getSelectableFields(fields map[string]*column) []string {
 	}
 	columns := make([]string, 0, len(fields))
 	for k := range fields {
-		if !helper.ContainsStr(blacklist, k) {
+		if !sliceutil.ContainsStr(blacklist, k) {
 			columns = append(columns, k)
 		}
 	}

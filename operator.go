@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v4/helper"
+	"goyave.dev/goyave/v4/util/sqlutil"
 )
 
 // Operator used by filters to build the SQL query.
@@ -32,7 +32,7 @@ var (
 		"$starts": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
 				query := column + " LIKE ?"
-				value := helper.EscapeLike(filter.Args[0]) + "%"
+				value := sqlutil.EscapeLike(filter.Args[0]) + "%"
 				return filter.Where(tx, query, value)
 			},
 			RequiredArguments: 1,
@@ -40,7 +40,7 @@ var (
 		"$ends": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
 				query := column + " LIKE ?"
-				value := "%" + helper.EscapeLike(filter.Args[0])
+				value := "%" + sqlutil.EscapeLike(filter.Args[0])
 				return filter.Where(tx, query, value)
 			},
 			RequiredArguments: 1,
@@ -48,7 +48,7 @@ var (
 		"$cont": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
 				query := column + " LIKE ?"
-				value := "%" + helper.EscapeLike(filter.Args[0]) + "%"
+				value := "%" + sqlutil.EscapeLike(filter.Args[0]) + "%"
 				return filter.Where(tx, query, value)
 			},
 			RequiredArguments: 1,
@@ -56,7 +56,7 @@ var (
 		"$excl": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
 				query := column + " NOT LIKE ?"
-				value := "%" + helper.EscapeLike(filter.Args[0]) + "%"
+				value := "%" + sqlutil.EscapeLike(filter.Args[0]) + "%"
 				return filter.Where(tx, query, value)
 			},
 			RequiredArguments: 1,

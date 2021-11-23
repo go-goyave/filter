@@ -3,7 +3,7 @@ package filter
 import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"goyave.dev/goyave/v4/helper"
+	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
 // Sort structured representation of a sort query.
@@ -24,7 +24,7 @@ const (
 
 // Scope returns the GORM scope to use in order to apply sorting.
 func (s *Sort) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
-	if helper.ContainsStr(settings.FieldsBlacklist, s.Field) {
+	if sliceutil.ContainsStr(settings.FieldsBlacklist, s.Field) {
 		return nil
 	}
 	_, ok := modelIdentity.Columns[s.Field]

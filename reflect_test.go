@@ -114,6 +114,28 @@ func TestParseModel(t *testing.T) {
 	assertModelIdentityEqual(t, expected, identity, []*modelIdentity{})
 }
 
+type TestModelCustomTable struct {
+	ID uint `gorm:"primaryKey"`
+}
+
+func (TestModelCustomTable) TableName() string {
+	return "custom_table_name"
+}
+
+func TestParseModelCustomTableName(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	identity := parseModel(db, &TestModelCustomTable{})
+	expected := &modelIdentity{
+		Columns: map[string]*column{
+			"id": {Name: "ID", Tags: &gormTags{PrimaryKey: true}, Type: schema.Uint},
+		},
+		TableName:   "custom_table_name",
+		PrimaryKeys: []string{"id"},
+		Relations:   map[string]*relation{},
+	}
+	assert.Equal(t, expected, identity)
+}
+
 func assertModelIdentityEqual(t *testing.T, expected *modelIdentity, actual *modelIdentity, explored []*modelIdentity) {
 	assert.Equal(t, expected.Columns, actual.Columns)
 	assert.Equal(t, expected.PrimaryKeys, actual.PrimaryKeys)

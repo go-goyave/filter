@@ -159,11 +159,16 @@ func parseIdentity(db *gorm.DB, t reflect.Type, parents []reflect.Type) *modelId
 	if cached, ok := identityCache[identifier]; ok {
 		return cached
 	}
+	tableName := db.NamingStrategy.TableName(t.Name())
+	m := reflect.New(t).Interface()
+	if tabler, ok := m.(schema.Tabler); ok {
+		tableName = tabler.TableName()
+	}
 	identity := &modelIdentity{
 		Columns:     make(map[string]*column, 10),
 		Relations:   make(map[string]*relation, 5),
 		PrimaryKeys: make([]string, 0, 2),
-		TableName:   db.NamingStrategy.TableName(t.Name()),
+		TableName:   tableName,
 	}
 	identityCache[identifier] = identity
 	count := t.NumField()

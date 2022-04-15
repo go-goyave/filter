@@ -102,6 +102,8 @@ You can filter using columns from one-to-one relations ("has one" or "belongs to
 
 > ?filter=**Relation.name**||**$cont**||**Jack**
 
+**Note:** All the filter conditions added to the SQL query are **grouped** (surrounded by parenthesis). 
+
 #### Operators
 
 |                |                                                         |
@@ -170,7 +172,9 @@ Internally, `goyave.dev/filter` uses [Goyave's `Paginator`](https://goyave.dev/g
 - Foreign keys are always selected in joins to ensure associations can be assigned to parent model.
 - **Be careful** with bidirectional relations (for example an article is written by a user, and a user can have many articles). If you enabled both your models to preload these relations, the client can request them with an infinite depth (`Articles.User.Articles.User...`). To prevent this, it is advised to use **the relation blacklist** or **IsFinal** on the deepest requestable models. See the settings section for more details.
 
-## Model recommendations
+## Tips
+
+### Model recommendations
 
 - Use `json:",omitempty"` on all model fields.
 	- *Note: using `omitempty` on slices will remove them from the json result if they are not nil and empty. There is currently no solution to this problem using the standard json package.*
@@ -179,6 +183,19 @@ Internally, `goyave.dev/filter` uses [Goyave's `Paginator`](https://goyave.dev/g
 - Always specify `gorm:"foreignKey"`, otherwise falls back to "ID".
 - Don't use `gorm.Model` and add the necessary fields manually. You get better control over json struct tags this way.
 - Use pointers for nullable relations and nullable fields that implement `sql.Scanner` (such as `null.Time`).
+
+### Static conditions
+
+If you want to add static conditions (not automatically defined by the library), it is advised to group them like so:
+```go
+users := []model.User{}
+db := database.GetConnection()
+db = db.Where(db.Session(&gorm.Session{NewDB: true}).Where("username LIKE ?", "%Miss%").Or("username LIKE ?", "%Ms.%"))
+paginator, tx := filter.Scope(db, request, &users)
+if response.HandleDatabaseError(tx) {
+	response.JSON(http.StatusOK, paginator)
+}
+```
 
 ## License
 

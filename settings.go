@@ -146,6 +146,7 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, schema *sc
 	if s.DisableFilter {
 		return db
 	}
+	filterScopes := make([]func(*gorm.DB) *gorm.DB, 0, 5)
 	for _, queryParam := range []string{"filter", "or"} {
 		if request.Has(queryParam) {
 			filters, ok := request.Data[queryParam].([]*Filter)
@@ -154,16 +155,24 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, schema *sc
 					// TODO If present both or and filter in any amount (one or miltiple each) then both interpreted as a combitation of AND conditions and compared with each other by OR condition, as follows:
 					// WHERE ({filter} AND {filter} AND ...) OR ({or} AND {or} AND ...)
 					if s := f.Scope(s, schema); s != nil {
-						db = db.Scopes(s)
+						filterScopes = append(filterScopes, s)
 					}
 				}
 			}
 		}
 	}
+	db = db.Scopes(func(tx *gorm.DB) *gorm.DB {
+		processedFilters := tx.Session(&gorm.Session{NewDB: true})
+		for _, f := range filterScopes {
+			processedFilters = f(processedFilters)
+		}
+		return tx.Where(processedFilters)
+	})
 	return db
 }
 
 func (s *Settings) applySearch(request *goyave.Request, schema *schema.Schema) *Search {
+	// Note: the search condition is not in a group condition (parenthesis)
 	query, ok := request.Data["search"].(string)
 	if ok {
 		fields := s.FieldsSearch

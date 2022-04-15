@@ -77,11 +77,15 @@ func TestScope(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
-					clause.OrConditions{
+					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+								},
+							},
 						},
 					},
 					clause.AndConditions{
@@ -130,11 +134,15 @@ func TestScopeDisableFields(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
-					clause.OrConditions{
+					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+								},
+							},
 						},
 					},
 					clause.AndConditions{
@@ -227,11 +235,15 @@ func TestScopeDisableSort(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
-					clause.OrConditions{
+					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+								},
+							},
 						},
 					},
 					clause.AndConditions{
@@ -266,11 +278,15 @@ func TestScopeDisableJoin(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
-					clause.OrConditions{
+					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+								},
+							},
 						},
 					},
 					clause.AndConditions{
@@ -319,11 +335,15 @@ func TestScopeDisableSearch(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
-					clause.OrConditions{
+					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+								},
+							},
 						},
 					},
 				},
@@ -446,11 +466,15 @@ func TestApplyFilters(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-					clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
-					clause.OrConditions{
+					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+								},
+							},
 						},
 					},
 				},

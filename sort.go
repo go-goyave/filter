@@ -3,6 +3,7 @@ package filter
 import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
@@ -23,11 +24,11 @@ const (
 )
 
 // Scope returns the GORM scope to use in order to apply sorting.
-func (s *Sort) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
+func (s *Sort) Scope(settings *Settings, schema *schema.Schema) func(*gorm.DB) *gorm.DB {
 	if sliceutil.ContainsStr(settings.FieldsBlacklist, s.Field) {
 		return nil
 	}
-	_, ok := modelIdentity.Columns[s.Field]
+	_, ok := schema.FieldsByDBName[s.Field]
 	if !ok {
 		return nil
 	}
@@ -35,7 +36,7 @@ func (s *Sort) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gor
 	return func(tx *gorm.DB) *gorm.DB {
 		c := clause.OrderByColumn{
 			Column: clause.Column{
-				Table: modelIdentity.TableName,
+				Table: schema.Table,
 				Name:  s.Field,
 			},
 			Desc: s.Order == SortDescending,

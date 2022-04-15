@@ -2,6 +2,7 @@ package filter
 
 import (
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 // Search structured representation of a search query.
@@ -12,7 +13,7 @@ type Search struct {
 }
 
 // Scope returns the GORM scopes with the search query.
-func (s *Search) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
+func (s *Search) Scope(schema *schema.Schema) func(*gorm.DB) *gorm.DB {
 	if len(s.Fields) == 0 {
 		return nil
 	}
@@ -29,8 +30,8 @@ func (s *Search) Scope(modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
 				Or:       true,
 			}
 
-			tableName := tx.Statement.Quote(modelIdentity.TableName) + "."
-			searchQuery = s.Operator.Function(searchQuery, filter, tableName+tx.Statement.Quote(field), modelIdentity.Columns[field].Type)
+			tableName := tx.Statement.Quote(schema.Table) + "."
+			searchQuery = s.Operator.Function(searchQuery, filter, tableName+tx.Statement.Quote(field), schema.FieldsByDBName[field].DataType)
 		}
 
 		return tx.Where(searchQuery)

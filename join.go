@@ -17,15 +17,15 @@ type Join struct {
 }
 
 // Scopes returns the GORM scopes to use in order to apply this joint.
-func (j *Join) Scopes(settings *Settings, modelIdentity *modelIdentity) []func(*gorm.DB) *gorm.DB {
-	scopes := j.applyRelation(modelIdentity, &settings.Blacklist, j.Relation, 0, make([]func(*gorm.DB) *gorm.DB, 0, strings.Count(j.Relation, ".")+1))
+func (j *Join) Scopes(settings *Settings, schema *schema.Schema) []func(*gorm.DB) *gorm.DB {
+	scopes := j.applyRelation(schema, &settings.Blacklist, j.Relation, 0, make([]func(*gorm.DB) *gorm.DB, 0, strings.Count(j.Relation, ".")+1))
 	if scopes != nil {
 		return scopes
 	}
 	return nil
 }
 
-func (j *Join) applyRelation(modelIdentity *modelIdentity, blacklist *Blacklist, relationName string, startIndex int, scopes []func(*gorm.DB) *gorm.DB) []func(*gorm.DB) *gorm.DB {
+func (j *Join) applyRelation(schema *schema.Schema, blacklist *Blacklist, relationName string, startIndex int, scopes []func(*gorm.DB) *gorm.DB) []func(*gorm.DB) *gorm.DB {
 	if blacklist != nil && blacklist.IsFinal {
 		return nil
 	}
@@ -39,7 +39,7 @@ func (j *Join) applyRelation(modelIdentity *modelIdentity, blacklist *Blacklist,
 			blacklist = blacklist.Relations[trimmedRelationName]
 		}
 
-		r, ok := modelIdentity.Relations[trimmedRelationName]
+		r, ok := schema.Relationships.Relations[trimmedRelationName]
 		if !ok {
 			return nil
 		}
@@ -60,7 +60,7 @@ func (j *Join) applyRelation(modelIdentity *modelIdentity, blacklist *Blacklist,
 		}
 		b = blacklist.Relations[name]
 	}
-	r, ok := modelIdentity.Relations[name]
+	r, ok := schema.Relationships.Relations[name]
 	if !ok {
 		return nil
 	}
@@ -71,36 +71,40 @@ func (j *Join) applyRelation(modelIdentity *modelIdentity, blacklist *Blacklist,
 	}
 	scopes = append(scopes, joinScope(n, r, fields, b))
 
-	return j.applyRelation(r.modelIdentity, b, relationName, startIndex+i+1, scopes)
+	return j.applyRelation(r.FieldSchema, b, relationName, startIndex+i+1, scopes)
 }
 
-func joinScope(relationName string, relationIdentity *relation, fields []string, blacklist *Blacklist) func(*gorm.DB) *gorm.DB {
+func joinScope(relationName string, rel *schema.Relationship, fields []string, blacklist *Blacklist) func(*gorm.DB) *gorm.DB {
 	var b []string
 	if blacklist != nil {
 		b = blacklist.FieldsBlacklist
 	}
-	columns := relationIdentity.cleanColumns(fields, b)
+	columns := cleanColumns(rel.FieldSchema, fields, b)
 
 	return func(tx *gorm.DB) *gorm.DB {
+		if rel.FieldSchema.Table == "" {
+			tx.AddError(fmt.Errorf("Relation %q is anonymous, could not get table name", relationName))
+			return tx
+		}
 		if columns != nil {
-			if len(relationIdentity.PrimaryKeys) == 0 {
-				tx.AddError(fmt.Errorf("Could not find %q relation's primary key. Add `gorm:\"primaryKey\"` to your model", relationName))
-				return tx
-			}
-			for _, k := range relationIdentity.PrimaryKeys {
+			for _, k := range rel.FieldSchema.PrimaryFieldDBNames {
 				if !sliceutil.ContainsStr(columns, k) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, k)) {
 					columns = append(columns, k)
 				}
 			}
-			if relationIdentity.Type == schema.HasMany {
-				for _, v := range relationIdentity.ForeignKeys {
-					if !sliceutil.ContainsStr(columns, v) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, v)) {
-						columns = append(columns, v)
+			if rel.Type == schema.HasMany || rel.Type == schema.Many2Many {
+				for _, backwardsRelation := range rel.FieldSchema.Relationships.Relations {
+					if backwardsRelation.FieldSchema == rel.Schema && (backwardsRelation.Type == schema.BelongsTo || backwardsRelation.Type == schema.HasOne) {
+						for _, ref := range backwardsRelation.References {
+							if !sliceutil.ContainsStr(columns, ref.ForeignKey.DBName) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, ref.ForeignKey.DBName)) {
+								columns = append(columns, ref.ForeignKey.DBName)
+							}
+						}
 					}
 				}
 			}
 		}
 
-		return tx.Preload(relationName, selectScope(relationIdentity.modelIdentity, columns, true))
+		return tx.Preload(relationName, selectScope(rel.FieldSchema, columns, true))
 	}
 }

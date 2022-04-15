@@ -51,18 +51,18 @@ func TestFilterWhereOr(t *testing.T) {
 func TestFilterScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	filter := &Filter{Field: "notacolumn", Args: []string{"val1"}, Operator: Operators["$eq"]}
-	modelIdentity := &modelIdentity{
-		Columns: map[string]*column{
+	schema := &schema.Schema{
+		FieldsByDBName: map[string]*schema.Field{
 			"name": {Name: "Name"},
 		},
-		TableName: "test_scope_models",
+		Table: "test_scope_models",
 	}
 
-	assert.Nil(t, filter.Scope(&Settings{}, modelIdentity))
+	assert.Nil(t, filter.Scope(&Settings{}, schema))
 
 	filter.Field = "name"
 
-	db = db.Scopes(filter.Scope(&Settings{}, modelIdentity)).Find(nil)
+	db = db.Scopes(filter.Scope(&Settings{}, schema)).Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -78,12 +78,13 @@ func TestFilterScope(t *testing.T) {
 
 func TestFilterScopeBlacklisted(t *testing.T) {
 	filter := &Filter{Field: "name", Args: []string{"val1"}, Operator: Operators["$eq"]}
-	modelIdentity := &modelIdentity{
-		Columns: map[string]*column{
+	schema := &schema.Schema{
+		FieldsByDBName: map[string]*schema.Field{
 			"name": {Name: "Name"},
 		},
 	}
-	assert.Nil(t, filter.Scope(&Settings{Blacklist: Blacklist{FieldsBlacklist: []string{"name"}}}, modelIdentity))
+
+	assert.Nil(t, filter.Scope(&Settings{Blacklist: Blacklist{FieldsBlacklist: []string{"name"}}}, schema))
 }
 
 type FilterTestNestedRelation struct {
@@ -110,9 +111,12 @@ func TestFilterScopeWithJoin(t *testing.T) {
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
-	modelIdentity := parseModel(db, &results)
+	schema, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
 
-	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, modelIdentity)).Find(&results)
+	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -135,7 +139,7 @@ func TestFilterScopeWithJoin(t *testing.T) {
 							Exprs: []clause.Expression{
 								clause.Eq{
 									Column: clause.Column{
-										Table: clause.CurrentTable,
+										Table: "filter_test_models",
 										Name:  "id",
 									},
 									Value: clause.Column{
@@ -158,7 +162,10 @@ func TestFilterScopeWithJoinBlacklistedRelation(t *testing.T) {
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
-	modelIdentity := parseModel(db, &results)
+	schema, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
 
 	settings := &Settings{
 		Blacklist: Blacklist{
@@ -166,7 +173,7 @@ func TestFilterScopeWithJoinBlacklistedRelation(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, filter.Scope(settings, modelIdentity))
+	assert.Nil(t, filter.Scope(settings, schema))
 }
 
 func TestFilterScopeWithJoinHasMany(t *testing.T) {
@@ -174,10 +181,13 @@ func TestFilterScopeWithJoinHasMany(t *testing.T) {
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
-	modelIdentity := parseModel(db, &results)
-	modelIdentity.Relations["Relation"].Type = schema.HasMany
-	assert.Nil(t, filter.Scope(&Settings{}, modelIdentity))
-	modelIdentity.Relations["Relation"].Type = schema.HasOne
+	sch, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
+	sch.Relationships.Relations["Relation"].Type = schema.HasMany
+	assert.Nil(t, filter.Scope(&Settings{}, sch))
+	sch.Relationships.Relations["Relation"].Type = schema.HasOne
 }
 
 func TestFilterScopeWithJoinInvalidModel(t *testing.T) {
@@ -185,9 +195,12 @@ func TestFilterScopeWithJoinInvalidModel(t *testing.T) {
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
-	modelIdentity := parseModel(db, &results)
+	sch, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
 
-	db = db.Scopes(filter.Scope(&Settings{}, modelIdentity)).Find(&results)
+	db = db.Scopes(filter.Scope(&Settings{}, sch)).Find(&results)
 	assert.Equal(t, "unsupported data type: <nil>", db.Error.Error())
 }
 
@@ -196,9 +209,14 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 	filter := &Filter{Field: "Relation.NestedRelation.field", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
-	modelIdentity := parseModel(db, &results)
+	sch, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
 
-	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, modelIdentity)).Find(&results)
+	scp := filter.Scope(&Settings{}, sch)
+	assert.NotNil(t, scp)
+	db = db.Model(&results).Scopes(scp).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -221,7 +239,7 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 							Exprs: []clause.Expression{
 								clause.Eq{
 									Column: clause.Column{
-										Table: clause.CurrentTable,
+										Table: "filter_test_models",
 										Name:  "id",
 									},
 									Value: clause.Column{

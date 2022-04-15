@@ -387,17 +387,38 @@ func TestScopeWithFieldsBlacklist(t *testing.T) {
 	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`", "`test_scope_models`.`email`"}, db.Statement.Selects)
 }
 
+func TestScopeInvalidModel(t *testing.T) {
+	request := &goyave.Request{
+		Data: map[string]interface{}{},
+		Lang: "en-US",
+	}
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	model := []string{}
+	assert.Panics(t, func() {
+		Scope(db, request, model)
+	})
+}
+
 func TestBlacklistGetSelectableFields(t *testing.T) {
 	blacklist := &Blacklist{
 		FieldsBlacklist: []string{"name"},
 	}
-	fields := map[string]*column{
+	fields := map[string]*schema.Field{
 		"id":    {},
 		"name":  {},
 		"email": {},
 	}
 
 	assert.ElementsMatch(t, []string{"id", "email"}, blacklist.getSelectableFields(fields))
+}
+
+type TestFilterScopeModel struct {
+	Name string
+	ID   int `gorm:"primaryKey"`
+}
+
+func (m *TestFilterScopeModel) TableName() string {
+	return "test_scope_models"
 }
 
 func TestApplyFilters(t *testing.T) {
@@ -414,17 +435,12 @@ func TestApplyFilters(t *testing.T) {
 		Lang: "en-US",
 	}
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	modelIdentity := &modelIdentity{
-		Columns: map[string]*column{
-			"id":   {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
-			"name": {Name: "Name"},
-		},
-		PrimaryKeys: []string{"id"},
-		Relations:   map[string]*relation{},
-		TableName:   `test_scope_models`,
+	schema, err := parseModel(db, &TestFilterScopeModel{})
+	if !assert.Nil(t, err) {
+		return
 	}
 
-	db = (&Settings{}).applyFilters(db, request, modelIdentity).Find(nil)
+	db = (&Settings{}).applyFilters(db, request, schema).Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -451,21 +467,25 @@ func TestApplySearch(t *testing.T) {
 		},
 		Lang: "en-US",
 	}
-	modelIdentity := &modelIdentity{
-		Columns: map[string]*column{
-			"id":   {Name: "ID", Tags: &gormTags{PrimaryKey: true}},
-			"name": {Name: "Name"},
-		},
-		PrimaryKeys: []string{"id"},
-		Relations:   map[string]*relation{},
-		TableName:   `test_scope_models`,
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	schema, err := parseModel(db, &TestFilterScopeModel{})
+	if !assert.Nil(t, err) {
+		return
 	}
 
-	search := (&Settings{}).applySearch(request, modelIdentity)
+	search := (&Settings{}).applySearch(request, schema)
 	assert.NotNil(t, search)
 	assert.ElementsMatch(t, []string{"id", "name"}, search.Fields)
 	assert.Equal(t, "val", search.Query)
 	assert.Equal(t, Operators["$cont"], search.Operator)
+}
+
+func TestApplySearchNoQuery(t *testing.T) {
+	request := &goyave.Request{
+		Data: map[string]interface{}{},
+		Lang: "en-US",
+	}
+	assert.Nil(t, (&Settings{}).applySearch(request, &schema.Schema{}))
 }
 
 func TestSelectScope(t *testing.T) {
@@ -477,21 +497,21 @@ func TestSelectScope(t *testing.T) {
 	db = db.Scopes(selectScope(nil, nil, true)).Find(nil)
 	assert.Empty(t, db.Statement.Selects)
 
-	modelIdentity := &modelIdentity{TableName: "test_models"}
+	schema := &schema.Schema{Table: "test_models"}
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, false)).Find(nil)
+	db = db.Scopes(selectScope(schema, []string{"a", "b"}, false)).Find(nil)
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, true)).Find(nil)
+	db = db.Scopes(selectScope(schema, []string{"a", "b"}, true)).Find(nil)
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{"a", "b"}, false)).Select("1 + 1 AS count").Find(nil)
+	db = db.Scopes(selectScope(schema, []string{"a", "b"}, false)).Select("1 + 1 AS count").Find(nil)
 	assert.Equal(t, []string{"1 + 1 AS count", "`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(modelIdentity, []string{}, true)).Select("*, 1 + 1 AS count").Find(nil)
+	db = db.Scopes(selectScope(schema, []string{}, true)).Select("*, 1 + 1 AS count").Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }

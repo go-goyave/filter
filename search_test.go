@@ -23,16 +23,17 @@ func TestSearchScope(t *testing.T) {
 			RequiredArguments: 1,
 		},
 	}
-	modelIdentity := &modelIdentity{
-		Columns: map[string]*column{
+
+	schema := &schema.Schema{
+		FieldsByDBName: map[string]*schema.Field{
 			"name":  {Name: "Name"},
 			"email": {Name: "Email"},
-			"role":  {Name: "role"},
+			"role":  {Name: "Role"},
 		},
-		TableName: "test_models",
+		Table: "test_models",
 	}
 
-	db = db.Scopes(search.Scope(modelIdentity)).Table("table").Find(nil)
+	db = db.Scopes(search.Scope(schema)).Table("table").Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -78,14 +79,14 @@ func TestSearchScopeEmptyField(t *testing.T) {
 			RequiredArguments: 1,
 		},
 	}
-	modelIdentity := &modelIdentity{
-		Columns: map[string]*column{
+	schema := &schema.Schema{
+		FieldsByDBName: map[string]*schema.Field{
 			"name":  {Name: "Name"},
 			"email": {Name: "Email"},
-			"role":  {Name: "role"},
+			"role":  {Name: "Role"},
 		},
-		TableName: "test_models",
+		Table: "test_models",
 	}
 
-	assert.Nil(t, search.Scope(modelIdentity))
+	assert.Nil(t, search.Scope(schema))
 }

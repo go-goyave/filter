@@ -18,11 +18,11 @@ type Filter struct {
 }
 
 // Scope returns the GORM scope to use in order to apply this filter.
-func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*gorm.DB) *gorm.DB {
+func (f *Filter) Scope(settings *Settings, sch *schema.Schema) func(*gorm.DB) *gorm.DB {
 	blacklist := &settings.Blacklist
 	field := f.Field
 	joinName := ""
-	m := modelIdentity
+	s := sch
 	if i := strings.LastIndex(f.Field, "."); i != -1 && i+1 < len(f.Field) {
 		rel := f.Field[:i]
 		field = f.Field[i+1:]
@@ -30,11 +30,11 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 			if blacklist != nil && sliceutil.ContainsStr(blacklist.RelationsBlacklist, v) {
 				return nil
 			}
-			relation, ok := m.Relations[v]
-			if !ok || relation.Type != schema.HasOne {
+			relation, ok := s.Relationships.Relations[v]
+			if !ok || (relation.Type != schema.HasOne && relation.Type != schema.BelongsTo) {
 				return nil
 			}
-			m = relation.modelIdentity
+			s = relation.FieldSchema
 			if blacklist != nil {
 				blacklist = blacklist.Relations[v]
 			}
@@ -44,7 +44,7 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 	if blacklist != nil && sliceutil.ContainsStr(blacklist.FieldsBlacklist, field) {
 		return nil
 	}
-	col, ok := m.Columns[field]
+	col, ok := s.FieldsByDBName[field]
 	if !ok {
 		return nil
 	}
@@ -54,11 +54,11 @@ func (f *Filter) Scope(settings *Settings, modelIdentity *modelIdentity) func(*g
 				tx.AddError(err)
 				return tx
 			}
-			tx = join(tx, joinName, modelIdentity)
+			tx = join(tx, joinName, sch)
 		}
 
-		tableName := tx.Statement.Quote(m.TableName) + "."
-		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field), col.Type)
+		tableName := tx.Statement.Quote(s.Table) + "."
+		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field), col.DataType)
 	}
 }
 
@@ -71,30 +71,30 @@ func (f *Filter) Where(tx *gorm.DB, query string, args ...interface{}) *gorm.DB 
 	return tx.Where(query, args...)
 }
 
-func join(tx *gorm.DB, joinName string, modelIdentity *modelIdentity) *gorm.DB {
+func join(tx *gorm.DB, joinName string, schema *schema.Schema) *gorm.DB {
 
-	lastTable := clause.CurrentTable
+	var lastTable string
 	joins := make([]clause.Join, 0, strings.Count(joinName, ".")+1)
-	schema := tx.Statement.Schema
 	for _, rel := range strings.Split(joinName, ".") {
-		modelIdentity = modelIdentity.Relations[rel].modelIdentity
+		lastTable = schema.Table
 		relation := schema.Relationships.Relations[rel]
+		schema = relation.FieldSchema
 		exprs := make([]clause.Expression, len(relation.References))
 		for idx, ref := range relation.References {
 			if ref.OwnPrimaryKey {
 				exprs[idx] = clause.Eq{
 					Column: clause.Column{Table: lastTable, Name: ref.PrimaryKey.DBName},
-					Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
+					Value:  clause.Column{Table: schema.Table, Name: ref.ForeignKey.DBName},
 				}
 			} else {
 				if ref.PrimaryValue == "" {
 					exprs[idx] = clause.Eq{
 						Column: clause.Column{Table: lastTable, Name: ref.ForeignKey.DBName},
-						Value:  clause.Column{Table: modelIdentity.TableName, Name: ref.PrimaryKey.DBName},
+						Value:  clause.Column{Table: schema.Table, Name: ref.PrimaryKey.DBName},
 					}
 				} else {
 					exprs[idx] = clause.Eq{
-						Column: clause.Column{Table: modelIdentity.TableName, Name: ref.ForeignKey.DBName},
+						Column: clause.Column{Table: schema.Table, Name: ref.ForeignKey.DBName},
 						Value:  ref.PrimaryValue,
 					}
 				}
@@ -102,16 +102,14 @@ func join(tx *gorm.DB, joinName string, modelIdentity *modelIdentity) *gorm.DB {
 		}
 		joins = append(joins, clause.Join{
 			Type:  clause.LeftJoin,
-			Table: clause.Table{Name: modelIdentity.TableName},
+			Table: clause.Table{Name: schema.Table},
 			ON:    clause.Where{Exprs: exprs},
 		})
-		lastTable = modelIdentity.TableName
-		schema = relation.FieldSchema
 	}
 	return tx.Clauses(clause.From{Joins: joins})
 }
 
-func selectScope(modelIdentity *modelIdentity, fields []string, override bool) func(*gorm.DB) *gorm.DB {
+func selectScope(schema *schema.Schema, fields []string, override bool) func(*gorm.DB) *gorm.DB {
 	return func(tx *gorm.DB) *gorm.DB {
 
 		if fields == nil {
@@ -123,7 +121,7 @@ func selectScope(modelIdentity *modelIdentity, fields []string, override bool) f
 			fieldsWithTableName = []string{"1"}
 		} else {
 			fieldsWithTableName = make([]string, 0, len(fields))
-			tableName := tx.Statement.Quote(modelIdentity.TableName) + "."
+			tableName := tx.Statement.Quote(schema.Table) + "."
 			for _, f := range fields {
 				fieldsWithTableName = append(fieldsWithTableName, tableName+tx.Statement.Quote(f))
 			}

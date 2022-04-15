@@ -3,8 +3,10 @@ package filter
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 	"goyave.dev/goyave/v4"
 	"goyave.dev/goyave/v4/database"
 	"goyave.dev/goyave/v4/util/sliceutil"
@@ -50,7 +52,13 @@ var (
 	// DefaultPageSize the default pagination page size if the "per_page" query param
 	// isn't provided.
 	DefaultPageSize = 10
+
+	modelCache = &sync.Map{}
 )
+
+func parseModel(db *gorm.DB, model interface{}) (*schema.Schema, error) {
+	return schema.Parse(model, modelCache, db.NamingStrategy)
+}
 
 // Scope using the default FilterSettings. See `FilterSettings.Scope()` for more details.
 func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Paginator, *gorm.DB) {
@@ -62,9 +70,12 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 // which can be used to check for database errors.
 // The given request is expected to be validated using `ApplyValidation`.
 func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Paginator, *gorm.DB) {
-	modelIdentity := parseModel(db, dest)
+	schema, err := parseModel(db, dest)
+	if err != nil {
+		panic(err)
+	}
 
-	db = s.applyFilters(db, request, modelIdentity)
+	db = s.applyFilters(db, request, schema)
 
 	hasJoins := false
 	if !s.DisableJoin && request.Has("join") {
@@ -74,7 +85,7 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 			for _, j := range joins {
 				hasJoins = true
 				j.selectCache = selectCache
-				if s := j.Scopes(s, modelIdentity); s != nil {
+				if s := j.Scopes(s, schema); s != nil {
 					db = db.Scopes(s...)
 				}
 			}
@@ -82,8 +93,8 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 	}
 
 	if !s.DisableSearch && request.Has("search") {
-		if search := s.applySearch(request, modelIdentity); search != nil {
-			if scope := search.Scope(modelIdentity); scope != nil {
+		if search := s.applySearch(request, schema); search != nil {
+			if scope := search.Scope(schema); scope != nil {
 				db = db.Scopes(scope)
 			}
 		}
@@ -106,7 +117,7 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 		sorts, ok := request.Data["sort"].([]*Sort)
 		if ok {
 			for _, sort := range sorts {
-				if scope := sort.Scope(s, modelIdentity); scope != nil {
+				if scope := sort.Scope(s, schema); scope != nil {
 					paginator.DB = paginator.DB.Scopes(scope)
 				}
 			}
@@ -116,22 +127,22 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 	if !s.DisableFields && request.Has("fields") {
 		fields := strings.Split(request.String("fields"), ",")
 		if hasJoins {
-			if len(modelIdentity.PrimaryKeys) == 0 {
+			if len(schema.PrimaryFieldDBNames) == 0 {
 				paginator.DB.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\"` to your model"))
 				return nil, paginator.DB
 			}
-			fields = modelIdentity.addPrimaryKeys(fields)
-			fields = modelIdentity.addForeignKeys(fields)
+			fields = addPrimaryKeys(schema, fields)
+			fields = addForeignKeys(schema, fields)
 		}
-		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, modelIdentity.cleanColumns(fields, s.FieldsBlacklist), false))
+		paginator.DB = paginator.DB.Scopes(selectScope(schema, cleanColumns(schema, fields, s.FieldsBlacklist), false))
 	} else {
-		paginator.DB = paginator.DB.Scopes(selectScope(modelIdentity, s.getSelectableFields(modelIdentity.Columns), false))
+		paginator.DB = paginator.DB.Scopes(selectScope(schema, s.getSelectableFields(schema.FieldsByDBName), false))
 	}
 
 	return paginator, paginator.Find()
 }
 
-func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, modelIdentity *modelIdentity) *gorm.DB {
+func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, schema *schema.Schema) *gorm.DB {
 	if s.DisableFilter {
 		return db
 	}
@@ -140,7 +151,9 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, modelIdent
 			filters, ok := request.Data[queryParam].([]*Filter)
 			if ok {
 				for _, f := range filters {
-					if s := f.Scope(s, modelIdentity); s != nil {
+					// TODO If present both or and filter in any amount (one or miltiple each) then both interpreted as a combitation of AND conditions and compared with each other by OR condition, as follows:
+					// WHERE ({filter} AND {filter} AND ...) OR ({or} AND {or} AND ...)
+					if s := f.Scope(s, schema); s != nil {
 						db = db.Scopes(s)
 					}
 				}
@@ -150,12 +163,12 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, modelIdent
 	return db
 }
 
-func (s *Settings) applySearch(request *goyave.Request, modelIdentity *modelIdentity) *Search {
+func (s *Settings) applySearch(request *goyave.Request, schema *schema.Schema) *Search {
 	query, ok := request.Data["search"].(string)
 	if ok {
 		fields := s.FieldsSearch
 		if fields == nil {
-			fields = s.getSelectableFields(modelIdentity.Columns)
+			fields = s.getSelectableFields(schema.FieldsByDBName)
 		}
 
 		operator := s.SearchOperator
@@ -175,7 +188,7 @@ func (s *Settings) applySearch(request *goyave.Request, modelIdentity *modelIden
 	return nil
 }
 
-func (b *Blacklist) getSelectableFields(fields map[string]*column) []string {
+func (b *Blacklist) getSelectableFields(fields map[string]*schema.Field) []string {
 	blacklist := []string{}
 	if b.FieldsBlacklist != nil {
 		blacklist = b.FieldsBlacklist

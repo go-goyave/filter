@@ -54,5 +54,5 @@ func TestAddForeignKeys(t *testing.T) {
 	}
 	fields := []string{"id"}
 	fields = addForeignKeys(schema, fields)
-	assert.Equal(t, []string{"id", "child_id", "parent_id"}, fields)
+	assert.ElementsMatch(t, []string{"id", "child_id", "parent_id"}, fields)
 }

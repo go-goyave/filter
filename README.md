@@ -62,6 +62,9 @@ settings := &filter.Settings{
 	DisableSort:   true, // Prevent usage of "sort"
 	DisableJoin:   true, // Prevent usage of "join"
 
+	FieldsSearch:   []string{"a", "b"},      // Optional, the fields used for the search feature
+	SearchOperator: filter.Operators["$eq"], // Optional, operator used for the search feature, defaults to "$cont"
+
 	Blacklist: filter.Blacklist{
 		// Prevent selecting, sorting and filtering on these fields
 		FieldsBlacklist: []string{"a", "b"},
@@ -132,6 +135,23 @@ If both "filter" and "or" are present, then they are interpreted as a combinatio
 | **`$isnull`**  | `IS NULL`, is NULL (doesn't accept value)               |
 | **`$notnull`** | `IS NOT NULL`, not NULL (doesn't accept value)          |
 | **`$between`** | `BETWEEN val1 AND val2`, between (accepts two values)   |
+
+### Search
+
+Search is similar to multiple `or=column||$cont||value`, but the column and operator are specified by the server instead of the client.
+
+Specify the column using `Settings`:
+```go
+settings := &filter.Settings{
+	FieldsSearch: []string{"a", "b"},
+	SearchOperator: filter.Operators["$eq"], // Optional, defaults to "$cont"
+	//...
+}
+```
+
+> ?search=John (`WHERE (a LIKE "%John%" OR b LIKE "%John%")`)
+
+If you don't specify `FieldsSearch`, the query will search in all selectable fields.
 
 ### Fields / Select
 

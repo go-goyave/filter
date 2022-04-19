@@ -89,18 +89,27 @@ paginator, tx := settings.Scope(database.GetConnection(), request, &results)
 
 *Examples:*
 
-> ?filter=**name**||**$cont**||**Jack** (`WHERE name LIKE %Jack%`)
+> ?filter=**name**||**$cont**||**Jack** (`WHERE name LIKE "%Jack%"`)
 
 You can add multiple filters. In that case, it is interpreted as an `AND` condition.
 
 You can use `OR` conditions using `?or` instead, or in combination:
 
-> ?filter=**name**||**$cont**||**Jack**&or=**name**||**$cont**||**John**  (`WHERE name LIKE %Jack% OR name LIKE %John%`)  
-> ?filter=**age**||**$eq**||**50**&filter=**name**||**$cont**||**Jack**&or=**name**||**$cont**||**John** (`WHERE age = 50 AND name LIKE %Jack% OR name LIKE %John%`)
+> ?filter=**name**||**$cont**||**Jack**&or=**name**||**$cont**||**John**  (`WHERE (name LIKE %Jack% OR name LIKE "%John%")`)  
+> ?filter=**age**||**$eq**||**50**&filter=**name**||**$cont**||**Jack**&or=**name**||**$cont**||**John** (`WHERE ((age = 50 AND name LIKE "%Jack%") OR name LIKE "%John%")`)
 
 You can filter using columns from one-to-one relations ("has one" or "belongs to"):
 
 > ?filter=**Relation.name**||**$cont**||**Jack**
+
+If there is only one "or", it is considered as a regular filter:
+
+> ?or=**name**||**$cont**||**John**  (`WHERE name LIKE "%John%"`)  
+
+If both "filter" and "or" are present, then they are interpreted as a combination of two `AND` groups compared with each other using `OR`:
+
+> ?filter=**age**||**$eq**||**50**&filter=**name**||**$cont**||**Jack**&or=**name**||**$cont**||**John**&or=**name**||**$cont**||**Doe**  
+> `WHERE ((age = 50 AND name LIKE "%Jack%") OR (name LIKE "%John%" AND name LIKE "%Doe%"))`
 
 **Note:** All the filter conditions added to the SQL query are **grouped** (surrounded by parenthesis). 
 
@@ -194,6 +203,30 @@ db = db.Where(db.Session(&gorm.Session{NewDB: true}).Where("username LIKE ?", "%
 paginator, tx := filter.Scope(db, request, &users)
 if response.HandleDatabaseError(tx) {
 	response.JSON(http.StatusOK, paginator)
+}
+```
+
+### Custom operators
+
+You can add custom operators (or override existing ones) by modifying the `filter.Operators` map:
+
+```go
+import (
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
+	"goyave.dev/filter"
+	"goyave.dev/goyave/v4/util/sqlutil"
+)
+
+// ...
+
+filter.Operators["$cont"] = &filter.Operator{
+	Function: func(tx *gorm.DB, filter *filter.Filter, column string, dataType schema.DataType) *gorm.DB {
+		query := column + " LIKE ?"
+		value := "%" + sqlutil.EscapeLike(filter.Args[0]) + "%"
+		return filter.Where(tx, query, value)
+	},
+	RequiredArguments: 1,
 }
 ```
 

@@ -146,29 +146,59 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, schema *sc
 	if s.DisableFilter {
 		return db
 	}
-	filterScopes := make([]func(*gorm.DB) *gorm.DB, 0, 5)
+	filterScopes := make([]func(*gorm.DB) *gorm.DB, 0, 2)
+
+	andLen := filterLen(request, "filter")
+	orLen := filterLen(request, "or")
+	mixed := orLen > 1 && andLen > 0
+
 	for _, queryParam := range []string{"filter", "or"} {
 		if request.Has(queryParam) {
 			filters, ok := request.Data[queryParam].([]*Filter)
 			if ok {
+				group := make([]func(*gorm.DB) *gorm.DB, 0, 4)
 				for _, f := range filters {
-					// TODO If present both or and filter in any amount (one or miltiple each) then both interpreted as a combitation of AND conditions and compared with each other by OR condition, as follows:
-					// WHERE ({filter} AND {filter} AND ...) OR ({or} AND {or} AND ...)
+					if mixed {
+						f = &Filter{
+							Field:    f.Field,
+							Operator: f.Operator,
+							Args:     f.Args,
+							Or:       false,
+						}
+					}
 					if s := f.Scope(s, schema); s != nil {
-						filterScopes = append(filterScopes, s)
+						group = append(group, s)
 					}
 				}
+				filterScopes = append(filterScopes, groupFilters(group, false))
 			}
 		}
 	}
-	db = db.Scopes(func(tx *gorm.DB) *gorm.DB {
+	db = db.Scopes(groupFilters(filterScopes, true))
+	return db
+}
+
+func filterLen(request *goyave.Request, name string) int {
+	count := 0
+	if data, ok := request.Data[name]; ok {
+		if filters, ok := data.([]*Filter); ok {
+			count = len(filters)
+		}
+	}
+	return count
+}
+
+func groupFilters(scopes []func(*gorm.DB) *gorm.DB, and bool) func(*gorm.DB) *gorm.DB {
+	return func(tx *gorm.DB) *gorm.DB {
 		processedFilters := tx.Session(&gorm.Session{NewDB: true})
-		for _, f := range filterScopes {
+		for _, f := range scopes {
 			processedFilters = f(processedFilters)
 		}
-		return tx.Where(processedFilters)
-	})
-	return db
+		if and {
+			return tx.Where(processedFilters)
+		}
+		return tx.Or(processedFilters)
+	}
 }
 
 func (s *Settings) applySearch(request *goyave.Request, schema *schema.Schema) *Search {

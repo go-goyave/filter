@@ -174,7 +174,9 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, schema *sc
 			}
 		}
 	}
-	db = db.Scopes(groupFilters(filterScopes, true))
+	if len(filterScopes) > 0 {
+		db = db.Scopes(groupFilters(filterScopes, true))
+	}
 	return db
 }
 

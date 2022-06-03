@@ -113,6 +113,13 @@ func join(tx *gorm.DB, joinName string, schema *schema.Schema) *gorm.DB {
 			ON:    clause.Where{Exprs: exprs},
 		})
 	}
+	if c, ok := tx.Statement.Clauses["FROM"]; ok {
+		from := c.Expression.(clause.From)
+		from.Joins = append(from.Joins, joins...)
+		c.Expression = from
+		tx.Statement.Clauses["FROM"] = c
+		return tx
+	}
 	return tx.Clauses(clause.From{Joins: joins})
 }
 

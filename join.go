@@ -92,13 +92,11 @@ func joinScope(relationName string, rel *schema.Relationship, fields []string, b
 					columns = append(columns, k)
 				}
 			}
-			if rel.Type == schema.HasMany || rel.Type == schema.Many2Many {
-				for _, backwardsRelation := range rel.FieldSchema.Relationships.Relations {
-					if backwardsRelation.FieldSchema == rel.Schema && (backwardsRelation.Type == schema.BelongsTo || backwardsRelation.Type == schema.HasOne) {
-						for _, ref := range backwardsRelation.References {
-							if !sliceutil.ContainsStr(columns, ref.ForeignKey.DBName) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, ref.ForeignKey.DBName)) {
-								columns = append(columns, ref.ForeignKey.DBName)
-							}
+			for _, backwardsRelation := range rel.FieldSchema.Relationships.Relations {
+				if backwardsRelation.FieldSchema == rel.Schema && backwardsRelation.Type == schema.BelongsTo {
+					for _, ref := range backwardsRelation.References {
+						if !sliceutil.ContainsStr(columns, ref.ForeignKey.DBName) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, ref.ForeignKey.DBName)) {
+							columns = append(columns, ref.ForeignKey.DBName)
 						}
 					}
 				}

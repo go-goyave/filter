@@ -162,7 +162,7 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 	db = db.Scopes(join.Scopes(&Settings{}, schema)...).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`a`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`a`", "`relation`.`parent_id`"}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"b"}, join.selectCache["Relation"])
 
@@ -179,7 +179,7 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 	db = db.Scopes(join.Scopes(settings, schema)...).Table("table").Find(&results)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`relation`.`b`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`parent_id`"}, tx.Statement.Selects)
 	}
 }
 

@@ -18,7 +18,7 @@ type Filter struct {
 }
 
 // Scope returns the GORM scope to use in order to apply this filter.
-func (f *Filter) Scope(settings *Settings, sch *schema.Schema) func(*gorm.DB) *gorm.DB {
+func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *gorm.DB, func(*gorm.DB) *gorm.DB) {
 	blacklist := &settings.Blacklist
 	field := f.Field
 	joinName := ""
@@ -28,11 +28,11 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) func(*gorm.DB) *g
 		field = f.Field[i+1:]
 		for _, v := range strings.Split(rel, ".") {
 			if blacklist != nil && sliceutil.ContainsStr(blacklist.RelationsBlacklist, v) {
-				return nil
+				return nil, nil
 			}
 			relation, ok := s.Relationships.Relations[v]
 			if !ok || (relation.Type != schema.HasOne && relation.Type != schema.BelongsTo) {
-				return nil
+				return nil, nil
 			}
 			s = relation.FieldSchema
 			if blacklist != nil {
@@ -42,13 +42,14 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) func(*gorm.DB) *g
 		joinName = rel
 	}
 	if blacklist != nil && sliceutil.ContainsStr(blacklist.FieldsBlacklist, field) {
-		return nil
+		return nil, nil
 	}
 	col, ok := s.FieldsByDBName[field]
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return func(tx *gorm.DB) *gorm.DB {
+
+	joinScope := func(tx *gorm.DB) *gorm.DB {
 		if joinName != "" {
 			if err := tx.Statement.Parse(tx.Statement.Model); err != nil {
 				tx.AddError(err)
@@ -57,9 +58,15 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) func(*gorm.DB) *g
 			tx = join(tx, joinName, sch)
 		}
 
+		return tx
+	}
+
+	conditionScope := func(tx *gorm.DB) *gorm.DB {
 		tableName := tx.Statement.Quote(s.Table) + "."
 		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field), col.DataType)
 	}
+
+	return joinScope, conditionScope
 }
 
 // Where applies a condition to given transaction, automatically taking the "Or"

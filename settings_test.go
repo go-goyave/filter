@@ -647,6 +647,70 @@ func TestApplyFiltersMixed(t *testing.T) {
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
+func TestApplyFiltersWithJoin(t *testing.T) {
+	request := &goyave.Request{
+		Data: map[string]interface{}{
+			"filter": []*Filter{
+				{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+			},
+		},
+		Lang: "en-US",
+	}
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	schema, err := parseModel(db, &FilterTestModel{})
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	results := []*FilterTestModel{}
+	db = db.Model(&results)
+	db = (&Settings{}).applyFilters(db, request, schema).Find(&results)
+	assert.Nil(t, db.Statement.Error)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "`filter_test_relations`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+						},
+					},
+				},
+			},
+		},
+		"FROM": {
+			Name: "FROM",
+			Expression: clause.From{
+				Joins: []clause.Join{
+					{
+						Type: clause.LeftJoin,
+						Table: clause.Table{
+							Name: "filter_test_relations",
+						},
+						ON: clause.Where{
+							Exprs: []clause.Expression{
+								clause.Eq{
+									Column: clause.Column{
+										Table: "filter_test_models",
+										Name:  "id",
+									},
+									Value: clause.Column{
+										Table: "filter_test_relations",
+										Name:  "parent_id",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
 func TestApplySearch(t *testing.T) {
 	request := &goyave.Request{
 		Data: map[string]interface{}{

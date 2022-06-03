@@ -147,6 +147,7 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, schema *sc
 		return db
 	}
 	filterScopes := make([]func(*gorm.DB) *gorm.DB, 0, 2)
+	joinScopes := make([]func(*gorm.DB) *gorm.DB, 0, 2)
 
 	andLen := filterLen(request, "filter")
 	orLen := filterLen(request, "or")
@@ -166,13 +167,20 @@ func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, schema *sc
 							Or:       false,
 						}
 					}
-					if s := f.Scope(s, schema); s != nil {
-						group = append(group, s)
+					joinScope, conditionScope := f.Scope(s, schema)
+					if conditionScope != nil {
+						group = append(group, conditionScope)
+					}
+					if joinScope != nil {
+						joinScopes = append(joinScopes, joinScope)
 					}
 				}
 				filterScopes = append(filterScopes, groupFilters(group, false))
 			}
 		}
+	}
+	if len(joinScopes) > 0 {
+		db = db.Scopes(joinScopes...)
 	}
 	if len(filterScopes) > 0 {
 		db = db.Scopes(groupFilters(filterScopes, true))

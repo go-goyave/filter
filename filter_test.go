@@ -58,7 +58,9 @@ func TestFilterScope(t *testing.T) {
 		Table: "test_scope_models",
 	}
 
-	assert.Nil(t, filter.Scope(&Settings{}, schema))
+	joinScope, conditionScope := filter.Scope(&Settings{}, schema)
+	assert.Nil(t, joinScope)
+	assert.Nil(t, conditionScope)
 
 	filter.Field = "name"
 
@@ -84,7 +86,9 @@ func TestFilterScopeBlacklisted(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, filter.Scope(&Settings{Blacklist: Blacklist{FieldsBlacklist: []string{"name"}}}, schema))
+	joinScope, conditionScope := filter.Scope(&Settings{Blacklist: Blacklist{FieldsBlacklist: []string{"name"}}}, schema)
+	assert.Nil(t, joinScope)
+	assert.Nil(t, conditionScope)
 }
 
 type FilterTestNestedRelation struct {
@@ -173,7 +177,9 @@ func TestFilterScopeWithJoinBlacklistedRelation(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, filter.Scope(settings, schema))
+	joinScope, conditionScope := filter.Scope(settings, schema)
+	assert.Nil(t, joinScope)
+	assert.Nil(t, conditionScope)
 }
 
 func TestFilterScopeWithJoinHasMany(t *testing.T) {
@@ -186,7 +192,9 @@ func TestFilterScopeWithJoinHasMany(t *testing.T) {
 		return
 	}
 	sch.Relationships.Relations["Relation"].Type = schema.HasMany
-	assert.Nil(t, filter.Scope(&Settings{}, sch))
+	joinScope, conditionScope := filter.Scope(&Settings{}, sch)
+	assert.Nil(t, joinScope)
+	assert.Nil(t, conditionScope)
 	sch.Relationships.Relations["Relation"].Type = schema.HasOne
 }
 
@@ -214,9 +222,10 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 		return
 	}
 
-	scp := filter.Scope(&Settings{}, sch)
-	assert.NotNil(t, scp)
-	db = db.Model(&results).Scopes(scp).Find(&results)
+	joinScope, conditionScope := filter.Scope(&Settings{}, sch)
+	assert.NotNil(t, joinScope)
+	assert.NotNil(t, conditionScope)
+	conditionTx := db.Session(&gorm.Session{NewDB: true}).Model(&results).Scopes(conditionScope).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -226,6 +235,11 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 				},
 			},
 		},
+	}
+	assert.Equal(t, expected, conditionTx.Statement.Clauses)
+
+	joinTx := db.Session(&gorm.Session{NewDB: true}).Model(&results).Scopes(joinScope).Find(&results)
+	expected = map[string]clause.Clause{
 		"FROM": {
 			Name: "FROM",
 			Expression: clause.From{
@@ -274,5 +288,5 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Equal(t, expected, joinTx.Statement.Clauses)
 }

@@ -251,3 +251,29 @@ func (b *Blacklist) getSelectableFields(fields map[string]*schema.Field) []strin
 
 	return columns
 }
+
+func selectScope(table string, fields []string, override bool) func(*gorm.DB) *gorm.DB {
+	return func(tx *gorm.DB) *gorm.DB {
+
+		if fields == nil {
+			return tx
+		}
+
+		var fieldsWithTableName []string
+		if len(fields) == 0 {
+			fieldsWithTableName = []string{"1"}
+		} else {
+			fieldsWithTableName = make([]string, 0, len(fields))
+			tableName := tx.Statement.Quote(table) + "."
+			for _, f := range fields {
+				fieldsWithTableName = append(fieldsWithTableName, tableName+tx.Statement.Quote(f))
+			}
+		}
+
+		if override {
+			return tx.Select(fieldsWithTableName)
+		}
+
+		return tx.Select(tx.Statement.Selects, fieldsWithTableName)
+	}
+}

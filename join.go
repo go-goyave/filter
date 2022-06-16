@@ -108,6 +108,60 @@ func joinScope(relationName string, rel *schema.Relationship, fields []string, b
 	}
 }
 
+func join(tx *gorm.DB, joinName string, sch *schema.Schema) *gorm.DB {
+
+	var lastTable string
+	var relation *schema.Relationship
+	joins := make([]clause.Join, 0, strings.Count(joinName, ".")+1)
+	for _, rel := range strings.Split(joinName, ".") {
+		lastTable = sch.Table
+		if relation != nil {
+			lastTable = relation.Name
+		}
+		relation = sch.Relationships.Relations[rel]
+		sch = relation.FieldSchema
+		exprs := make([]clause.Expression, len(relation.References))
+		for idx, ref := range relation.References {
+			if ref.OwnPrimaryKey {
+				exprs[idx] = clause.Eq{
+					Column: clause.Column{Table: lastTable, Name: ref.PrimaryKey.DBName},
+					Value:  clause.Column{Table: relation.Name, Name: ref.ForeignKey.DBName},
+				}
+			} else {
+				if ref.PrimaryValue == "" {
+					exprs[idx] = clause.Eq{
+						Column: clause.Column{Table: lastTable, Name: ref.ForeignKey.DBName},
+						Value:  clause.Column{Table: relation.Name, Name: ref.PrimaryKey.DBName},
+					}
+				} else {
+					exprs[idx] = clause.Eq{
+						Column: clause.Column{Table: relation.Name, Name: ref.ForeignKey.DBName},
+						Value:  ref.PrimaryValue,
+					}
+				}
+			}
+		}
+		j := clause.Join{
+			Type:  clause.LeftJoin,
+			Table: clause.Table{Name: sch.Table, Alias: relation.Name},
+			ON:    clause.Where{Exprs: exprs},
+		}
+		if !joinExists(tx.Statement, j) {
+			// TODO write tests for this
+			findStatementJoin(tx.Statement, &j)
+			joins = append(joins, j)
+		}
+	}
+	if c, ok := tx.Statement.Clauses["FROM"]; ok {
+		from := c.Expression.(clause.From)
+		from.Joins = append(from.Joins, joins...)
+		c.Expression = from
+		tx.Statement.Clauses["FROM"] = c
+		return tx
+	}
+	return tx.Clauses(clause.From{Joins: joins})
+}
+
 func joinExists(stmt *gorm.Statement, join clause.Join) bool {
 	if c, ok := stmt.Clauses["FROM"]; ok {
 		from := c.Expression.(clause.From)

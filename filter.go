@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 	"goyave.dev/goyave/v4/util/sliceutil"
 )
@@ -85,83 +84,4 @@ func (f *Filter) Where(tx *gorm.DB, query string, args ...interface{}) *gorm.DB 
 		return tx.Or(query, args...)
 	}
 	return tx.Where(query, args...)
-}
-
-func join(tx *gorm.DB, joinName string, sch *schema.Schema) *gorm.DB { // TODO move this to join.go
-
-	var lastTable string
-	var relation *schema.Relationship
-	joins := make([]clause.Join, 0, strings.Count(joinName, ".")+1)
-	for _, rel := range strings.Split(joinName, ".") {
-		lastTable = sch.Table
-		if relation != nil {
-			lastTable = relation.Name
-		}
-		relation = sch.Relationships.Relations[rel]
-		sch = relation.FieldSchema
-		exprs := make([]clause.Expression, len(relation.References))
-		for idx, ref := range relation.References {
-			if ref.OwnPrimaryKey {
-				exprs[idx] = clause.Eq{
-					Column: clause.Column{Table: lastTable, Name: ref.PrimaryKey.DBName},
-					Value:  clause.Column{Table: relation.Name, Name: ref.ForeignKey.DBName},
-				}
-			} else {
-				if ref.PrimaryValue == "" {
-					exprs[idx] = clause.Eq{
-						Column: clause.Column{Table: lastTable, Name: ref.ForeignKey.DBName},
-						Value:  clause.Column{Table: relation.Name, Name: ref.PrimaryKey.DBName},
-					}
-				} else {
-					exprs[idx] = clause.Eq{
-						Column: clause.Column{Table: relation.Name, Name: ref.ForeignKey.DBName},
-						Value:  ref.PrimaryValue,
-					}
-				}
-			}
-		}
-		j := clause.Join{
-			Type:  clause.LeftJoin,
-			Table: clause.Table{Name: sch.Table, Alias: relation.Name},
-			ON:    clause.Where{Exprs: exprs},
-		}
-		if !joinExists(tx.Statement, j) {
-			findStatementJoin(tx.Statement, &j)
-			joins = append(joins, j)
-		}
-	}
-	if c, ok := tx.Statement.Clauses["FROM"]; ok {
-		from := c.Expression.(clause.From)
-		from.Joins = append(from.Joins, joins...)
-		c.Expression = from
-		tx.Statement.Clauses["FROM"] = c
-		return tx
-	}
-	return tx.Clauses(clause.From{Joins: joins})
-}
-
-func selectScope(table string, fields []string, override bool) func(*gorm.DB) *gorm.DB { // TODO move this to settings
-	return func(tx *gorm.DB) *gorm.DB {
-
-		if fields == nil {
-			return tx
-		}
-
-		var fieldsWithTableName []string
-		if len(fields) == 0 {
-			fieldsWithTableName = []string{"1"}
-		} else {
-			fieldsWithTableName = make([]string, 0, len(fields))
-			tableName := tx.Statement.Quote(table) + "."
-			for _, f := range fields {
-				fieldsWithTableName = append(fieldsWithTableName, tableName+tx.Statement.Quote(f))
-			}
-		}
-
-		if override {
-			return tx.Select(fieldsWithTableName)
-		}
-
-		return tx.Select(tx.Statement.Selects, fieldsWithTableName)
-	}
 }

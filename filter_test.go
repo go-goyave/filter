@@ -53,7 +53,7 @@ func TestFilterScope(t *testing.T) {
 	filter := &Filter{Field: "notacolumn", Args: []string{"val1"}, Operator: Operators["$eq"]}
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name": {Name: "Name"},
+			"name": {Name: "Name", DBName: "name"},
 		},
 		Table: "test_scope_models",
 	}

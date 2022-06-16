@@ -5,7 +5,6 @@ import (
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
 // Filter structured representation of a filter query.
@@ -18,33 +17,8 @@ type Filter struct {
 
 // Scope returns the GORM scope to use in order to apply this filter.
 func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *gorm.DB, func(*gorm.DB) *gorm.DB) {
-	blacklist := &settings.Blacklist
-	field := f.Field
-	joinName := ""
-	s := sch
-	if i := strings.LastIndex(f.Field, "."); i != -1 && i+1 < len(f.Field) {
-		rel := f.Field[:i]
-		field = f.Field[i+1:]
-		for _, v := range strings.Split(rel, ".") {
-			if blacklist != nil && sliceutil.ContainsStr(blacklist.RelationsBlacklist, v) {
-				return nil, nil
-			}
-			relation, ok := s.Relationships.Relations[v]
-			if !ok || (relation.Type != schema.HasOne && relation.Type != schema.BelongsTo) {
-				return nil, nil
-			}
-			s = relation.FieldSchema
-			if blacklist != nil {
-				blacklist = blacklist.Relations[v]
-			}
-		}
-		joinName = rel
-	}
-	if blacklist != nil && sliceutil.ContainsStr(blacklist.FieldsBlacklist, field) {
-		return nil, nil
-	}
-	col, ok := s.FieldsByDBName[field]
-	if !ok {
+	field, s, joinName := getField(f.Field, sch, &settings.Blacklist)
+	if field == nil {
 		return nil, nil
 	}
 
@@ -71,7 +45,7 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *
 			}
 		}
 		tableName := tx.Statement.Quote(table) + "."
-		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field), col.DataType)
+		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field.DBName), field.DataType)
 	}
 
 	return joinScope, conditionScope

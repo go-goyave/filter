@@ -277,3 +277,34 @@ func selectScope(table string, fields []string, override bool) func(*gorm.DB) *g
 		return tx.Select(tx.Statement.Selects, fieldsWithTableName)
 	}
 }
+
+func getField(field string, sch *schema.Schema, blacklist *Blacklist) (*schema.Field, *schema.Schema, string) {
+	joinName := ""
+	s := sch
+	if i := strings.LastIndex(field, "."); i != -1 && i+1 < len(field) {
+		rel := field[:i]
+		field = field[i+1:]
+		for _, v := range strings.Split(rel, ".") {
+			if blacklist != nil && sliceutil.ContainsStr(blacklist.RelationsBlacklist, v) {
+				return nil, nil, ""
+			}
+			relation, ok := s.Relationships.Relations[v]
+			if !ok || (relation.Type != schema.HasOne && relation.Type != schema.BelongsTo) {
+				return nil, nil, ""
+			}
+			s = relation.FieldSchema
+			if blacklist != nil {
+				blacklist = blacklist.Relations[v]
+			}
+		}
+		joinName = rel
+	}
+	if blacklist != nil && sliceutil.ContainsStr(blacklist.FieldsBlacklist, field) {
+		return nil, nil, ""
+	}
+	col, ok := s.FieldsByDBName[field]
+	if !ok {
+		return nil, nil, ""
+	}
+	return col, s, joinName
+}

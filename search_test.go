@@ -26,9 +26,9 @@ func TestSearchScope(t *testing.T) {
 
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name":  {Name: "Name"},
-			"email": {Name: "Email"},
-			"role":  {Name: "Role"},
+			"name":  {Name: "Name", DBName: "name"},
+			"email": {Name: "Email", DBName: "email"},
+			"role":  {Name: "Role", DBName: "role"},
 		},
 		Table: "test_models",
 	}

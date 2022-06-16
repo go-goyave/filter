@@ -15,7 +15,7 @@ func TestSortScope(t *testing.T) {
 	sort := &Sort{Field: "notacolumn", Order: SortAscending}
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name": {Name: "Name"},
+			"name": {Name: "Name", DBName: "name"},
 		},
 		Table: "test_models",
 	}

@@ -23,15 +23,28 @@ func (s *Search) Scope(schema *schema.Schema) func(*gorm.DB) *gorm.DB {
 
 		for _, field := range s.Fields {
 
+			f, sch, joinName := getField(field, schema, nil)
+			if f == nil {
+				continue
+			}
+
+			if joinName != "" {
+				if err := tx.Statement.Parse(tx.Statement.Model); err != nil {
+					tx.AddError(err)
+					return tx
+				}
+				tx = join(tx, joinName, schema)
+			}
+
 			filter := &Filter{
-				Field:    field,
+				Field:    f.DBName,
 				Operator: s.Operator,
 				Args:     []string{s.Query},
 				Or:       true,
 			}
 
-			tableName := tx.Statement.Quote(schema.Table) + "."
-			searchQuery = s.Operator.Function(searchQuery, filter, tableName+tx.Statement.Quote(field), schema.FieldsByDBName[field].DataType)
+			tableName := tx.Statement.Quote(tableFromJoinName(sch.Table, joinName)) + "."
+			searchQuery = s.Operator.Function(searchQuery, filter, tableName+tx.Statement.Quote(f.DBName), f.DataType)
 		}
 
 		return tx.Where(searchQuery)

@@ -4,7 +4,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
 // Sort structured representation of a sort query.
@@ -25,19 +24,23 @@ const (
 
 // Scope returns the GORM scope to use in order to apply sorting.
 func (s *Sort) Scope(settings *Settings, schema *schema.Schema) func(*gorm.DB) *gorm.DB {
-	if sliceutil.ContainsStr(settings.FieldsBlacklist, s.Field) {
-		return nil
-	}
-	_, ok := schema.FieldsByDBName[s.Field]
-	if !ok {
+	field, sch, joinName := getField(s.Field, schema, &settings.Blacklist)
+	if field == nil {
 		return nil
 	}
 
 	return func(tx *gorm.DB) *gorm.DB {
+		if joinName != "" {
+			if err := tx.Statement.Parse(tx.Statement.Model); err != nil {
+				tx.AddError(err)
+				return tx
+			}
+			tx = join(tx, joinName, schema)
+		}
 		c := clause.OrderByColumn{
 			Column: clause.Column{
-				Table: schema.Table,
-				Name:  s.Field,
+				Table: tableFromJoinName(sch.Table, joinName),
+				Name:  field.DBName,
 			},
 			Desc: s.Order == SortDescending,
 		}

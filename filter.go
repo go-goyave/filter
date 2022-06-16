@@ -1,8 +1,6 @@
 package filter
 
 import (
-	"strings"
-
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
@@ -35,16 +33,7 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *
 	}
 
 	conditionScope := func(tx *gorm.DB) *gorm.DB {
-		table := s.Table
-		if joinName != "" {
-			i := strings.LastIndex(joinName, ".")
-			if i != -1 {
-				table = joinName[i+1:]
-			} else {
-				table = joinName
-			}
-		}
-		tableName := tx.Statement.Quote(table) + "."
+		tableName := tx.Statement.Quote(tableFromJoinName(s.Table, joinName)) + "."
 		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field.DBName), field.DataType)
 	}
 

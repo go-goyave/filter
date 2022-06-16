@@ -308,3 +308,15 @@ func getField(field string, sch *schema.Schema, blacklist *Blacklist) (*schema.F
 	}
 	return col, s, joinName
 }
+
+func tableFromJoinName(table string, joinName string) string {
+	if joinName != "" {
+		i := strings.LastIndex(joinName, ".")
+		if i != -1 {
+			table = joinName[i+1:]
+		} else {
+			table = joinName
+		}
+	}
+	return table
+}

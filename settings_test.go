@@ -673,7 +673,7 @@ func TestApplyFiltersWithJoin(t *testing.T) {
 				Exprs: []clause.Expression{
 					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`filter_test_relations`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`Relation`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
 						},
 					},
 				},
@@ -686,7 +686,8 @@ func TestApplyFiltersWithJoin(t *testing.T) {
 					{
 						Type: clause.LeftJoin,
 						Table: clause.Table{
-							Name: "filter_test_relations",
+							Name:  "filter_test_relations",
+							Alias: "Relation",
 						},
 						ON: clause.Where{
 							Exprs: []clause.Expression{
@@ -696,7 +697,7 @@ func TestApplyFiltersWithJoin(t *testing.T) {
 										Name:  "id",
 									},
 									Value: clause.Column{
-										Table: "filter_test_relations",
+										Table: "Relation",
 										Name:  "parent_id",
 									},
 								},
@@ -741,28 +742,28 @@ func TestApplySearchNoQuery(t *testing.T) {
 
 func TestSelectScope(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(nil, nil, false)).Find(nil)
+	db = db.Scopes(selectScope("", nil, false)).Find(nil)
 	assert.Empty(t, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(nil, nil, true)).Find(nil)
+	db = db.Scopes(selectScope("", nil, true)).Find(nil)
 	assert.Empty(t, db.Statement.Selects)
 
 	schema := &schema.Schema{Table: "test_models"}
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(schema, []string{"a", "b"}, false)).Find(nil)
+	db = db.Scopes(selectScope(schema.Table, []string{"a", "b"}, false)).Find(nil)
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(schema, []string{"a", "b"}, true)).Find(nil)
+	db = db.Scopes(selectScope(schema.Table, []string{"a", "b"}, true)).Find(nil)
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(schema, []string{"a", "b"}, false)).Select("1 + 1 AS count").Find(nil)
+	db = db.Scopes(selectScope(schema.Table, []string{"a", "b"}, false)).Select("1 + 1 AS count").Find(nil)
 	assert.Equal(t, []string{"1 + 1 AS count", "`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(schema, []string{}, true)).Select("*, 1 + 1 AS count").Find(nil)
+	db = db.Scopes(selectScope(schema.Table, []string{}, true)).Select("*, 1 + 1 AS count").Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }

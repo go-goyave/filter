@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 	"goyave.dev/goyave/v4/util/sliceutil"
 )
@@ -103,6 +104,19 @@ func joinScope(relationName string, rel *schema.Relationship, fields []string, b
 			}
 		}
 
-		return tx.Preload(relationName, selectScope(rel.FieldSchema, columns, true))
+		return tx.Preload(relationName, selectScope(rel.FieldSchema.Table, columns, true))
 	}
+}
+
+func joinExists(stmt *gorm.Statement, join clause.Join) bool {
+	if c, ok := stmt.Clauses["FROM"]; ok {
+		from := c.Expression.(clause.From)
+		c.Expression = from
+		for _, j := range from.Joins {
+			if j.Table == join.Table {
+				return true
+			}
+		}
+	}
+	return false
 }

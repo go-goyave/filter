@@ -126,7 +126,7 @@ func TestFilterScopeWithJoin(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`filter_test_relations`.`name` = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []interface{}{"val1"}},
 				},
 			},
 		},
@@ -137,7 +137,8 @@ func TestFilterScopeWithJoin(t *testing.T) {
 					{
 						Type: clause.LeftJoin,
 						Table: clause.Table{
-							Name: "filter_test_relations",
+							Name:  "filter_test_relations",
+							Alias: "Relation",
 						},
 						ON: clause.Where{
 							Exprs: []clause.Expression{
@@ -147,7 +148,7 @@ func TestFilterScopeWithJoin(t *testing.T) {
 										Name:  "id",
 									},
 									Value: clause.Column{
-										Table: "filter_test_relations",
+										Table: "Relation",
 										Name:  "parent_id",
 									},
 								},
@@ -231,7 +232,7 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`filter_test_nested_relations`.`field` = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "`NestedRelation`.`field` = ?", Vars: []interface{}{"val1"}},
 				},
 			},
 		},
@@ -247,7 +248,8 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 					{
 						Type: clause.LeftJoin,
 						Table: clause.Table{
-							Name: "filter_test_relations",
+							Name:  "filter_test_relations",
+							Alias: "Relation",
 						},
 						ON: clause.Where{
 							Exprs: []clause.Expression{
@@ -257,7 +259,7 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 										Name:  "id",
 									},
 									Value: clause.Column{
-										Table: "filter_test_relations",
+										Table: "Relation",
 										Name:  "parent_id",
 									},
 								},
@@ -267,17 +269,18 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 					{
 						Type: clause.LeftJoin,
 						Table: clause.Table{
-							Name: "filter_test_nested_relations",
+							Name:  "filter_test_nested_relations",
+							Alias: "NestedRelation",
 						},
 						ON: clause.Where{
 							Exprs: []clause.Expression{
 								clause.Eq{
 									Column: clause.Column{
-										Table: "filter_test_relations",
+										Table: "Relation",
 										Name:  "id",
 									},
 									Value: clause.Column{
-										Table: "filter_test_nested_relations",
+										Table: "NestedRelation",
 										Name:  "parent_id",
 									},
 								},

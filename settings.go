@@ -134,9 +134,9 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 			fields = addPrimaryKeys(schema, fields)
 			fields = addForeignKeys(schema, fields)
 		}
-		paginator.DB = paginator.DB.Scopes(selectScope(schema, cleanColumns(schema, fields, s.FieldsBlacklist), false))
+		paginator.DB = paginator.DB.Scopes(selectScope(schema.Table, cleanColumns(schema, fields, s.FieldsBlacklist), false))
 	} else {
-		paginator.DB = paginator.DB.Scopes(selectScope(schema, s.getSelectableFields(schema.FieldsByDBName), false))
+		paginator.DB = paginator.DB.Scopes(selectScope(schema.Table, s.getSelectableFields(schema.FieldsByDBName), false))
 	}
 
 	return paginator, paginator.Find()

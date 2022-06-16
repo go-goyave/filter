@@ -62,7 +62,16 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *
 	}
 
 	conditionScope := func(tx *gorm.DB) *gorm.DB {
-		tableName := tx.Statement.Quote(s.Table) + "."
+		table := s.Table
+		if joinName != "" {
+			i := strings.LastIndex(joinName, ".")
+			if i != -1 {
+				table = joinName[i+1:]
+			} else {
+				table = joinName
+			}
+		}
+		tableName := tx.Statement.Quote(table) + "."
 		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field), col.DataType)
 	}
 
@@ -78,40 +87,47 @@ func (f *Filter) Where(tx *gorm.DB, query string, args ...interface{}) *gorm.DB 
 	return tx.Where(query, args...)
 }
 
-func join(tx *gorm.DB, joinName string, schema *schema.Schema) *gorm.DB {
+func join(tx *gorm.DB, joinName string, sch *schema.Schema) *gorm.DB { // TODO move this to join.go
 
 	var lastTable string
+	var relation *schema.Relationship
 	joins := make([]clause.Join, 0, strings.Count(joinName, ".")+1)
 	for _, rel := range strings.Split(joinName, ".") {
-		lastTable = schema.Table
-		relation := schema.Relationships.Relations[rel]
-		schema = relation.FieldSchema
+		lastTable = sch.Table
+		if relation != nil {
+			lastTable = relation.Name
+		}
+		relation = sch.Relationships.Relations[rel]
+		sch = relation.FieldSchema
 		exprs := make([]clause.Expression, len(relation.References))
 		for idx, ref := range relation.References {
 			if ref.OwnPrimaryKey {
 				exprs[idx] = clause.Eq{
 					Column: clause.Column{Table: lastTable, Name: ref.PrimaryKey.DBName},
-					Value:  clause.Column{Table: schema.Table, Name: ref.ForeignKey.DBName},
+					Value:  clause.Column{Table: relation.Name, Name: ref.ForeignKey.DBName},
 				}
 			} else {
 				if ref.PrimaryValue == "" {
 					exprs[idx] = clause.Eq{
 						Column: clause.Column{Table: lastTable, Name: ref.ForeignKey.DBName},
-						Value:  clause.Column{Table: schema.Table, Name: ref.PrimaryKey.DBName},
+						Value:  clause.Column{Table: relation.Name, Name: ref.PrimaryKey.DBName},
 					}
 				} else {
 					exprs[idx] = clause.Eq{
-						Column: clause.Column{Table: schema.Table, Name: ref.ForeignKey.DBName},
+						Column: clause.Column{Table: relation.Name, Name: ref.ForeignKey.DBName},
 						Value:  ref.PrimaryValue,
 					}
 				}
 			}
 		}
-		joins = append(joins, clause.Join{
+		j := clause.Join{
 			Type:  clause.LeftJoin,
-			Table: clause.Table{Name: schema.Table},
+			Table: clause.Table{Name: sch.Table, Alias: relation.Name},
 			ON:    clause.Where{Exprs: exprs},
-		})
+		}
+		if !joinExists(tx.Statement, j) {
+			joins = append(joins, j)
+		}
 	}
 	if c, ok := tx.Statement.Clauses["FROM"]; ok {
 		from := c.Expression.(clause.From)
@@ -123,7 +139,7 @@ func join(tx *gorm.DB, joinName string, schema *schema.Schema) *gorm.DB {
 	return tx.Clauses(clause.From{Joins: joins})
 }
 
-func selectScope(schema *schema.Schema, fields []string, override bool) func(*gorm.DB) *gorm.DB {
+func selectScope(table string, fields []string, override bool) func(*gorm.DB) *gorm.DB { // TODO move this to settings
 	return func(tx *gorm.DB) *gorm.DB {
 
 		if fields == nil {
@@ -135,7 +151,7 @@ func selectScope(schema *schema.Schema, fields []string, override bool) func(*go
 			fieldsWithTableName = []string{"1"}
 		} else {
 			fieldsWithTableName = make([]string, 0, len(fields))
-			tableName := tx.Statement.Quote(schema.Table) + "."
+			tableName := tx.Statement.Quote(table) + "."
 			for _, f := range fields {
 				fieldsWithTableName = append(fieldsWithTableName, tableName+tx.Statement.Quote(f))
 			}

@@ -120,3 +120,21 @@ func joinExists(stmt *gorm.Statement, join clause.Join) bool {
 	}
 	return false
 }
+
+// findStatementJoin finds a matching join in the given statement,
+// adds its conditions (if any) to the given clause.Join and removes
+// the matched join from Statement.Joins.
+// This is used to avoid duplicate joins that produce ambiguous column names.
+func findStatementJoin(stmt *gorm.Statement, join *clause.Join) {
+	for i, j := range stmt.Joins {
+		if j.Name == join.Table.Alias {
+			on := join.ON
+			if j.On != nil {
+				on.Exprs = append(on.Exprs, *j.On)
+			}
+			join.ON = on
+			stmt.Joins = append(stmt.Joins[:i], stmt.Joins[i+1:]...)
+			return
+		}
+	}
+}

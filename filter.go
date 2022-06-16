@@ -126,6 +126,7 @@ func join(tx *gorm.DB, joinName string, sch *schema.Schema) *gorm.DB { // TODO m
 			ON:    clause.Where{Exprs: exprs},
 		}
 		if !joinExists(tx.Statement, j) {
+			findStatementJoin(tx.Statement, &j)
 			joins = append(joins, j)
 		}
 	}

@@ -293,3 +293,123 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 	}
 	assert.Equal(t, expected, joinTx.Statement.Clauses)
 }
+
+func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	settings := &Settings{}
+	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
+	filter2 := &Filter{Field: "Relation.id", Args: []string{"0"}, Operator: Operators["$gt"]}
+
+	results := []*FilterTestModel{}
+	schema, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	db = db.Model(&results).
+		Scopes(filter.Scope(settings, schema)).
+		Scopes(filter2.Scope(settings, schema)).
+		Find(&results)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "`Relation`.`id` > ?", Vars: []interface{}{"0"}},
+				},
+			},
+		},
+		"FROM": {
+			Name: "FROM",
+			Expression: clause.From{
+				Joins: []clause.Join{
+					{
+						Type: clause.LeftJoin,
+						Table: clause.Table{
+							Name:  "filter_test_relations",
+							Alias: "Relation",
+						},
+						ON: clause.Where{
+							Exprs: []clause.Expression{
+								clause.Eq{
+									Column: clause.Column{
+										Table: "filter_test_models",
+										Name:  "id",
+									},
+									Value: clause.Column{
+										Table: "Relation",
+										Name:  "parent_id",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
+
+	results := []*FilterTestModel{}
+	schema, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	// We manually join a relation with a condition.
+	// We expect this join to not be removed nor duplicated, with the condition kept.
+	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Where("id > ?", 0))
+
+	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []interface{}{"val1"}},
+				},
+			},
+		},
+		"FROM": {
+			Name: "FROM",
+			Expression: clause.From{
+				Joins: []clause.Join{
+					{
+						Type: clause.LeftJoin,
+						Table: clause.Table{
+							Name:  "filter_test_relations",
+							Alias: "Relation",
+						},
+						ON: clause.Where{
+							Exprs: []clause.Expression{
+								clause.Eq{
+									Column: clause.Column{
+										Table: "filter_test_models",
+										Name:  "id",
+									},
+									Value: clause.Column{
+										Table: "Relation",
+										Name:  "parent_id",
+									},
+								},
+								clause.Where{
+									Exprs: []clause.Expression{
+										clause.Expr{SQL: "id > ?", Vars: []interface{}{0}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Empty(t, db.Statement.Joins)
+}

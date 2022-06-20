@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -147,8 +148,7 @@ func join(tx *gorm.DB, joinName string, sch *schema.Schema) *gorm.DB {
 			ON:    clause.Where{Exprs: exprs},
 		}
 		if !joinExists(tx.Statement, j) {
-			// TODO write tests for this
-			findStatementJoin(tx.Statement, &j)
+			findStatementJoin(tx.Statement, relation, &j)
 			joins = append(joins, j)
 		}
 	}
@@ -179,7 +179,7 @@ func joinExists(stmt *gorm.Statement, join clause.Join) bool {
 // adds its conditions (if any) to the given clause.Join and removes
 // the matched join from Statement.Joins.
 // This is used to avoid duplicate joins that produce ambiguous column names.
-func findStatementJoin(stmt *gorm.Statement, join *clause.Join) {
+func findStatementJoin(stmt *gorm.Statement, relation *schema.Relationship, join *clause.Join) {
 	for i, j := range stmt.Joins {
 		if j.Name == join.Table.Alias {
 			on := join.ON
@@ -188,7 +188,17 @@ func findStatementJoin(stmt *gorm.Statement, join *clause.Join) {
 			}
 			join.ON = on
 			stmt.Joins = append(stmt.Joins[:i], stmt.Joins[i+1:]...)
+
+			for _, s := range relation.FieldSchema.DBNames {
+				stmt.Selects = append(stmt.Selects, fmt.Sprintf("%s.%s AS %s", quoteString(stmt, relation.Name), quoteString(stmt, s), quoteString(stmt, relation.Name+"__"+s)))
+			}
 			return
 		}
 	}
+}
+
+func quoteString(stmt *gorm.Statement, str string) string {
+	writer := bytes.NewBufferString("")
+	stmt.DB.Dialector.QuoteTo(writer, str)
+	return writer.String()
 }

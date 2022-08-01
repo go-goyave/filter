@@ -413,3 +413,38 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Empty(t, db.Statement.Joins)
 }
+
+func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
+
+	results := []*FilterTestModel{}
+	schema, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	// We manually join a relation with a condition.
+	// We expect this join to not be removed nor duplicated, with the condition kept.
+	db = db.Joins(`LEFT JOIN filter_test_relations "Relation" ON id > ?`, 0)
+
+	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []interface{}{"val1"}},
+				},
+			},
+		},
+		"FROM": {
+			Name: "FROM",
+			Expression: clause.From{
+				Joins: []clause.Join{}, // The join is in Statement.Joins
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.NotEmpty(t, db.Statement.Joins)
+}

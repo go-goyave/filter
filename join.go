@@ -3,12 +3,17 @@ package filter
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 	"goyave.dev/goyave/v4/util/sliceutil"
+)
+
+var (
+	joinRegex = regexp.MustCompile("(?i)((LEFT|RIGHT|FULL)\\s+)?((OUTER|INNER)\\s+)?JOIN\\s+[\"'`]?(?P<TableName>\\w+)[\"'`]?\\s+([\"'`]?(?P<Alias>\\w+)[\"'`]?)?\\s*ON")
 )
 
 // Join structured representation of a join query.
@@ -168,6 +173,18 @@ func joinExists(stmt *gorm.Statement, join clause.Join) bool {
 		c.Expression = from
 		for _, j := range from.Joins {
 			if j.Table == join.Table {
+				return true
+			}
+		}
+	}
+	for _, j := range stmt.Joins {
+		groups := joinRegex.FindStringSubmatch(j.Name)
+		if groups != nil {
+			tableName := groups[joinRegex.SubexpIndex("TableName")]
+			aliasName := groups[joinRegex.SubexpIndex("Alias")]
+			tableMatch := tableName == join.Table.Name
+			aliasMatch := aliasName == "" || aliasName == join.Table.Alias
+			if tableMatch && aliasMatch {
 				return true
 			}
 		}

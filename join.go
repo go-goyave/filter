@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	joinRegex = regexp.MustCompile("(?i)((LEFT|RIGHT|FULL)\\s+)?((OUTER|INNER)\\s+)?JOIN\\s+[\"'`]?(?P<TableName>\\w+)[\"'`]?\\s+([\"'`]?(?P<Alias>\\w+)[\"'`]?)?\\s*ON")
+	joinRegex = regexp.MustCompile("(?i)((LEFT|RIGHT|FULL)\\s+)?((OUTER|INNER)\\s+)?JOIN\\s+[\"'`]?(?P<TableName>\\w+)[\"'`]?\\s+((AS\\s+)?[\"'`]?(?P<Alias>\\w+)[\"'`]?)?\\s*ON")
 )
 
 // Join structured representation of a join query.

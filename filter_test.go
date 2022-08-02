@@ -426,7 +426,7 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 
 	// We manually join a relation with a condition.
 	// We expect this join to not be removed nor duplicated, with the condition kept.
-	db = db.Joins(`LEFT JOIN filter_test_relations "Relation" ON id > ?`, 0)
+	db = db.Joins(`LEFT JOIN filter_test_relations AS "Relation" ON id > ?`, 0)
 
 	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{

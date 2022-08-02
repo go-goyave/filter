@@ -285,7 +285,7 @@ func getField(field string, sch *schema.Schema, blacklist *Blacklist) (*schema.F
 		rel := field[:i]
 		field = field[i+1:]
 		for _, v := range strings.Split(rel, ".") {
-			if blacklist != nil && sliceutil.ContainsStr(blacklist.RelationsBlacklist, v) {
+			if blacklist != nil && (sliceutil.ContainsStr(blacklist.RelationsBlacklist, v) || blacklist.IsFinal) {
 				return nil, nil, ""
 			}
 			relation, ok := s.Relationships.Relations[v]

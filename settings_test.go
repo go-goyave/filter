@@ -767,3 +767,27 @@ func TestSelectScope(t *testing.T) {
 	db = db.Scopes(selectScope(schema.Table, []string{}, true)).Select("*, 1 + 1 AS count").Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }
+
+func TestGetFieldFinalRelation(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	schema, err := parseModel(db, &FilterTestModel{})
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	settings := &Settings{Blacklist: Blacklist{IsFinal: true}}
+	field, sch, joinName := getField("Relation.name", schema, &settings.Blacklist)
+	assert.Nil(t, field)
+	assert.Nil(t, sch)
+	assert.Empty(t, joinName)
+
+	settings = &Settings{Blacklist: Blacklist{
+		Relations: map[string]*Blacklist{
+			"Relation": {IsFinal: true},
+		},
+	}}
+	field, sch, joinName = getField("Relation.NestedRelation.field", schema, &settings.Blacklist)
+	assert.Nil(t, field)
+	assert.Nil(t, sch)
+	assert.Empty(t, joinName)
+}

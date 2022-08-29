@@ -8,6 +8,9 @@ import (
 	"goyave.dev/goyave/v4/validation"
 )
 
+// Separator the separator used when parsing the query
+var Separator = "||"
+
 func init() {
 	validation.AddRule("filter", &validation.RuleDefinition{
 		Function: validateFilter,
@@ -114,7 +117,7 @@ func ParseFilter(filter string) (*Filter, error) {
 	f := filter
 	op := ""
 
-	index := strings.Index(f, "||")
+	index := strings.Index(f, Separator)
 	if index == -1 {
 		return nil, fmt.Errorf("Missing operator")
 	}
@@ -124,7 +127,7 @@ func ParseFilter(filter string) (*Filter, error) {
 	}
 	f = f[index+2:]
 
-	index = strings.Index(f, "||")
+	index = strings.Index(f, Separator)
 	if index == -1 {
 		index = len(f)
 	}
@@ -189,7 +192,7 @@ func ParseSort(sort string) (*Sort, error) {
 // ParseJoin parse a string in format "relation||field1,field2,..." and return
 // a Join struct.
 func ParseJoin(join string) (*Join, error) {
-	separatorIndex := strings.Index(join, "||")
+	separatorIndex := strings.Index(join, Separator)
 	if separatorIndex == -1 {
 		separatorIndex = len(join)
 	}

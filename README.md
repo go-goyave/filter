@@ -194,6 +194,35 @@ Internally, `goyave.dev/filter` uses [Goyave's `Paginator`](https://goyave.dev/g
 - If `per_page` isn't given, the default page size will be used. This default value can be overridden by changing `filter.DefaultPageSize`.
 - Either way, the result is **always** paginated, even if those two parameters are missing.
 
+## Computed columns
+
+Sometimes you need to work with a "virtual" column that is not stored in your database, but is computed using an SQL expression. A dynamic status depending on a date for example. In order to support the features of this library properly, you will have to add the expression to your model using the `computed` struct tag:
+
+```go
+type MyModel struct{
+	ID uint
+	// ...
+	StartDate time.Time
+	Status string `gorm:"->"` `computed:"CASE WHEN ~~~ct~~~.start_date < NOW() THEN 'pending' ELSE 'started' END"` 
+}
+```
+
+*Note: the `~~~ct~~~` is an indicator for the **c**urrent **t**able. It will be replaced by the correct table or relation name automatically. This allows the usage of computed fields in relations too, where joins are needed.*
+
+**Tip:** you can also use composition to avoid including the virtual column into your model:
+```go
+type MyModel struct{
+	ID uint
+	// ...
+	StartDate time.Time
+}
+
+type MyModelWithStatus struct{
+	MyModel
+	Status string `gorm:"->"` `computed:"CASE WHEN ~~~ct~~~.start_date < NOW() THEN 'pending' ELSE 'started' END"` 
+}
+```
+
 ## Security
 
 - Inputs are escaped to prevent SQL injections.

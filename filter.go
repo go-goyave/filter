@@ -1,7 +1,11 @@
 package filter
 
 import (
+	"fmt"
+	"strings"
+
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 )
 
@@ -32,9 +36,17 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *
 		return tx
 	}
 
+	computed := field.StructField.Tag.Get("computed")
+
 	conditionScope := func(tx *gorm.DB) *gorm.DB {
-		tableName := tx.Statement.Quote(tableFromJoinName(s.Table, joinName)) + "."
-		return f.Operator.Function(tx, f, tableName+tx.Statement.Quote(field.DBName), field.DataType)
+		table := tx.Statement.Quote(tableFromJoinName(s.Table, joinName))
+		var fieldExpr string
+		if computed != "" {
+			fieldExpr = fmt.Sprintf("(%s)", strings.ReplaceAll(computed, clause.CurrentTable, table))
+		} else {
+			fieldExpr = table + "." + tx.Statement.Quote(field.DBName)
+		}
+		return f.Operator.Function(tx, f, fieldExpr, field.DataType)
 	}
 
 	return joinScope, conditionScope

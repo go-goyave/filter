@@ -1,6 +1,9 @@
 package filter
 
 import (
+	"fmt"
+	"strings"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
@@ -29,6 +32,8 @@ func (s *Sort) Scope(settings *Settings, schema *schema.Schema) func(*gorm.DB) *
 		return nil
 	}
 
+	computed := field.StructField.Tag.Get("computed")
+
 	return func(tx *gorm.DB) *gorm.DB {
 		if joinName != "" {
 			if err := tx.Statement.Parse(tx.Statement.Model); err != nil {
@@ -37,12 +42,23 @@ func (s *Sort) Scope(settings *Settings, schema *schema.Schema) func(*gorm.DB) *
 			}
 			tx = join(tx, joinName, schema)
 		}
-		c := clause.OrderByColumn{
-			Column: clause.Column{
+
+		table := tableFromJoinName(sch.Table, joinName)
+		var column clause.Column
+		if computed != "" {
+			column = clause.Column{
+				Raw:  true,
+				Name: fmt.Sprintf("(%s)", strings.ReplaceAll(computed, clause.CurrentTable, tx.Statement.Quote(table))),
+			}
+		} else {
+			column = clause.Column{
 				Table: tableFromJoinName(sch.Table, joinName),
 				Name:  field.DBName,
-			},
-			Desc: s.Order == SortDescending,
+			}
+		}
+		c := clause.OrderByColumn{
+			Column: column,
+			Desc:   s.Order == SortDescending,
 		}
 		return tx.Order(c)
 	}

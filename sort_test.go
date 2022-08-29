@@ -227,3 +227,103 @@ func TestSortScopeWithJoinNestedRelation(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
+
+type SortTestModelComputedRelation struct {
+	Name     string
+	Computed string `computed:"~~~ct~~~.computedcolumnrelation"`
+	ID       uint
+	ParentID uint
+}
+
+type SortTestModelComputed struct {
+	Relation *SortTestModelComputedRelation `gorm:"foreignKey:ParentID"`
+	Name     string
+	Computed string `computed:"~~~ct~~~.computedcolumn"`
+	ID       uint
+}
+
+func TestSortScopeComputed(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	sort := &Sort{Field: "computed", Order: SortAscending}
+
+	results := []*SortTestModelComputed{}
+	schema, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	db = db.Model(&results).Scopes(sort.Scope(&Settings{}, schema)).Find(&results)
+	expected := map[string]clause.Clause{
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Raw:  true,
+							Name: "(`sort_test_model_computeds`.computedcolumn)",
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestSortScopeComputedWithJoin(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	sort := &Sort{Field: "Relation.computed", Order: SortAscending}
+
+	results := []*SortTestModelComputed{}
+	schema, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	db = db.Model(&results).Scopes(sort.Scope(&Settings{}, schema)).Find(&results)
+	expected := map[string]clause.Clause{
+		"FROM": {
+			Name: "FROM",
+			Expression: clause.From{
+				Joins: []clause.Join{
+					{
+						Type: clause.LeftJoin,
+						Table: clause.Table{
+							Name:  "sort_test_model_computed_relations",
+							Alias: "Relation",
+						},
+						ON: clause.Where{
+							Exprs: []clause.Expression{
+								clause.Eq{
+									Column: clause.Column{
+										Table: "sort_test_model_computeds",
+										Name:  "id",
+									},
+									Value: clause.Column{
+										Table: "Relation",
+										Name:  "parent_id",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Raw:  true,
+							Name: "(`Relation`.computedcolumnrelation)",
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}

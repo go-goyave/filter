@@ -5,16 +5,16 @@ import (
 	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
-func cleanColumns(schema *schema.Schema, columns []string, blacklist []string) []string {
-	for j := 0; j < len(columns); j++ {
-		_, ok := schema.FieldsByDBName[columns[j]]
-		if !ok || sliceutil.ContainsStr(blacklist, columns[j]) {
-			columns = append(columns[:j], columns[j+1:]...)
-			j--
+func cleanColumns(sch *schema.Schema, columns []string, blacklist []string) []*schema.Field {
+	fields := make([]*schema.Field, 0, len(columns))
+	for _, c := range columns {
+		f, ok := sch.FieldsByDBName[c]
+		if ok && !sliceutil.ContainsStr(blacklist, c) {
+			fields = append(fields, f)
 		}
 	}
 
-	return columns
+	return fields
 }
 
 func addPrimaryKeys(schema *schema.Schema, fields []string) []string {
@@ -37,4 +37,13 @@ func addForeignKeys(sch *schema.Schema, fields []string) []string {
 		}
 	}
 	return fields
+}
+
+func columnsContain(fields []*schema.Field, field *schema.Field) bool {
+	for _, f := range fields {
+		if f.DBName == field.DBName {
+			return true
+		}
+	}
+	return false
 }

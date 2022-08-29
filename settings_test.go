@@ -489,7 +489,7 @@ func TestBlacklistGetSelectableFields(t *testing.T) {
 		"email": {},
 	}
 
-	assert.ElementsMatch(t, []string{"id", "email"}, blacklist.getSelectableFields(fields))
+	assert.ElementsMatch(t, []*schema.Field{fields["id"], fields["email"]}, blacklist.getSelectableFields(fields))
 }
 
 type TestFilterScopeModel struct {
@@ -749,22 +749,22 @@ func TestSelectScope(t *testing.T) {
 	db = db.Scopes(selectScope("", nil, true)).Find(nil)
 	assert.Empty(t, db.Statement.Selects)
 
-	schema := &schema.Schema{Table: "test_models"}
+	sch := &schema.Schema{Table: "test_models"}
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(schema.Table, []string{"a", "b"}, false)).Find(nil)
+	db = db.Scopes(selectScope(sch.Table, []*schema.Field{{DBName: "a"}, {DBName: "b"}}, false)).Find(nil)
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(schema.Table, []string{"a", "b"}, true)).Find(nil)
+	db = db.Scopes(selectScope(sch.Table, []*schema.Field{{DBName: "a"}, {DBName: "b"}}, true)).Find(nil)
 	assert.Equal(t, []string{"`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(schema.Table, []string{"a", "b"}, false)).Select("1 + 1 AS count").Find(nil)
+	db = db.Scopes(selectScope(sch.Table, []*schema.Field{{DBName: "a"}, {DBName: "b"}}, false)).Select("1 + 1 AS count").Find(nil)
 	assert.Equal(t, []string{"1 + 1 AS count", "`test_models`.`a`", "`test_models`.`b`"}, db.Statement.Selects)
 
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(selectScope(schema.Table, []string{}, true)).Select("*, 1 + 1 AS count").Find(nil)
+	db = db.Scopes(selectScope(sch.Table, []*schema.Field{}, true)).Select("*, 1 + 1 AS count").Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
 }
 

@@ -1,7 +1,11 @@
 package filter
 
 import (
+	"fmt"
+	"strings"
+
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 )
 
@@ -43,8 +47,17 @@ func (s *Search) Scope(schema *schema.Schema) func(*gorm.DB) *gorm.DB {
 				Or:       true,
 			}
 
-			tableName := tx.Statement.Quote(tableFromJoinName(sch.Table, joinName)) + "."
-			searchQuery = s.Operator.Function(searchQuery, filter, tableName+tx.Statement.Quote(f.DBName), f.DataType)
+			table := tx.Statement.Quote(tableFromJoinName(sch.Table, joinName))
+
+			computed := f.StructField.Tag.Get("computed")
+			var fieldExpr string
+			if computed != "" {
+				fieldExpr = fmt.Sprintf("(%s)", strings.ReplaceAll(computed, clause.CurrentTable, table))
+			} else {
+				fieldExpr = table + "." + tx.Statement.Quote(f.DBName)
+			}
+
+			searchQuery = s.Operator.Function(searchQuery, filter, fieldExpr, f.DataType)
 		}
 
 		return tx.Where(searchQuery)

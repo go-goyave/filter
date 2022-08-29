@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 	"goyave.dev/goyave/v4"
 	"goyave.dev/goyave/v4/database"
@@ -217,7 +218,9 @@ func (s *Settings) applySearch(request *goyave.Request, schema *schema.Schema) *
 	if ok {
 		fields := s.FieldsSearch
 		if fields == nil {
-			fields = s.getSelectableFields(schema.FieldsByDBName)
+			for _, f := range s.getSelectableFields(schema.FieldsByDBName) {
+				fields = append(fields, f.DBName)
+			}
 		}
 
 		operator := s.SearchOperator
@@ -237,22 +240,22 @@ func (s *Settings) applySearch(request *goyave.Request, schema *schema.Schema) *
 	return nil
 }
 
-func (b *Blacklist) getSelectableFields(fields map[string]*schema.Field) []string {
+func (b *Blacklist) getSelectableFields(fields map[string]*schema.Field) []*schema.Field {
 	blacklist := []string{}
 	if b.FieldsBlacklist != nil {
 		blacklist = b.FieldsBlacklist
 	}
-	columns := make([]string, 0, len(fields))
-	for k := range fields {
+	columns := make([]*schema.Field, 0, len(fields))
+	for k, f := range fields {
 		if !sliceutil.ContainsStr(blacklist, k) {
-			columns = append(columns, k)
+			columns = append(columns, f)
 		}
 	}
 
 	return columns
 }
 
-func selectScope(table string, fields []string, override bool) func(*gorm.DB) *gorm.DB {
+func selectScope(table string, fields []*schema.Field, override bool) func(*gorm.DB) *gorm.DB {
 	return func(tx *gorm.DB) *gorm.DB {
 
 		if fields == nil {
@@ -264,9 +267,17 @@ func selectScope(table string, fields []string, override bool) func(*gorm.DB) *g
 			fieldsWithTableName = []string{"1"}
 		} else {
 			fieldsWithTableName = make([]string, 0, len(fields))
-			tableName := tx.Statement.Quote(table) + "."
+			tableName := tx.Statement.Quote(table)
 			for _, f := range fields {
-				fieldsWithTableName = append(fieldsWithTableName, tableName+tx.Statement.Quote(f))
+				computed := f.StructField.Tag.Get("computed")
+				var fieldExpr string
+				if computed != "" {
+					fieldExpr = fmt.Sprintf("(%s) %s", strings.ReplaceAll(computed, clause.CurrentTable, tableName), tx.Statement.Quote(f.DBName))
+				} else {
+					fieldExpr = tableName + "." + tx.Statement.Quote(f.DBName)
+				}
+
+				fieldsWithTableName = append(fieldsWithTableName, fieldExpr)
 			}
 		}
 

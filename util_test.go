@@ -8,13 +8,13 @@ import (
 )
 
 func TestCleanColumns(t *testing.T) {
-	schema := &schema.Schema{
+	sch := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
 			"id":   {},
 			"name": {},
 		},
 	}
-	assert.Equal(t, []string{"id"}, cleanColumns(schema, []string{"id", "test", "name", "notacolumn"}, []string{"name"}))
+	assert.Equal(t, []*schema.Field{sch.FieldsByDBName["name"]}, cleanColumns(sch, []string{"id", "test", "name", "notacolumn"}, []string{"name"}))
 }
 
 func TestAddPrimaryKeys(t *testing.T) {

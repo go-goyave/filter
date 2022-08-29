@@ -448,3 +448,93 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.NotEmpty(t, db.Statement.Joins)
 }
+
+type FilterTestModelComputedRelation struct {
+	Name     string
+	Computed string `computed:"~~~ct~~~.computedcolumnrelation"`
+	ID       uint
+	ParentID uint
+}
+
+type FilterTestModelComputed struct {
+	Relation *FilterTestModelComputedRelation `gorm:"foreignKey:ParentID"`
+	Name     string
+	Computed string `computed:"~~~ct~~~.computedcolumn"`
+	ID       uint
+}
+
+func TestFilterScopeComputed(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	filter := &Filter{Field: "computed", Args: []string{"val1"}, Operator: Operators["$eq"]}
+
+	results := []*FilterTestModelComputed{}
+	schema, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "(`filter_test_model_computeds`.computedcolumn) = ?", Vars: []interface{}{"val1"}},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestFilterScopeComputedRelation(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	filter := &Filter{Field: "Relation.computed", Args: []string{"val1"}, Operator: Operators["$eq"]}
+
+	results := []*FilterTestModelComputed{}
+	schema, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "(`Relation`.computedcolumnrelation) = ?", Vars: []interface{}{"val1"}},
+				},
+			},
+		},
+		"FROM": {
+			Name: "FROM",
+			Expression: clause.From{
+				Joins: []clause.Join{
+					{
+						Type: clause.LeftJoin,
+						Table: clause.Table{
+							Name:  "filter_test_model_computed_relations",
+							Alias: "Relation",
+						},
+						ON: clause.Where{
+							Exprs: []clause.Expression{
+								clause.Eq{
+									Column: clause.Column{
+										Table: "filter_test_model_computeds",
+										Name:  "id",
+									},
+									Value: clause.Column{
+										Table: "Relation",
+										Name:  "parent_id",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}

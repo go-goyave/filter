@@ -94,16 +94,16 @@ func joinScope(relationName string, rel *schema.Relationship, fields []string, b
 			return tx
 		}
 		if columns != nil {
-			for _, k := range rel.FieldSchema.PrimaryFieldDBNames {
-				if !sliceutil.ContainsStr(columns, k) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, k)) {
-					columns = append(columns, k)
+			for _, primaryField := range rel.FieldSchema.PrimaryFields {
+				if !columnsContain(columns, primaryField) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, primaryField.DBName)) {
+					columns = append(columns, primaryField)
 				}
 			}
 			for _, backwardsRelation := range rel.FieldSchema.Relationships.Relations {
 				if backwardsRelation.FieldSchema == rel.Schema && backwardsRelation.Type == schema.BelongsTo {
 					for _, ref := range backwardsRelation.References {
-						if !sliceutil.ContainsStr(columns, ref.ForeignKey.DBName) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, ref.ForeignKey.DBName)) {
-							columns = append(columns, ref.ForeignKey.DBName)
+						if !columnsContain(columns, ref.ForeignKey) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, ref.ForeignKey.DBName)) {
+							columns = append(columns, ref.ForeignKey)
 						}
 					}
 				}

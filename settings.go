@@ -71,11 +71,39 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 // which can be used to check for database errors.
 // The given request is expected to be validated using `ApplyValidation`.
 func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Paginator, *gorm.DB) {
+	db, schema, hasJoins := s.scopeCommon(db, request, dest)
+
+	page := 1
+	if request.Has("page") {
+		page = request.Integer("page")
+	}
+	pageSize := DefaultPageSize
+	if request.Has("per_page") {
+		pageSize = request.Integer("per_page")
+	}
+
+	paginator := database.NewPaginator(db, page, pageSize, dest)
+	paginator.UpdatePageInfo()
+
+	paginator.DB = s.scopeSort(paginator.DB, request, schema)
+	if fieldsDB := s.scopeFields(paginator.DB, request, schema, hasJoins); fieldsDB != nil {
+		paginator.DB = fieldsDB
+	} else {
+		return nil, paginator.DB
+	}
+
+	return paginator, paginator.Find()
+}
+
+// scopeCommon applies all scopes common to both the paginated and non-paginated requests.
+// The third returned valued indicates if the query contains joins.
+func (s *Settings) scopeCommon(db *gorm.DB, request *goyave.Request, dest interface{}) (*gorm.DB, *schema.Schema, bool) {
 	schema, err := parseModel(db, dest)
 	if err != nil {
 		panic(err)
 	}
 
+	db = db.Model(dest)
 	db = s.applyFilters(db, request, schema)
 
 	hasJoins := false
@@ -101,46 +129,37 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 		}
 	}
 
-	page := 1
-	if request.Has("page") {
-		page = request.Integer("page")
-	}
-	pageSize := DefaultPageSize
-	if request.Has("per_page") {
-		pageSize = request.Integer("per_page")
-	}
+	return db, schema, hasJoins
+}
 
-	db = db.Model(dest)
-	paginator := database.NewPaginator(db, page, pageSize, dest)
-	paginator.UpdatePageInfo()
+func (s *Settings) scopeFields(db *gorm.DB, request *goyave.Request, schema *schema.Schema, hasJoins bool) *gorm.DB {
+	if !s.DisableFields && request.Has("fields") {
+		fields := strings.Split(request.String("fields"), ",")
+		if hasJoins {
+			if len(schema.PrimaryFieldDBNames) == 0 {
+				db.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\"` to your model"))
+				return nil
+			}
+			fields = addPrimaryKeys(schema, fields)
+			fields = addForeignKeys(schema, fields)
+		}
+		return db.Scopes(selectScope(schema.Table, cleanColumns(schema, fields, s.FieldsBlacklist), false))
+	}
+	return db.Scopes(selectScope(schema.Table, s.getSelectableFields(schema.FieldsByDBName), false))
+}
 
+func (s *Settings) scopeSort(db *gorm.DB, request *goyave.Request, schema *schema.Schema) *gorm.DB {
 	if !s.DisableSort && request.Has("sort") {
 		sorts, ok := request.Data["sort"].([]*Sort)
 		if ok {
 			for _, sort := range sorts {
 				if scope := sort.Scope(s, schema); scope != nil {
-					paginator.DB = paginator.DB.Scopes(scope)
+					db = db.Scopes(scope)
 				}
 			}
 		}
 	}
-
-	if !s.DisableFields && request.Has("fields") {
-		fields := strings.Split(request.String("fields"), ",")
-		if hasJoins {
-			if len(schema.PrimaryFieldDBNames) == 0 {
-				paginator.DB.AddError(fmt.Errorf("Could not find primary key. Add `gorm:\"primaryKey\"` to your model"))
-				return nil, paginator.DB
-			}
-			fields = addPrimaryKeys(schema, fields)
-			fields = addForeignKeys(schema, fields)
-		}
-		paginator.DB = paginator.DB.Scopes(selectScope(schema.Table, cleanColumns(schema, fields, s.FieldsBlacklist), false))
-	} else {
-		paginator.DB = paginator.DB.Scopes(selectScope(schema.Table, s.getSelectableFields(schema.FieldsByDBName), false))
-	}
-
-	return paginator, paginator.Find()
+	return db
 }
 
 func (s *Settings) applyFilters(db *gorm.DB, request *goyave.Request, schema *schema.Schema) *gorm.DB {

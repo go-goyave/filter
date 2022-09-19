@@ -2,6 +2,7 @@ package filter
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -766,6 +767,10 @@ func TestSelectScope(t *testing.T) {
 	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
 	db = db.Scopes(selectScope(sch.Table, []*schema.Field{}, true)).Select("*, 1 + 1 AS count").Find(nil)
 	assert.Equal(t, []string{"1"}, db.Statement.Selects)
+
+	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
+	db = db.Scopes(selectScope(sch.Table, []*schema.Field{{DBName: "c", StructField: reflect.StructField{Tag: `computed:"a+b"`}}}, true)).Select("*, 1 + 1 AS count").Find(nil)
+	assert.Equal(t, []string{"(a+b) `c`"}, db.Statement.Selects)
 }
 
 func TestGetFieldFinalRelation(t *testing.T) {

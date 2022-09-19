@@ -100,6 +100,11 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 	return paginator, paginator.Find()
 }
 
+// ScopeUnpaginated apply all filters, sorts and joins defined in the request's data to the given `*gorm.DB`
+// without any pagination.
+// Returns the `*gorm.DB` result, which can be used to check for database errors.
+// The records will be added in the given `dest` slice.
+// The given request is expected to be validated using `ApplyValidation`.
 func (s *Settings) ScopeUnpaginated(db *gorm.DB, request *goyave.Request, dest interface{}) *gorm.DB {
 	db, schema, hasJoins := s.scopeCommon(db, request, dest)
 	db = s.scopeSort(db, request, schema)

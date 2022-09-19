@@ -51,6 +51,15 @@ func Index(response *goyave.Response, request *goyave.Request) {
 
 And **that's it**! Now your front-end can add query parameters to filter as it wants.
 
+You can also find records without paginating using `ScopeUnpaginated()`:
+```go
+var users []*model.User
+tx := filter.ScopeUnpaginated(database.GetConnection(), request, &users)
+if response.HandleDatabaseError(tx) {
+	response.JSON(http.StatusOK, users)
+}
+```
+
 ### Settings
 
 You can disable certain features, or blacklist certain fields using `filter.Settings`:

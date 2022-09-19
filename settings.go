@@ -66,6 +66,11 @@ func Scope(db *gorm.DB, request *goyave.Request, dest interface{}) (*database.Pa
 	return (&Settings{}).Scope(db, request, dest)
 }
 
+// ScopeUnpaginated using the default FilterSettings. See `FilterSettings.ScopeUnpaginated()` for more details.
+func ScopeUnpaginated(db *gorm.DB, request *goyave.Request, dest interface{}) *gorm.DB {
+	return (&Settings{}).ScopeUnpaginated(db, request, dest)
+}
+
 // Scope apply all filters, sorts and joins defined in the request's data to the given `*gorm.DB`
 // and process pagination. Returns the resulting `*database.Paginator` and the `*gorm.DB` result,
 // which can be used to check for database errors.
@@ -93,6 +98,17 @@ func (s *Settings) Scope(db *gorm.DB, request *goyave.Request, dest interface{})
 	}
 
 	return paginator, paginator.Find()
+}
+
+func (s *Settings) ScopeUnpaginated(db *gorm.DB, request *goyave.Request, dest interface{}) *gorm.DB {
+	db, schema, hasJoins := s.scopeCommon(db, request, dest)
+	db = s.scopeSort(db, request, schema)
+	if fieldsDB := s.scopeFields(db, request, schema, hasJoins); fieldsDB != nil {
+		db = fieldsDB
+	} else {
+		return db
+	}
+	return db.Find(dest)
 }
 
 // scopeCommon applies all scopes common to both the paginated and non-paginated requests.

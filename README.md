@@ -212,7 +212,7 @@ type MyModel struct{
 	ID uint
 	// ...
 	StartDate time.Time
-	Status string `gorm:"->"` `computed:"CASE WHEN ~~~ct~~~.start_date < NOW() THEN 'pending' ELSE 'started' END"` 
+	Status string `gorm:"->;-:migration"` `computed:"CASE WHEN ~~~ct~~~.start_date < NOW() THEN 'pending' ELSE 'started' END"` 
 }
 ```
 
@@ -228,7 +228,7 @@ type MyModel struct{
 
 type MyModelWithStatus struct{
 	MyModel
-	Status string `gorm:"->"` `computed:"CASE WHEN ~~~ct~~~.start_date < NOW() THEN 'pending' ELSE 'started' END"` 
+	Status string `gorm:"->;-:migration"` `computed:"CASE WHEN ~~~ct~~~.start_date < NOW() THEN 'pending' ELSE 'started' END"` 
 }
 ```
 

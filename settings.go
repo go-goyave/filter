@@ -166,7 +166,7 @@ func (s *Settings) scopeFields(db *gorm.DB, request *goyave.Request, schema *sch
 		}
 		return db.Scopes(selectScope(schema.Table, cleanColumns(schema, fields, s.FieldsBlacklist), false))
 	}
-	return db.Scopes(selectScope(schema.Table, s.getSelectableFields(schema.FieldsByDBName), false))
+	return db.Scopes(selectScope(schema.Table, getSelectableFields(&s.Blacklist, schema.FieldsByDBName), false))
 }
 
 func (s *Settings) scopeSort(db *gorm.DB, request *goyave.Request, schema *schema.Schema) *gorm.DB {
@@ -258,7 +258,7 @@ func (s *Settings) applySearch(request *goyave.Request, schema *schema.Schema) *
 	if ok {
 		fields := s.FieldsSearch
 		if fields == nil {
-			for _, f := range s.getSelectableFields(schema.FieldsByDBName) {
+			for _, f := range getSelectableFields(&s.Blacklist, schema.FieldsByDBName) {
 				fields = append(fields, f.DBName)
 			}
 		}
@@ -280,14 +280,14 @@ func (s *Settings) applySearch(request *goyave.Request, schema *schema.Schema) *
 	return nil
 }
 
-func (b *Blacklist) getSelectableFields(fields map[string]*schema.Field) []*schema.Field {
-	blacklist := []string{}
-	if b.FieldsBlacklist != nil {
-		blacklist = b.FieldsBlacklist
+func getSelectableFields(blacklist *Blacklist, fields map[string]*schema.Field) []*schema.Field {
+	b := []string{}
+	if blacklist != nil && blacklist.FieldsBlacklist != nil {
+		b = blacklist.FieldsBlacklist
 	}
 	columns := make([]*schema.Field, 0, len(fields))
 	for k, f := range fields {
-		if !sliceutil.ContainsStr(blacklist, k) {
+		if !sliceutil.ContainsStr(b, k) {
 			columns = append(columns, f)
 		}
 	}

@@ -902,7 +902,8 @@ func TestBlacklistGetSelectableFields(t *testing.T) {
 		"email": {},
 	}
 
-	assert.ElementsMatch(t, []*schema.Field{fields["id"], fields["email"]}, blacklist.getSelectableFields(fields))
+	assert.ElementsMatch(t, []*schema.Field{fields["id"], fields["email"]}, getSelectableFields(blacklist, fields))
+	assert.ElementsMatch(t, []*schema.Field{fields["id"], fields["email"], fields["name"]}, getSelectableFields(nil, fields))
 }
 
 type TestFilterScopeModel struct {

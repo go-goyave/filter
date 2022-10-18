@@ -49,6 +49,50 @@ func TestJoinScope(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "notacolumn"}, join.selectCache["Relation"])
 }
 
+func TestJoinScopeAutoSelectFieldsNoBlacklist(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	join := &Join{Relation: "Relation", Fields: nil}
+	join.selectCache = map[string][]string{}
+	schema, err := parseModel(db, &JoinTestModel{})
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	results := map[string]interface{}{}
+	db = db.Scopes(join.Scopes(&Settings{}, schema)...).Table("table").Find(&results)
+	if assert.Contains(t, db.Statement.Preloads, "Relation") {
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.ElementsMatch(t, []string{"`relation`.`a`", "`relation`.`b`"}, tx.Statement.Selects)
+	}
+	assert.Nil(t, join.selectCache["Relation"])
+}
+
+func TestJoinScopeAutoSelectFieldsWithBlacklist(t *testing.T) {
+	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	join := &Join{Relation: "Relation", Fields: nil}
+	join.selectCache = map[string][]string{}
+	schema, err := parseModel(db, &JoinTestModel{})
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	blacklist := Blacklist{
+		Relations: map[string]*Blacklist{
+			"Relation": {
+				FieldsBlacklist: []string{"b"},
+			},
+		},
+	}
+
+	results := map[string]interface{}{}
+	db = db.Scopes(join.Scopes(&Settings{Blacklist: blacklist}, schema)...).Table("table").Find(&results)
+	if assert.Contains(t, db.Statement.Preloads, "Relation") {
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.ElementsMatch(t, []string{"`relation`.`a`"}, tx.Statement.Selects)
+	}
+	assert.Nil(t, join.selectCache["Relation"])
+}
+
 func TestJoinScopeAnonymousRelation(t *testing.T) {
 	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
 	join := &Join{Relation: "notarelation", Fields: []string{"a", "b", "notacolumn"}}

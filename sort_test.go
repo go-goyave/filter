@@ -4,14 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"gorm.io/gorm/utils/tests"
 )
 
 func TestSortScope(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	sort := &Sort{Field: "notacolumn", Order: SortAscending}
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
@@ -24,7 +22,8 @@ func TestSortScope(t *testing.T) {
 
 	sort.Field = "name"
 
-	db = db.Scopes(sort.Scope(&Settings{}, schema)).Table("table").Find(nil)
+	results := []map[string]interface{}{}
+	db = db.Scopes(sort.Scope(&Settings{}, schema)).Table("table").Find(&results)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -39,12 +38,22 @@ func TestSortScope(t *testing.T) {
 				},
 			},
 		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	sort.Order = SortDescending
-	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
-	db = db.Scopes(sort.Scope(&Settings{}, schema)).Table("table").Find(nil)
+	db = openDryRunDB(t)
+
+	results = []map[string]interface{}{}
+	db = db.Scopes(sort.Scope(&Settings{}, schema)).Table("table").Find(&results)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
@@ -80,7 +89,7 @@ type SortTestModel struct {
 }
 
 func TestSortScopeWithJoin(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	sort := &Sort{Field: "Relation.name", Order: SortAscending}
 
 	results := []*SortTestModel{}
@@ -132,12 +141,21 @@ func TestSortScopeWithJoin(t *testing.T) {
 				},
 			},
 		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "sort_test_models", Name: "name"},
+					{Table: "sort_test_models", Name: "id"},
+				},
+			},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestSortScopeWithJoinInvalidModel(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	sort := &Sort{Field: "Relation.name", Order: SortDescending}
 
 	results := []*SortTestModel{}
@@ -151,7 +169,7 @@ func TestSortScopeWithJoinInvalidModel(t *testing.T) {
 }
 
 func TestSortScopeWithJoinNestedRelation(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	sort := &Sort{Field: "Relation.NestedRelation.field", Order: SortAscending}
 
 	results := []*SortTestModel{}
@@ -224,13 +242,22 @@ func TestSortScopeWithJoinNestedRelation(t *testing.T) {
 				},
 			},
 		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "sort_test_models", Name: "name"},
+					{Table: "sort_test_models", Name: "id"},
+				},
+			},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 type SortTestModelComputedRelation struct {
 	Name     string
-	Computed string `computed:"~~~ct~~~.computedcolumnrelation"`
+	Computed string `gorm:"->;-:migration" computed:"~~~ct~~~.computedcolumnrelation"`
 	ID       uint
 	ParentID uint
 }
@@ -238,12 +265,12 @@ type SortTestModelComputedRelation struct {
 type SortTestModelComputed struct {
 	Relation *SortTestModelComputedRelation `gorm:"foreignKey:ParentID"`
 	Name     string
-	Computed string `computed:"~~~ct~~~.computedcolumn"`
+	Computed string `gorm:"->;-:migration" computed:"~~~ct~~~.computedcolumn"`
 	ID       uint
 }
 
 func TestSortScopeComputed(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	sort := &Sort{Field: "computed", Order: SortAscending}
 
 	results := []*SortTestModelComputed{}
@@ -267,12 +294,20 @@ func TestSortScopeComputed(t *testing.T) {
 				},
 			},
 		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestSortScopeComputedWithJoin(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	sort := &Sort{Field: "Relation.computed", Order: SortAscending}
 
 	results := []*SortTestModelComputed{}
@@ -321,6 +356,16 @@ func TestSortScopeComputedWithJoin(t *testing.T) {
 							Name: "(`Relation`.computedcolumnrelation)",
 						},
 					},
+				},
+			},
+		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "sort_test_model_computeds", Name: "name"},
+					{Table: "sort_test_model_computeds", Name: "computed"}, // Should not be problematic that it is added automatically by Gorm since we force only selectable fields all he time.
+					{Table: "sort_test_model_computeds", Name: "id"},
 				},
 			},
 		},

@@ -4,14 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"gorm.io/gorm/utils/tests"
 )
 
 func TestEquals(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$eq"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -28,7 +26,7 @@ func TestEquals(t *testing.T) {
 }
 
 func TestNotEquals(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$ne"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -45,7 +43,7 @@ func TestNotEquals(t *testing.T) {
 }
 
 func TestGreaterThan(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$gt"].Function(db, &Filter{Field: "age", Args: []string{"18"}}, "`test_models`.`age`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -62,7 +60,7 @@ func TestGreaterThan(t *testing.T) {
 }
 
 func TestLowerThan(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$lt"].Function(db, &Filter{Field: "age", Args: []string{"18"}}, "`test_models`.`age`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -79,7 +77,7 @@ func TestLowerThan(t *testing.T) {
 }
 
 func TestGreaterThanEqual(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$gte"].Function(db, &Filter{Field: "age", Args: []string{"18"}}, "`test_models`.`age`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -96,7 +94,7 @@ func TestGreaterThanEqual(t *testing.T) {
 }
 
 func TestLowerThanEqual(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$lte"].Function(db, &Filter{Field: "age", Args: []string{"18"}}, "`test_models`.`age`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -113,7 +111,7 @@ func TestLowerThanEqual(t *testing.T) {
 }
 
 func TestStarts(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$starts"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -130,7 +128,7 @@ func TestStarts(t *testing.T) {
 }
 
 func TestEnds(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$ends"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -147,7 +145,7 @@ func TestEnds(t *testing.T) {
 }
 
 func TestContains(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$cont"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -164,7 +162,7 @@ func TestContains(t *testing.T) {
 }
 
 func TestNotContains(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$excl"].Function(db, &Filter{Field: "name", Args: []string{"test"}}, "`test_models`.`name`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -181,7 +179,7 @@ func TestNotContains(t *testing.T) {
 }
 
 func TestIn(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$in"].Function(db, &Filter{Field: "name", Args: []string{"val1", "val2"}}, "`test_models`.`name`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -198,7 +196,7 @@ func TestIn(t *testing.T) {
 }
 
 func TestNotIn(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$notin"].Function(db, &Filter{Field: "name", Args: []string{"val1", "val2"}}, "`test_models`.`name`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -215,7 +213,7 @@ func TestNotIn(t *testing.T) {
 }
 
 func TestIsNull(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$isnull"].Function(db, &Filter{Field: "name"}, "`test_models`.`name`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -232,7 +230,7 @@ func TestIsNull(t *testing.T) {
 }
 
 func TestNotNull(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$notnull"].Function(db, &Filter{Field: "name"}, "`test_models`.`name`", schema.String)
 
 	expected := map[string]clause.Clause{
@@ -249,7 +247,7 @@ func TestNotNull(t *testing.T) {
 }
 
 func TestBetween(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$between"].Function(db, &Filter{Field: "age", Args: []string{"18", "25"}}, "`test_models`.`age`", schema.Uint)
 
 	expected := map[string]clause.Clause{
@@ -266,7 +264,7 @@ func TestBetween(t *testing.T) {
 }
 
 func TestIsTrue(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$istrue"].Function(db, &Filter{Field: "isActive"}, "`test_models`.`is_active`", schema.Bool)
 
 	expected := map[string]clause.Clause{
@@ -281,13 +279,13 @@ func TestIsTrue(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 
-	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
+	db = openDryRunDB(t)
 	db = Operators["$istrue"].Function(db, &Filter{Field: "isActive"}, "`test_models`.`is_active`", schema.String) // Unsupported type
 	assert.Empty(t, db.Statement.Clauses)
 }
 
 func TestIsFalse(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	db = Operators["$isfalse"].Function(db, &Filter{Field: "isActive"}, "`test_models`.`is_active`", schema.Bool)
 
 	expected := map[string]clause.Clause{
@@ -302,7 +300,7 @@ func TestIsFalse(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 
-	db, _ = gorm.Open(&tests.DummyDialector{}, nil)
+	db = openDryRunDB(t)
 	db = Operators["$isfalse"].Function(db, &Filter{Field: "isActive"}, "`test_models`.`is_active`", schema.String) // Unsupported type
 	assert.Empty(t, db.Statement.Clauses)
 }

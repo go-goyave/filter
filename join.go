@@ -84,7 +84,7 @@ func (j *Join) applyRelation(schema *schema.Schema, blacklist *Blacklist, relati
 func joinScope(relationName string, rel *schema.Relationship, fields []string, blacklist *Blacklist) func(*gorm.DB) *gorm.DB {
 	var columns []*schema.Field
 	if fields == nil {
-		columns = getSelectableFields(blacklist, rel.FieldSchema.FieldsByDBName)
+		columns = getSelectableFields(blacklist, rel.FieldSchema)
 	} else {
 		var b []string
 		if blacklist != nil {

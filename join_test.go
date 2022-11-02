@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
-	"gorm.io/gorm/utils/tests"
 )
 
 type JoinTestModel struct {
@@ -20,6 +19,7 @@ func (m *JoinTestModel) TableName() string {
 }
 
 type JoinRelationModel struct {
+	C string `gorm:"->;-:migration" computed:"UPPER(~~~ct~~~.b)"`
 	B string
 	A int `gorm:"primaryKey"`
 }
@@ -29,7 +29,7 @@ func (m *JoinRelationModel) TableName() string {
 }
 
 func TestJoinScope(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "notarelation", Fields: []string{"a", "b", "notacolumn"}}
 	join.selectCache = map[string][]string{}
 
@@ -40,8 +40,7 @@ func TestJoinScope(t *testing.T) {
 	assert.Nil(t, join.Scopes(&Settings{}, schema))
 	join.Relation = "Relation"
 
-	results := map[string]interface{}{}
-	db = db.Scopes(join.Scopes(&Settings{}, schema)...).Table("table").Find(&results)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`"}, tx.Statement.Selects)
@@ -50,7 +49,7 @@ func TestJoinScope(t *testing.T) {
 }
 
 func TestJoinScopeAutoSelectFieldsNoBlacklist(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation", Fields: nil}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinTestModel{})
@@ -58,17 +57,16 @@ func TestJoinScopeAutoSelectFieldsNoBlacklist(t *testing.T) {
 		return
 	}
 
-	results := map[string]interface{}{}
-	db = db.Scopes(join.Scopes(&Settings{}, schema)...).Table("table").Find(&results)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.ElementsMatch(t, []string{"`relation`.`a`", "`relation`.`b`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"(UPPER(`relation`.b)) `c`", "`relation`.`b`", "`relation`.`a`"}, tx.Statement.Selects)
 	}
 	assert.Nil(t, join.selectCache["Relation"])
 }
 
 func TestJoinScopeAutoSelectFieldsWithBlacklist(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation", Fields: nil}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinTestModel{})
@@ -84,17 +82,16 @@ func TestJoinScopeAutoSelectFieldsWithBlacklist(t *testing.T) {
 		},
 	}
 
-	results := map[string]interface{}{}
-	db = db.Scopes(join.Scopes(&Settings{Blacklist: blacklist}, schema)...).Table("table").Find(&results)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(&Settings{Blacklist: blacklist}, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.ElementsMatch(t, []string{"`relation`.`a`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"(UPPER(`relation`.b)) `c`", "`relation`.`a`"}, tx.Statement.Selects)
 	}
 	assert.Nil(t, join.selectCache["Relation"])
 }
 
 func TestJoinScopeAnonymousRelation(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "notarelation", Fields: []string{"a", "b", "notacolumn"}}
 	join.selectCache = map[string][]string{}
 
@@ -115,8 +112,7 @@ func TestJoinScopeAnonymousRelation(t *testing.T) {
 	assert.Nil(t, join.Scopes(&Settings{}, schema))
 	join.Relation = "Relation"
 
-	results := map[string]interface{}{}
-	db = db.Scopes(join.Scopes(&Settings{}, schema)...).Table("table").Find(&results)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
 	assert.Empty(t, db.Statement.Preloads)
 	assert.Empty(t, db.Statement.Selects)
 	assert.Equal(t, "Relation \"Relation\" is anonymous, could not get table name", db.Error.Error())
@@ -124,7 +120,7 @@ func TestJoinScopeAnonymousRelation(t *testing.T) {
 }
 
 func TestJoinScopeBlacklisted(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"a", "b", "notacolumn"}}
 
 	schema, err := parseModel(db, &JoinTestModel{})
@@ -170,7 +166,7 @@ func (m *JoinHopManyTestChildModel) TableName() string {
 }
 
 func TestJoinScopeBlacklistedRelationHop(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation.Parent.Relation", Fields: []string{"name", "id"}}
 	join.selectCache = map[string][]string{}
 
@@ -193,17 +189,15 @@ func TestJoinScopeBlacklistedRelationHop(t *testing.T) {
 }
 
 func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"b"}}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopTestModel{})
 	if !assert.Nil(t, err) {
 		return
 	}
-	schema.Table = "table"
 
-	results := map[string]interface{}{}
-	db = db.Scopes(join.Scopes(&Settings{}, schema)...).Table("table").Find(&results)
+	db = db.Model(&JoinHopTestModel{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`a`", "`relation`.`parent_id`"}, tx.Statement.Selects)
@@ -220,7 +214,8 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 			},
 		},
 	}
-	db = db.Scopes(join.Scopes(settings, schema)...).Table("table").Find(&results)
+	db = openDryRunDB(t)
+	db = db.Model(&JoinHopTestModel{}).Scopes(join.Scopes(settings, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`parent_id`"}, tx.Statement.Selects)
@@ -228,17 +223,15 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 }
 
 func TestJoinScopeHasMany(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"a", "b"}}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopManyTestModel{})
 	if !assert.Nil(t, err) {
 		return
 	}
-	schema.Table = "table"
 
-	results := map[string]interface{}{}
-	db = db.Scopes(join.Scopes(&Settings{}, schema)...).Table("table").Find(&results)
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`", "`relation`.`parent_id`"}, tx.Statement.Selects)
@@ -255,7 +248,8 @@ func TestJoinScopeHasMany(t *testing.T) {
 			},
 		},
 	}
-	db = db.Scopes(join.Scopes(settings, schema)...).Table("table").Find(&results)
+	db = openDryRunDB(t)
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(settings, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`"}, tx.Statement.Selects)
@@ -263,7 +257,7 @@ func TestJoinScopeHasMany(t *testing.T) {
 }
 
 func TestJoinScopeNestedRelations(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation.Parent", Fields: []string{"id", "relation_id"}}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopManyTestModel{})
@@ -288,11 +282,10 @@ func TestJoinScopeNestedRelations(t *testing.T) {
 		},
 	}
 
-	results := map[string]interface{}{}
-	db = db.Scopes(join.Scopes(settings, schema)...).Table("table").Find(&results)
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(settings, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation.Parent") {
 		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation.Parent"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`table`.`id`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"`join_hop_many_test_models`.`id`"}, tx.Statement.Selects)
 	}
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
@@ -303,7 +296,7 @@ func TestJoinScopeNestedRelations(t *testing.T) {
 }
 
 func TestJoinScopeFinal(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"a", "b"}}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopManyTestModel{})
@@ -316,7 +309,7 @@ func TestJoinScopeFinal(t *testing.T) {
 }
 
 func TestJoinNestedRelationsWithSelect(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"b"}}
 	join.selectCache = map[string][]string{}
 	join2 := &Join{Relation: "Relation.Parent", Fields: []string{"id", "relation_id"}}
@@ -341,11 +334,10 @@ func TestJoinNestedRelationsWithSelect(t *testing.T) {
 		},
 	}
 
-	results := map[string]interface{}{}
-	db = db.Scopes(join.Scopes(settings, schema)...).Scopes(join2.Scopes(settings, schema)...).Table("table").Find(&results)
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(settings, schema)...).Scopes(join2.Scopes(settings, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation.Parent") {
 		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation.Parent"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`table`.`id`"}, tx.Statement.Selects)
+		assert.Equal(t, []string{"`join_hop_many_test_models`.`id`"}, tx.Statement.Selects)
 	}
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
@@ -356,7 +348,7 @@ func TestJoinNestedRelationsWithSelect(t *testing.T) {
 }
 
 func TestJoinScopeInvalidSyntax(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation.", Fields: []string{"a", "b"}} // A dot at the end of the relation name is invalid
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopManyTestModel{})
@@ -367,7 +359,7 @@ func TestJoinScopeInvalidSyntax(t *testing.T) {
 }
 
 func TestJoinScopeNonExistingRelation(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	join := &Join{Relation: "Relation.NotARelation.Parent", Fields: []string{"a", "b"}}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopManyTestModel{})
@@ -375,4 +367,35 @@ func TestJoinScopeNonExistingRelation(t *testing.T) {
 		return
 	}
 	assert.Nil(t, join.Scopes(&Settings{}, schema))
+}
+
+type JoinTestModelComputed struct {
+	Relation *JoinRelationModelComputed
+	Name     string
+	ID       int `gorm:"primaryKey"`
+	RelID    int `gorm:"column:relation_id"`
+}
+
+type JoinRelationModelComputed struct {
+	C string `gorm:"->;-:migration" computed:"UPPER(~~~ct~~~.b)"`
+	B string
+	A int `gorm:"primaryKey"`
+}
+
+func TestJoinScopeComputedField(t *testing.T) {
+	db := openDryRunDB(t)
+	join := &Join{Relation: "Relation", Fields: []string{"a", "b", "c"}}
+	join.selectCache = map[string][]string{}
+
+	schema, err := parseModel(db, &JoinTestModelComputed{})
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	db = db.Model(&JoinTestModelComputed{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
+	if assert.Contains(t, db.Statement.Preloads, "Relation") {
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
+		assert.Equal(t, []string{"`join_relation_model_computeds`.`a`", "`join_relation_model_computeds`.`b`", "(UPPER(`join_relation_model_computeds`.b)) `c`"}, tx.Statement.Selects)
+	}
+	assert.Equal(t, []string{"a", "b", "c"}, join.selectCache["Relation"])
 }

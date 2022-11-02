@@ -7,11 +7,10 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"gorm.io/gorm/utils/tests"
 )
 
 func TestFilterWhere(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "name", Args: []string{"val1"}}
 	db = filter.Where(db, "name = ?", "val1")
 	expected := map[string]clause.Clause{
@@ -28,7 +27,7 @@ func TestFilterWhere(t *testing.T) {
 }
 
 func TestFilterWhereOr(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "name", Args: []string{"val1"}, Or: true}
 	db = filter.Where(db, "name = ?", "val1")
 	expected := map[string]clause.Clause{
@@ -49,9 +48,10 @@ func TestFilterWhereOr(t *testing.T) {
 }
 
 func TestFilterScope(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "notacolumn", Args: []string{"val1"}, Operator: Operators["$eq"]}
 	schema := &schema.Schema{
+		DBNames: []string{"name"},
 		FieldsByDBName: map[string]*schema.Field{
 			"name": {Name: "Name", DBName: "name"},
 		},
@@ -64,7 +64,8 @@ func TestFilterScope(t *testing.T) {
 
 	filter.Field = "name"
 
-	db = db.Scopes(filter.Scope(&Settings{}, schema)).Find(nil)
+	results := []map[string]interface{}{}
+	db = db.Scopes(filter.Scope(&Settings{}, schema)).Find(results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -81,6 +82,7 @@ func TestFilterScope(t *testing.T) {
 func TestFilterScopeBlacklisted(t *testing.T) {
 	filter := &Filter{Field: "name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 	schema := &schema.Schema{
+		DBNames: []string{"name"},
 		FieldsByDBName: map[string]*schema.Field{
 			"name": {Name: "Name"},
 		},
@@ -111,7 +113,7 @@ type FilterTestModel struct {
 }
 
 func TestFilterScopeWithJoin(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -120,6 +122,7 @@ func TestFilterScopeWithJoin(t *testing.T) {
 		return
 	}
 
+	db.DryRun = true
 	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -158,12 +161,22 @@ func TestFilterScopeWithJoin(t *testing.T) {
 				},
 			},
 		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "filter_test_models", Name: "name"},
+					{Table: "filter_test_models", Name: "id"},
+				},
+			},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Nil(t, db.Error)
 }
 
 func TestFilterScopeWithJoinBlacklistedRelation(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -184,7 +197,7 @@ func TestFilterScopeWithJoinBlacklistedRelation(t *testing.T) {
 }
 
 func TestFilterScopeWithJoinHasMany(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -200,7 +213,7 @@ func TestFilterScopeWithJoinHasMany(t *testing.T) {
 }
 
 func TestFilterScopeWithJoinInvalidModel(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -214,7 +227,7 @@ func TestFilterScopeWithJoinInvalidModel(t *testing.T) {
 }
 
 func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "Relation.NestedRelation.field", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -235,6 +248,14 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 					clause.Expr{SQL: "`NestedRelation`.`field` = ?", Vars: []interface{}{"val1"}},
 				},
 			},
+		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
 		},
 	}
 	assert.Equal(t, expected, conditionTx.Statement.Clauses)
@@ -290,12 +311,21 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 				},
 			},
 		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "filter_test_models", Name: "name"},
+					{Table: "filter_test_models", Name: "id"},
+				},
+			},
+		},
 	}
 	assert.Equal(t, expected, joinTx.Statement.Clauses)
 }
 
 func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	settings := &Settings{}
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 	filter2 := &Filter{Field: "Relation.id", Args: []string{"0"}, Operator: Operators["$gt"]}
@@ -348,12 +378,21 @@ func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
 				},
 			},
 		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "filter_test_models", Name: "name"},
+					{Table: "filter_test_models", Name: "id"},
+				},
+			},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -409,13 +448,23 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 				},
 			},
 		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Raw: true, Name: "`Relation`.`name` AS `Relation__name`"},
+					{Raw: true, Name: "`Relation`.`id` AS `Relation__id`"},
+					{Raw: true, Name: "`Relation`.`parent_id` AS `Relation__parent_id`"},
+				},
+			},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Empty(t, db.Statement.Joins)
 }
 
 func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -441,12 +490,28 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 		"FROM": {
 			Name: "FROM",
 			Expression: clause.From{
-				Joins: []clause.Join{}, // The join is in Statement.Joins
+				Joins: []clause.Join{
+					{
+						Expression: clause.NamedExpr{
+							SQL:  `LEFT JOIN filter_test_relations AS "Relation" ON id > ?`,
+							Vars: []interface{}{0},
+						},
+					},
+				},
+			},
+		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "filter_test_models", Name: "name"},
+					{Table: "filter_test_models", Name: "id"},
+				},
 			},
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.NotEmpty(t, db.Statement.Joins)
+	assert.Empty(t, db.Statement.Joins)
 }
 
 type FilterTestModelComputedRelation struct {
@@ -464,7 +529,7 @@ type FilterTestModelComputed struct {
 }
 
 func TestFilterScopeComputed(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "computed", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModelComputed{}
@@ -483,12 +548,20 @@ func TestFilterScopeComputed(t *testing.T) {
 				},
 			},
 		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestFilterScopeComputedRelation(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	filter := &Filter{Field: "Relation.computed", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModelComputed{}
@@ -532,6 +605,16 @@ func TestFilterScopeComputedRelation(t *testing.T) {
 							},
 						},
 					},
+				},
+			},
+		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "filter_test_model_computeds", Name: "name"},
+					{Table: "filter_test_model_computeds", Name: "computed"}, // Should not be problematic that it is added automatically by Gorm since we force only selectable fields all he time.
+					{Table: "filter_test_model_computeds", Name: "id"},
 				},
 			},
 		},

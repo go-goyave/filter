@@ -8,11 +8,10 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"gorm.io/gorm/utils/tests"
 )
 
 func TestSearchScope(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	search := &Search{
 		Fields: []string{"name", "email"},
 		Query:  "My Query",
@@ -64,6 +63,14 @@ func TestSearchScope(t *testing.T) {
 				},
 			},
 		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
@@ -111,7 +118,7 @@ type SearchTestModel struct {
 }
 
 func TestSeachScopeWithJoin(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	search := &Search{
 		Fields: []string{"name", "Relation.name"},
 		Query:  "My Query",
@@ -188,12 +195,21 @@ func TestSeachScopeWithJoin(t *testing.T) {
 				},
 			},
 		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "search_test_models", Name: "name"},
+					{Table: "search_test_models", Name: "id"},
+				},
+			},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestSeachScopeWithJoinInvalidModel(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	search := &Search{
 		Fields:   []string{"name", "Relation.name"},
 		Query:    "My Query",
@@ -211,7 +227,7 @@ func TestSeachScopeWithJoinInvalidModel(t *testing.T) {
 }
 
 func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	search := &Search{
 		Fields: []string{"name", "Relation.NestedRelation.field"},
 		Query:  "My Query",
@@ -309,6 +325,15 @@ func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
 				},
 			},
 		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "search_test_models", Name: "name"},
+					{Table: "search_test_models", Name: "id"},
+				},
+			},
+		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
@@ -328,7 +353,7 @@ type SearchTestModelComputed struct {
 }
 
 func TestSearchScopeComputed(t *testing.T) {
-	db, _ := gorm.Open(&tests.DummyDialector{}, nil)
+	db := openDryRunDB(t)
 	search := &Search{
 		Fields:   []string{"computed", "Relation.computed"},
 		Query:    "My Query",
@@ -397,6 +422,16 @@ func TestSearchScopeComputed(t *testing.T) {
 							},
 						},
 					},
+				},
+			},
+		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Table: "search_test_model_computeds", Name: "name"},
+					{Table: "search_test_model_computeds", Name: "computed"}, // Should not be problematic that it is added automatically by Gorm since we force only selectable fields all he time.
+					{Table: "search_test_model_computeds", Name: "id"},
 				},
 			},
 		},

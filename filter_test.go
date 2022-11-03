@@ -429,7 +429,7 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 							Exprs: []clause.Expression{
 								clause.Eq{
 									Column: clause.Column{
-										Table: "filter_test_models",
+										Table: clause.CurrentTable,
 										Name:  "id",
 									},
 									Value: clause.Column{
@@ -437,11 +437,7 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 										Name:  "parent_id",
 									},
 								},
-								clause.Where{
-									Exprs: []clause.Expression{
-										clause.Expr{SQL: "id > ?", Vars: []interface{}{0}},
-									},
-								},
+								clause.Expr{SQL: "id > ?", Vars: []interface{}{0}},
 							},
 						},
 					},
@@ -452,9 +448,10 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 			Name: "SELECT",
 			Expression: clause.Select{
 				Columns: []clause.Column{
-					{Raw: true, Name: "`Relation`.`name` AS `Relation__name`"},
-					{Raw: true, Name: "`Relation`.`id` AS `Relation__id`"},
-					{Raw: true, Name: "`Relation`.`parent_id` AS `Relation__parent_id`"},
+					// Base model fields are not selected because in this test we only execute the filter scope, not the select scope
+					{Raw: true, Name: "`Relation`.`name` `Relation__name`"},
+					{Raw: true, Name: "`Relation`.`id` `Relation__id`"},
+					{Raw: true, Name: "`Relation`.`parent_id` `Relation__parent_id`"},
 				},
 			},
 		},

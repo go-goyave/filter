@@ -157,8 +157,7 @@ func join(tx *gorm.DB, joinName string, sch *schema.Schema) *gorm.DB {
 			Table: clause.Table{Name: sch.Table, Alias: relation.Name},
 			ON:    clause.Where{Exprs: exprs},
 		}
-		if !joinExists(tx.Statement, j) {
-			findStatementJoin(tx.Statement, relation, &j)
+		if !joinExists(tx.Statement, j) && !findStatementJoin(tx.Statement, relation, &j) {
 			joins = append(joins, j)
 		}
 	}
@@ -197,26 +196,44 @@ func joinExists(stmt *gorm.Statement, join clause.Join) bool {
 	return false
 }
 
-// findStatementJoin finds a matching join in the given statement,
-// adds its conditions (if any) to the given clause.Join and removes
-// the matched join from Statement.Joins.
-// This is used to avoid duplicate joins that produce ambiguous column names.
-func findStatementJoin(stmt *gorm.Statement, relation *schema.Relationship, join *clause.Join) {
+// findStatementJoin finds a matching join in the given statement.
+// Then processes join's Selects and Omit by adding them to the statement selects.
+// Removes this information from the join afterwards to avoid Gorm reprocessing it.
+// This is used to avoid duplicate joins that produce ambiguous column names and to
+// support computed columns.
+func findStatementJoin(stmt *gorm.Statement, relation *schema.Relationship, join *clause.Join) bool {
 	for i, j := range stmt.Joins {
 		if j.Name == join.Table.Alias {
-			on := join.ON
-			if j.On != nil {
-				on.Exprs = append(on.Exprs, *j.On)
+			columnStmt := gorm.Statement{
+				Table:   join.Table.Alias,
+				Schema:  relation.FieldSchema,
+				Selects: j.Selects,
+				Omits:   j.Omits,
 			}
-			join.ON = on
-			stmt.Joins = append(stmt.Joins[:i], stmt.Joins[i+1:]...)
+			if len(columnStmt.Selects) == 0 {
+				columnStmt.Selects = []string{"*"}
+			}
 
+			selectColumns, restricted := columnStmt.SelectAndOmitColumns(false, false)
+			j.Selects = nil
+			j.Omits = []string{"*"}
 			for _, s := range relation.FieldSchema.DBNames {
-				stmt.Selects = append(stmt.Selects, fmt.Sprintf("%s.%s AS %s", quoteString(stmt, relation.Name), quoteString(stmt, s), quoteString(stmt, relation.Name+"__"+s)))
+				if v, ok := selectColumns[s]; (ok && v) || (!ok && !restricted) {
+					field := relation.FieldSchema.FieldsByDBName[s]
+					computed := field.StructField.Tag.Get("computed")
+					if computed != "" {
+						stmt.Selects = append(stmt.Selects, fmt.Sprintf("(%s) %s", strings.ReplaceAll(computed, clause.CurrentTable, quoteString(stmt, join.Table.Alias)), quoteString(stmt, join.Table.Alias+"__"+s)))
+						continue
+					}
+					stmt.Selects = append(stmt.Selects, fmt.Sprintf("%s.%s %s", quoteString(stmt, join.Table.Alias), quoteString(stmt, s), quoteString(stmt, join.Table.Alias+"__"+s)))
+				}
 			}
-			return
+			stmt.Joins[i] = j
+			return true
 		}
 	}
+
+	return false
 }
 
 func quoteString(stmt *gorm.Statement, str string) string {

@@ -444,19 +444,9 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 				},
 			},
 		},
-		"SELECT": {
-			Name: "SELECT",
-			Expression: clause.Select{
-				Columns: []clause.Column{
-					// Base model fields are not selected because in this test we only execute the filter scope, not the select scope
-					{Raw: true, Name: "`Relation`.`name` `Relation__name`"},
-					{Raw: true, Name: "`Relation`.`id` `Relation__id`"},
-					{Raw: true, Name: "`Relation`.`parent_id` `Relation__parent_id`"},
-				},
-			},
-		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Equal(t, expected["FROM"], db.Statement.Clauses["FROM"])
+	assert.Equal(t, expected["WHERE"], db.Statement.Clauses["WHERE"])
 	assert.Empty(t, db.Statement.Joins)
 }
 

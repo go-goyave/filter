@@ -150,6 +150,13 @@ func (s *Settings) scopeCommon(db *gorm.DB, request *goyave.Request, dest interf
 		}
 	}
 
+	db.Scopes(func(tx *gorm.DB) *gorm.DB {
+		// Convert all joins' selects to support computed columns
+		// for manual Joins.
+		processJoinsComputedColumns(tx.Statement, schema)
+		return tx
+	})
+
 	return db, schema, hasJoins
 }
 

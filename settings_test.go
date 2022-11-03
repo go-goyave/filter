@@ -1823,3 +1823,78 @@ func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Empty(t, db.Statement.Joins)
 }
+
+func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T) {
+	request := &goyave.Request{
+		Data: map[string]interface{}{
+			"per_page": 15,
+		},
+		Lang: "en-US",
+	}
+	db := openDryRunDB(t)
+
+	// Gorm will automatically select all the fields of the relation.
+	// We expect the computed fields to work properly.
+	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Where("Relation.id > ?", 0))
+
+	results := []*TestScopeModelWithComputed{}
+	paginator, db := Scope(db, request, results)
+
+	assert.NotNil(t, paginator)
+
+	expected := map[string]clause.Clause{
+		"FROM": {
+			Name: "FROM",
+			Expression: clause.From{
+				Joins: []clause.Join{
+					{
+						Type: clause.LeftJoin,
+						Table: clause.Table{
+							Name:  "test_scope_relation_with_computeds",
+							Alias: "Relation",
+						},
+						ON: clause.Where{
+							Exprs: []clause.Expression{
+								clause.Eq{
+									Column: clause.Column{
+										Table: clause.CurrentTable,
+										Name:  "relation_id",
+									},
+									Value: clause.Column{
+										Table: "Relation",
+										Name:  "id",
+									},
+								},
+								clause.Expr{SQL: "Relation.id > ?", Vars: []interface{}{0}},
+							},
+						},
+					},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  &fifteen,
+				Offset: 0,
+			},
+		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Raw: true, Name: "`Relation`.`a` `Relation__a`"},
+					{Raw: true, Name: "`Relation`.`b` `Relation__b`"},
+					{Raw: true, Name: "(UPPER(`Relation`.b)) `Relation__c`"},
+					{Raw: true, Name: "`Relation`.`id` `Relation__id`"},
+					{Raw: true, Name: "`test_scope_model_with_computeds`.`name`"},
+					{Raw: true, Name: "`test_scope_model_with_computeds`.`email`"},
+					{Raw: true, Name: "(UPPER(`test_scope_model_with_computeds`.name)) `computed`"},
+					{Raw: true, Name: "`test_scope_model_with_computeds`.`id`"},
+					{Raw: true, Name: "`test_scope_model_with_computeds`.`relation_id`"},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Empty(t, db.Statement.Joins)
+}

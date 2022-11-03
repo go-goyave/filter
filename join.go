@@ -202,33 +202,8 @@ func joinExists(stmt *gorm.Statement, join clause.Join) bool {
 // This is used to avoid duplicate joins that produce ambiguous column names and to
 // support computed columns.
 func findStatementJoin(stmt *gorm.Statement, relation *schema.Relationship, join *clause.Join) bool {
-	for i, j := range stmt.Joins {
+	for _, j := range stmt.Joins {
 		if j.Name == join.Table.Alias {
-			columnStmt := gorm.Statement{
-				Table:   join.Table.Alias,
-				Schema:  relation.FieldSchema,
-				Selects: j.Selects,
-				Omits:   j.Omits,
-			}
-			if len(columnStmt.Selects) == 0 {
-				columnStmt.Selects = []string{"*"}
-			}
-
-			selectColumns, restricted := columnStmt.SelectAndOmitColumns(false, false)
-			j.Selects = nil
-			j.Omits = []string{"*"}
-			for _, s := range relation.FieldSchema.DBNames {
-				if v, ok := selectColumns[s]; (ok && v) || (!ok && !restricted) {
-					field := relation.FieldSchema.FieldsByDBName[s]
-					computed := field.StructField.Tag.Get("computed")
-					if computed != "" {
-						stmt.Selects = append(stmt.Selects, fmt.Sprintf("(%s) %s", strings.ReplaceAll(computed, clause.CurrentTable, quoteString(stmt, join.Table.Alias)), quoteString(stmt, join.Table.Alias+"__"+s)))
-						continue
-					}
-					stmt.Selects = append(stmt.Selects, fmt.Sprintf("%s.%s %s", quoteString(stmt, join.Table.Alias), quoteString(stmt, s), quoteString(stmt, join.Table.Alias+"__"+s)))
-				}
-			}
-			stmt.Joins[i] = j
 			return true
 		}
 	}
@@ -240,4 +215,42 @@ func quoteString(stmt *gorm.Statement, str string) string {
 	writer := bytes.NewBufferString("")
 	stmt.DB.Dialector.QuoteTo(writer, str)
 	return writer.String()
+}
+
+// processJoinsComputedColumns processes joins' Selects and Omit by adding them to the statement selects.
+// Removes this information from the join afterwards to avoid Gorm reprocessing it.
+// This is used to support computed columns with manual joins.
+func processJoinsComputedColumns(stmt *gorm.Statement, sch *schema.Schema) {
+	for i, j := range stmt.Joins {
+		rel, ok := sch.Relationships.Relations[j.Name]
+		if !ok {
+			continue
+		}
+
+		columnStmt := gorm.Statement{
+			Table:   j.Name,
+			Schema:  rel.FieldSchema,
+			Selects: j.Selects,
+			Omits:   j.Omits,
+		}
+		if len(columnStmt.Selects) == 0 {
+			columnStmt.Selects = []string{"*"}
+		}
+
+		selectColumns, restricted := columnStmt.SelectAndOmitColumns(false, false)
+		j.Selects = nil
+		j.Omits = []string{"*"}
+		for _, s := range rel.FieldSchema.DBNames {
+			if v, ok := selectColumns[s]; (ok && v) || (!ok && !restricted) {
+				field := rel.FieldSchema.FieldsByDBName[s]
+				computed := field.StructField.Tag.Get("computed")
+				if computed != "" {
+					stmt.Selects = append(stmt.Selects, fmt.Sprintf("(%s) %s", strings.ReplaceAll(computed, clause.CurrentTable, quoteString(stmt, j.Name)), quoteString(stmt, j.Name+"__"+s)))
+					continue
+				}
+				stmt.Selects = append(stmt.Selects, fmt.Sprintf("%s.%s %s", quoteString(stmt, j.Name), quoteString(stmt, s), quoteString(stmt, j.Name+"__"+s)))
+			}
+		}
+		stmt.Joins[i] = j
+	}
 }

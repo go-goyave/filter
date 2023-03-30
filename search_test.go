@@ -16,7 +16,7 @@ func TestSearchScope(t *testing.T) {
 		Fields: []string{"name", "email"},
 		Query:  "My Query",
 		Operator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,
@@ -25,9 +25,9 @@ func TestSearchScope(t *testing.T) {
 
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name":  {Name: "Name", DBName: "name"},
-			"email": {Name: "Email", DBName: "email"},
-			"role":  {Name: "Role", DBName: "role"},
+			"name":  {Name: "Name", DBName: "name", DataType: schema.String},
+			"email": {Name: "Email", DBName: "email", DataType: schema.String},
+			"role":  {Name: "Role", DBName: "role", DataType: schema.String},
 		},
 		Table: "test_models",
 	}
@@ -80,7 +80,7 @@ func TestSearchScopeEmptyField(t *testing.T) {
 		Fields: []string{},
 		Query:  "My Query",
 		Operator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,
@@ -123,7 +123,7 @@ func TestSeachScopeWithJoin(t *testing.T) {
 		Fields: []string{"name", "Relation.name"},
 		Query:  "My Query",
 		Operator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,
@@ -232,7 +232,7 @@ func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
 		Fields: []string{"name", "Relation.NestedRelation.field"},
 		Query:  "My Query",
 		Operator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,

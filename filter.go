@@ -46,7 +46,12 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *
 		} else {
 			fieldExpr = table + "." + tx.Statement.Quote(field.DBName)
 		}
-		return f.Operator.Function(tx, f, fieldExpr, field.DataType)
+
+		dataType := getDataType(field)
+		if dataType == DataTypeUnsupported {
+			return tx
+		}
+		return f.Operator.Function(tx, f, fieldExpr, dataType)
 	}
 
 	return joinScope, conditionScope

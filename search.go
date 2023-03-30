@@ -57,7 +57,11 @@ func (s *Search) Scope(schema *schema.Schema) func(*gorm.DB) *gorm.DB {
 				fieldExpr = table + "." + tx.Statement.Quote(f.DBName)
 			}
 
-			searchQuery = s.Operator.Function(searchQuery, filter, fieldExpr, f.DataType)
+			dataType := getDataType(f)
+			if dataType == DataTypeUnsupported {
+				return tx
+			}
+			searchQuery = s.Operator.Function(searchQuery, filter, fieldExpr, dataType)
 		}
 
 		return tx.Where(searchQuery)

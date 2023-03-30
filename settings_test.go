@@ -107,7 +107,7 @@ func TestScope(t *testing.T) {
 	paginator, db := prepareTestScope(t, &Settings{
 		FieldsSearch: []string{"email"},
 		SearchOperator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,
@@ -200,7 +200,7 @@ func TestScopeUnpaginated(t *testing.T) {
 	results, db := prepareTestScopeUnpaginated(t, &Settings{
 		FieldsSearch: []string{"email"},
 		SearchOperator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,

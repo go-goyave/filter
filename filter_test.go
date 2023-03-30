@@ -53,7 +53,7 @@ func TestFilterScope(t *testing.T) {
 	schema := &schema.Schema{
 		DBNames: []string{"name"},
 		FieldsByDBName: map[string]*schema.Field{
-			"name": {Name: "Name", DBName: "name"},
+			"name": {Name: "Name", DBName: "name", DataType: schema.String},
 		},
 		Table: "test_scope_models",
 	}
@@ -346,7 +346,7 @@ func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
 					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []interface{}{"val1"}},
-					clause.Expr{SQL: "`Relation`.`id` > ?", Vars: []interface{}{"0"}},
+					clause.Expr{SQL: "`Relation`.`id` > ?", Vars: []interface{}{uint64(0)}},
 				},
 			},
 		},

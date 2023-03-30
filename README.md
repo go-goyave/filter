@@ -236,6 +236,7 @@ type MyModelWithStatus struct{
 
 - Inputs are escaped to prevent SQL injections.
 - Fields are pre-processed and clients cannot request fields that don't exist. This prevents database errors. If a non-existing field is required, it is simply ignored. The same goes for sorts and joins. It is not possible to request a relation that doesn't exist.
+- Type-safety: in the same field pre-processing, the broad type of the field is checked against the database type (based on the model definition). This prevents database errors if the input cannot be converted to the column's type.
 - Foreign keys are always selected in joins to ensure associations can be assigned to parent model.
 - **Be careful** with bidirectional relations (for example an article is written by a user, and a user can have many articles). If you enabled both your models to preload these relations, the client can request them with an infinite depth (`Articles.User.Articles.User...`). To prevent this, it is advised to use **the relation blacklist** or **IsFinal** on the deepest requestable models. See the settings section for more details.
 
@@ -250,6 +251,27 @@ type MyModelWithStatus struct{
 - Always specify `gorm:"foreignKey"`, otherwise falls back to "ID".
 - Don't use `gorm.Model` and add the necessary fields manually. You get better control over json struct tags this way.
 - Use pointers for nullable relations and nullable fields that implement `sql.Scanner` (such as `null.Time`).
+
+### Filter type
+
+For non-primitive types (such as `*null.Time`), you should always use the `filter_type` struct tag. This struct tag enforces the field's recognized broad type for the type-safety conversion.
+
+Available broad types are:
+- `text`
+- `bool`
+- `int`
+- `uint`
+- `float`
+- `time`
+
+**Example**
+```go
+type MyModel struct{
+	ID uint
+	// ...
+	StartDate null.Time `filter_type:"time"`
+}
+```
 
 ### Static conditions
 
@@ -279,10 +301,25 @@ import (
 // ...
 
 filter.Operators["$cont"] = &filter.Operator{
-	Function: func(tx *gorm.DB, filter *filter.Filter, column string, dataType schema.DataType) *gorm.DB {
+	Function: func(tx *gorm.DB, f *filter.Filter, column string, dataType filter.DataType) *gorm.DB {
+		if dataType != schema.String {
+			return tx
+		}
 		query := column + " LIKE ?"
-		value := "%" + sqlutil.EscapeLike(filter.Args[0]) + "%"
-		return filter.Where(tx, query, value)
+		value := "%" + sqlutil.EscapeLike(f.Args[0]) + "%"
+		return f.Where(tx, query, value)
+	},
+	RequiredArguments: 1,
+}
+
+filter.Operators["$eq"] = &filter.Operator{
+	Function: func(tx *gorm.DB, f *filter.Filter, column string, dataType filter.DataType) *gorm.DB {
+		arg, ok := filter.ConvertToSafeType(f.Args[0], dataType)
+		if !ok {
+			return tx
+		}
+		query := fmt.Sprintf("%s = ?", column, op)
+		return f.Where(tx, query, arg)
 	},
 	RequiredArguments: 1,
 }

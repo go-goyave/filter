@@ -85,9 +85,10 @@ func getDataType(field *schema.Field) DataType {
 	fromTag := DataType(strings.ToLower(field.Tag.Get("filterType")))
 	switch fromTag {
 	case DataTypeText, DataTypeBool, DataTypeFloat, DataTypeInt, DataTypeUint, DataTypeTime,
-		DataTypeTextArray, DataTypeBoolArray, DataTypeFloatArray, DataTypeIntArray, DataTypeUintArray, DataTypeTimeArray:
+		DataTypeTextArray, DataTypeBoolArray, DataTypeFloatArray, DataTypeIntArray, DataTypeUintArray, DataTypeTimeArray,
+		DataTypeUnsupported:
 		return fromTag
-	default:
+	case "":
 		switch field.DataType {
 		case schema.String:
 			return DataTypeText
@@ -109,7 +110,7 @@ func getDataType(field *schema.Field) DataType {
 // ConvertToSafeType convert the string argument to a safe type that
 // matches the column's data type. Returns false if the input could not
 // be converted.
-func ConvertToSafeType(arg string, dataType DataType) (interface{}, bool) { // TODO test this + test when datatype doesn't match
+func ConvertToSafeType(arg string, dataType DataType) (interface{}, bool) {
 	switch dataType {
 	case DataTypeText, DataTypeTextArray:
 		return arg, true

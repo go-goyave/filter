@@ -112,6 +112,18 @@ type FilterTestModel struct {
 	ID       uint
 }
 
+type FilterTestRelationUnsupported struct {
+	Name     string `filterType:"-"`
+	ID       uint
+	ParentID uint
+}
+
+type FilterTestModelUnsupported struct {
+	Relation *FilterTestRelationUnsupported `gorm:"foreignKey:ParentID"`
+	Name     string
+	ID       uint
+}
+
 func TestFilterScopeWithJoin(t *testing.T) {
 	db := openDryRunDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
@@ -607,4 +619,47 @@ func TestFilterScopeComputedRelation(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestFilterScopeWithUnsupportedDataType(t *testing.T) {
+	db := openDryRunDB(t)
+	filter := &Filter{Field: "name", Args: []string{"val1"}, Operator: Operators["$eq"]}
+	schema := &schema.Schema{
+		DBNames: []string{"name"},
+		FieldsByDBName: map[string]*schema.Field{
+			"name": {Name: "Name", DBName: "name", DataType: "CHARACTER VARYING(255)"},
+		},
+		Table: "test_scope_models",
+	}
+
+	results := []map[string]interface{}{}
+	db = db.Scopes(filter.Scope(&Settings{}, schema)).Find(results)
+	expected := map[string]clause.Clause{}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestFilterScopeWithJoinedUnsupportedDataType(t *testing.T) {
+	db := openDryRunDB(t)
+	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
+
+	results := []*FilterTestModelUnsupported{}
+	schema, err := parseModel(db, &results)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	db.DryRun = true
+	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	expected := map[string]clause.Clause{
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Nil(t, db.Error)
 }

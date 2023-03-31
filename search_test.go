@@ -438,3 +438,55 @@ func TestSearchScopeComputed(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
+
+func TestSearchScopeWithUnsupportedDataType(t *testing.T) {
+	db := openDryRunDB(t)
+	search := &Search{
+		Fields: []string{"name", "email"},
+		Query:  "My Query",
+		Operator: &Operator{
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
+				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
+			},
+			RequiredArguments: 1,
+		},
+	}
+
+	schema := &schema.Schema{
+		FieldsByDBName: map[string]*schema.Field{
+			"name":  {Name: "Name", DBName: "name", DataType: schema.String},
+			"email": {Name: "Email", DBName: "email", DataType: "CHARACTER VARYING(255)"},
+			"role":  {Name: "Role", DBName: "role", DataType: schema.String},
+		},
+		Table: "test_models",
+	}
+
+	db = db.Scopes(search.Scope(schema)).Table("table").Find(nil)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{
+								SQL:                "`test_models`.`name` LIKE (?)",
+								Vars:               []interface{}{"My Query"},
+								WithoutParentheses: false,
+							},
+						},
+					},
+				},
+			},
+		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}

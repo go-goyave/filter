@@ -24,7 +24,12 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *
 		return nil, nil
 	}
 
+	dataType := getDataType(field)
+
 	joinScope := func(tx *gorm.DB) *gorm.DB {
+		if dataType == DataTypeUnsupported {
+			return tx
+		}
 		if joinName != "" {
 			if err := tx.Statement.Parse(tx.Statement.Model); err != nil {
 				tx.AddError(err)
@@ -39,6 +44,10 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *
 	computed := field.StructField.Tag.Get("computed")
 
 	conditionScope := func(tx *gorm.DB) *gorm.DB {
+		if dataType == DataTypeUnsupported {
+			return tx
+		}
+
 		table := tx.Statement.Quote(tableFromJoinName(s.Table, joinName))
 		var fieldExpr string
 		if computed != "" {
@@ -47,10 +56,6 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *
 			fieldExpr = table + "." + tx.Statement.Quote(field.DBName)
 		}
 
-		dataType := getDataType(field)
-		if dataType == DataTypeUnsupported { // TODO test this
-			return tx
-		}
 		return f.Operator.Function(tx, f, fieldExpr, dataType)
 	}
 

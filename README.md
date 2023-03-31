@@ -265,6 +265,8 @@ Available broad types are:
 - `time` / `time[]`
 - `-`: unsupported data type. Fields tagged with `-` will be ignored in filters and search: no condition will be added to the `WHERE` clause.
 
+If not provided, the type will be determined from GORM's data type (defined by the `gorm:"type:..."` tag). If GORM's data type is a database type or a type that is not directly supported by this library, the type will fall back to `-` (unsupported).
+
 **Example**
 ```go
 type MyModel struct{

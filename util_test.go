@@ -147,3 +147,120 @@ func TestConvertToSafeType(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertArgsToSafeType(t *testing.T) {
+
+	// No need for exhaustive testing here since it's already done by TestConvertToSafeType
+	cases := []struct {
+		want     interface{}
+		dataType DataType
+		value    []string
+		wantOk   bool
+	}{
+		{value: []string{"a", "b"}, dataType: DataTypeText, want: []interface{}{"a", "b"}, wantOk: true},
+		{value: []string{"3", "4"}, dataType: DataTypeInt, want: []interface{}{int64(3), int64(4)}, wantOk: true},
+		{value: []string{"a", "2"}, dataType: DataTypeInt, want: []interface{}(nil), wantOk: false},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(fmt.Sprintf("%s_%s", c.value, c.dataType), func(t *testing.T) {
+			val, ok := ConvertArgsToSafeType(c.value, c.dataType)
+			assert.Equal(t, c.want, val)
+			assert.Equal(t, c.wantOk, ok)
+		})
+	}
+}
+
+func TestGetDataType(t *testing.T) {
+	cases := []struct {
+		desc  string
+		model interface{}
+		want  DataType
+	}{
+		{desc: "no specified type", model: struct{ Field string }{}, want: DataTypeText},
+		{desc: "gorm type string", model: struct {
+			Field string `gorm:"type:string"`
+		}{}, want: DataTypeText},
+		{desc: "gorm type bool", model: struct {
+			Field string `gorm:"type:bool"`
+		}{}, want: DataTypeBool},
+		{desc: "gorm type int", model: struct {
+			Field string `gorm:"type:int"`
+		}{}, want: DataTypeInt},
+		{desc: "gorm type uint", model: struct {
+			Field string `gorm:"type:uint"`
+		}{}, want: DataTypeUint},
+		{desc: "gorm type float", model: struct {
+			Field string `gorm:"type:float"`
+		}{}, want: DataTypeFloat},
+		{desc: "gorm type time", model: struct {
+			Field string `gorm:"type:time"`
+		}{}, want: DataTypeTime},
+		{desc: "gorm type bytes", model: struct {
+			Field string `gorm:"type:bytes"`
+		}{}, want: DataTypeUnsupported},
+		{desc: "gorm type custom", model: struct {
+			Field string `gorm:"type:CHARACTER VARYING(255)"`
+		}{}, want: DataTypeUnsupported},
+
+		{desc: "filter type unsupported", model: struct {
+			Field string `filterType:"-"`
+		}{}, want: DataTypeUnsupported},
+		{desc: "filter type invalid", model: struct {
+			Field string `filterType:"invalid"`
+		}{}, want: DataTypeUnsupported},
+		{desc: "filter type text", model: struct {
+			Field string `filterType:"text"`
+		}{}, want: DataTypeText},
+		{desc: "filter type text array", model: struct {
+			Field string `filterType:"text[]"`
+		}{}, want: DataTypeTextArray},
+		{desc: "filter type bool", model: struct {
+			Field string `filterType:"bool"`
+		}{}, want: DataTypeBool},
+		{desc: "filter type bool array", model: struct {
+			Field string `filterType:"bool[]"`
+		}{}, want: DataTypeBoolArray},
+		{desc: "filter type float", model: struct {
+			Field string `filterType:"float"`
+		}{}, want: DataTypeFloat},
+		{desc: "filter type float array", model: struct {
+			Field string `filterType:"float[]"`
+		}{}, want: DataTypeFloatArray},
+		{desc: "filter type int", model: struct {
+			Field string `filterType:"int"`
+		}{}, want: DataTypeInt},
+		{desc: "filter type int array", model: struct {
+			Field string `filterType:"int[]"`
+		}{}, want: DataTypeIntArray},
+		{desc: "filter type uint", model: struct {
+			Field string `filterType:"uint"`
+		}{}, want: DataTypeUint},
+		{desc: "filter type uint array", model: struct {
+			Field string `filterType:"uint[]"`
+		}{}, want: DataTypeUintArray},
+		{desc: "filter type time", model: struct {
+			Field string `filterType:"time"`
+		}{}, want: DataTypeTime},
+		{desc: "filter type time array", model: struct {
+			Field string `filterType:"time[]"`
+		}{}, want: DataTypeTimeArray},
+
+		{desc: "filter type has priority over gorm type", model: struct {
+			Field string `gorm:"type:CHARACTER VARYING(255)" filterType:"text"`
+		}{}, want: DataTypeText},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.desc, func(t *testing.T) {
+			model, err := parseModel(openDryRunDB(t), c.model)
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			getDataType(model.Fields[0])
+		})
+	}
+}

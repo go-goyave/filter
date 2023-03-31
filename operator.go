@@ -109,6 +109,9 @@ var (
 		},
 		"$between": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
+				if dataType.IsArray() {
+					return tx.Where("FALSE")
+				}
 				args, ok := ConvertArgsToSafeType(filter.Args[:2], dataType)
 				if !ok {
 					return tx.Where("FALSE")
@@ -123,6 +126,9 @@ var (
 
 func basicComparison(op string) func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 	return func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
+		if dataType.IsArray() {
+			return tx.Where("FALSE")
+		}
 		arg, ok := ConvertToSafeType(filter.Args[0], dataType)
 		if !ok {
 			return tx.Where("FALSE")
@@ -134,6 +140,9 @@ func basicComparison(op string) func(tx *gorm.DB, filter *Filter, column string,
 
 func multiComparison(op string) func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 	return func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
+		if dataType.IsArray() {
+			return tx.Where("FALSE")
+		}
 		args, ok := ConvertArgsToSafeType(filter.Args, dataType)
 		if !ok {
 			return tx.Where("FALSE")

@@ -254,22 +254,23 @@ type MyModelWithStatus struct{
 
 ### Filter type
 
-For non-primitive types (such as `*null.Time`), you should always use the `filter_type` struct tag. This struct tag enforces the field's recognized broad type for the type-safety conversion.
+For non-primitive types (such as `*null.Time`), you should always use the `filterType` struct tag. This struct tag enforces the field's recognized broad type for the type-safety conversion.
 
 Available broad types are:
-- `text`
-- `bool`
-- `int`
-- `uint`
-- `float`
-- `time`
+- `text` / `text[]`
+- `bool` / `bool[]`
+- `int` / `int[]`
+- `uint` / `uint[]`
+- `float` / `float[]`
+- `time` / `time[]`
+- `-`: unsupported data type. Fields tagged with `-` will be ignored in filters and search: no condition will be added to the `WHERE` clause.
 
 **Example**
 ```go
 type MyModel struct{
 	ID uint
 	// ...
-	StartDate null.Time `filter_type:"time"`
+	StartDate null.Time `filterType:"time"`
 }
 ```
 
@@ -302,8 +303,8 @@ import (
 
 filter.Operators["$cont"] = &filter.Operator{
 	Function: func(tx *gorm.DB, f *filter.Filter, column string, dataType filter.DataType) *gorm.DB {
-		if dataType != schema.String {
-			return tx
+		if dataType != schema.String || dataType.IsArray() {
+			return tx.Where("FALSE")
 		}
 		query := column + " LIKE ?"
 		value := "%" + sqlutil.EscapeLike(f.Args[0]) + "%"
@@ -314,6 +315,9 @@ filter.Operators["$cont"] = &filter.Operator{
 
 filter.Operators["$eq"] = &filter.Operator{
 	Function: func(tx *gorm.DB, f *filter.Filter, column string, dataType filter.DataType) *gorm.DB {
+		if dataType.IsArray() {
+			return tx.Where("FALSE")
+		}
 		arg, ok := filter.ConvertToSafeType(f.Args[0], dataType)
 		if !ok {
 			return tx

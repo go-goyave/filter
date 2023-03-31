@@ -58,7 +58,7 @@ func (s *Search) Scope(schema *schema.Schema) func(*gorm.DB) *gorm.DB {
 			}
 
 			dataType := getDataType(f)
-			if dataType == DataTypeUnsupported {
+			if dataType == DataTypeUnsupported { // TODO test this
 				return tx
 			}
 			searchQuery = s.Operator.Function(searchQuery, filter, fieldExpr, dataType)

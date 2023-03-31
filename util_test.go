@@ -67,6 +67,7 @@ func TestConvertToSafeType(t *testing.T) {
 	}{
 		// String
 		{value: "string", dataType: DataTypeText, want: "string", wantOk: true},
+		{value: "string", dataType: DataTypeTextArray, want: "string", wantOk: true},
 
 		// Bool
 		{value: "1", dataType: DataTypeBool, want: true, wantOk: true},
@@ -78,24 +79,45 @@ func TestConvertToSafeType(t *testing.T) {
 		{value: "false", dataType: DataTypeBool, want: false, wantOk: true},
 		{value: "no", dataType: DataTypeBool, want: false, wantOk: true},
 		{value: "not a bool", dataType: DataTypeBool, want: nil, wantOk: false},
+		{value: "1", dataType: DataTypeBoolArray, want: true, wantOk: true},
+		{value: "on", dataType: DataTypeBoolArray, want: true, wantOk: true},
+		{value: "true", dataType: DataTypeBoolArray, want: true, wantOk: true},
+		{value: "yes", dataType: DataTypeBoolArray, want: true, wantOk: true},
+		{value: "0", dataType: DataTypeBoolArray, want: false, wantOk: true},
+		{value: "off", dataType: DataTypeBoolArray, want: false, wantOk: true},
+		{value: "false", dataType: DataTypeBoolArray, want: false, wantOk: true},
+		{value: "no", dataType: DataTypeBoolArray, want: false, wantOk: true},
+		{value: "not a bool", dataType: DataTypeBoolArray, want: nil, wantOk: false},
 
 		// Float
 		{value: "1", dataType: DataTypeFloat, want: 1.0, wantOk: true},
 		{value: "1.0", dataType: DataTypeFloat, want: 1.0, wantOk: true},
 		{value: "1.23", dataType: DataTypeFloat, want: 1.23, wantOk: true},
 		{value: "string", dataType: DataTypeFloat, want: nil, wantOk: false},
+		{value: "1", dataType: DataTypeFloatArray, want: 1.0, wantOk: true},
+		{value: "1.0", dataType: DataTypeFloatArray, want: 1.0, wantOk: true},
+		{value: "1.23", dataType: DataTypeFloatArray, want: 1.23, wantOk: true},
+		{value: "string", dataType: DataTypeFloatArray, want: nil, wantOk: false},
 
 		// Int
 		{value: "1", dataType: DataTypeInt, want: int64(1), wantOk: true},
 		{value: "-2", dataType: DataTypeInt, want: int64(-2), wantOk: true},
 		{value: "1.23", dataType: DataTypeInt, want: nil, wantOk: false},
 		{value: "string", dataType: DataTypeInt, want: nil, wantOk: false},
+		{value: "1", dataType: DataTypeIntArray, want: int64(1), wantOk: true},
+		{value: "-2", dataType: DataTypeIntArray, want: int64(-2), wantOk: true},
+		{value: "1.23", dataType: DataTypeIntArray, want: nil, wantOk: false},
+		{value: "string", dataType: DataTypeIntArray, want: nil, wantOk: false},
 
 		// Uint
 		{value: "1", dataType: DataTypeUint, want: uint64(1), wantOk: true},
 		{value: "-2", dataType: DataTypeUint, want: nil, wantOk: false},
 		{value: "1.23", dataType: DataTypeUint, want: nil, wantOk: false},
 		{value: "string", dataType: DataTypeUint, want: nil, wantOk: false},
+		{value: "1", dataType: DataTypeUintArray, want: uint64(1), wantOk: true},
+		{value: "-2", dataType: DataTypeUintArray, want: nil, wantOk: false},
+		{value: "1.23", dataType: DataTypeUintArray, want: nil, wantOk: false},
+		{value: "string", dataType: DataTypeUintArray, want: nil, wantOk: false},
 
 		// Time
 		{value: "2023-03-23", dataType: DataTypeTime, want: "2023-03-23", wantOk: true},
@@ -104,9 +126,16 @@ func TestConvertToSafeType(t *testing.T) {
 		{value: "2023-03-23T12:13:24", dataType: DataTypeTime, want: nil, wantOk: false},
 		{value: "not a date", dataType: DataTypeTime, want: nil, wantOk: false},
 		{value: "1234", dataType: DataTypeTime, want: nil, wantOk: false},
+		{value: "2023-03-23", dataType: DataTypeTimeArray, want: "2023-03-23", wantOk: true},
+		{value: "2023-03-23 12:13:24", dataType: DataTypeTimeArray, want: "2023-03-23 12:13:24", wantOk: true},
+		{value: "2023-03-23T12:13:24Z", dataType: DataTypeTimeArray, want: "2023-03-23T12:13:24Z", wantOk: true},
+		{value: "2023-03-23T12:13:24", dataType: DataTypeTimeArray, want: nil, wantOk: false},
+		{value: "not a date", dataType: DataTypeTimeArray, want: nil, wantOk: false},
+		{value: "1234", dataType: DataTypeTimeArray, want: nil, wantOk: false},
 
 		// Unsupported
 		{value: "1234", dataType: DataTypeUnsupported, want: nil, wantOk: false},
+		{value: "1234", dataType: "CHARACTER VARYING(255)[]", want: nil, wantOk: false},
 	}
 
 	for _, c := range cases {

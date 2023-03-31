@@ -9,20 +9,33 @@ import (
 	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
-// DataType is determined by the `filter_type` struct tag (see `DataType` for available options).
+// DataType is determined by the `filterType` struct tag (see `DataType` for available options).
 // If not given, uses GORM's general DataType. Raw database data types are not supported so it is
-// recommended to always specify a `filter_type` in this scenario.
+// recommended to always specify a `filterType` in this scenario.
 type DataType string
+
+// IsArray returns true if this data type is an array.
+func (d DataType) IsArray() bool {
+	return strings.HasSuffix(string(d), "[]")
+}
 
 // Supported DataTypes
 const (
-	DataTypeText        DataType = "text"
-	DataTypeBool        DataType = "bool"
-	DataTypeInt         DataType = "int"
-	DataTypeUint        DataType = "uint"
-	DataTypeFloat       DataType = "float"
-	DataTypeTime        DataType = "time"
-	DataTypeUnsupported DataType = "unsupported"
+	DataTypeText       DataType = "text"
+	DataTypeTextArray  DataType = "text[]"
+	DataTypeBool       DataType = "bool"
+	DataTypeBoolArray  DataType = "bool[]"
+	DataTypeInt        DataType = "int"
+	DataTypeIntArray   DataType = "int[]"
+	DataTypeUint       DataType = "uint"
+	DataTypeUintArray  DataType = "uint[]"
+	DataTypeFloat      DataType = "float"
+	DataTypeFloatArray DataType = "float[]"
+	DataTypeTime       DataType = "time"
+	DataTypeTimeArray  DataType = "time[]"
+
+	// DataTypeUnsupported all fields with this tag will be ignored in filters and search.
+	DataTypeUnsupported DataType = "-"
 )
 
 func cleanColumns(sch *schema.Schema, columns []string, blacklist []string) []*schema.Field {
@@ -69,9 +82,10 @@ func columnsContain(fields []*schema.Field, field *schema.Field) bool {
 }
 
 func getDataType(field *schema.Field) DataType {
-	fromTag := DataType(strings.ToLower(field.Tag.Get("filter_type")))
+	fromTag := DataType(strings.ToLower(field.Tag.Get("filterType")))
 	switch fromTag {
-	case DataTypeText, DataTypeBool, DataTypeFloat, DataTypeInt, DataTypeUint, DataTypeTime:
+	case DataTypeText, DataTypeBool, DataTypeFloat, DataTypeInt, DataTypeUint, DataTypeTime,
+		DataTypeTextArray, DataTypeBoolArray, DataTypeFloatArray, DataTypeIntArray, DataTypeUintArray, DataTypeTimeArray:
 		return fromTag
 	default:
 		switch field.DataType {
@@ -97,9 +111,9 @@ func getDataType(field *schema.Field) DataType {
 // be converted.
 func ConvertToSafeType(arg string, dataType DataType) (interface{}, bool) { // TODO test this + test when datatype doesn't match
 	switch dataType {
-	case DataTypeText:
+	case DataTypeText, DataTypeTextArray:
 		return arg, true
-	case DataTypeBool:
+	case DataTypeBool, DataTypeBoolArray:
 		switch arg {
 		case "1", "on", "true", "yes":
 			return true, true
@@ -107,25 +121,25 @@ func ConvertToSafeType(arg string, dataType DataType) (interface{}, bool) { // T
 			return false, true
 		}
 		return nil, false
-	case DataTypeFloat:
+	case DataTypeFloat, DataTypeFloatArray:
 		i, err := strconv.ParseFloat(arg, 64)
 		if err != nil {
 			return nil, false
 		}
 		return i, true
-	case DataTypeInt:
+	case DataTypeInt, DataTypeIntArray:
 		i, err := strconv.ParseInt(arg, 10, 64) // TODO check it works on smallint
 		if err != nil {
 			return nil, false
 		}
 		return i, true
-	case DataTypeUint:
+	case DataTypeUint, DataTypeUintArray:
 		i, err := strconv.ParseUint(arg, 10, 64)
 		if err != nil {
 			return nil, false
 		}
 		return i, true
-	case DataTypeTime:
+	case DataTypeTime, DataTypeTimeArray:
 		if validateTime(arg) {
 			return arg, true
 		}

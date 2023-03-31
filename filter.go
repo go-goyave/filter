@@ -48,7 +48,7 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *
 		}
 
 		dataType := getDataType(field)
-		if dataType == DataTypeUnsupported {
+		if dataType == DataTypeUnsupported { // TODO test this
 			return tx
 		}
 		return f.Operator.Function(tx, f, fieldExpr, dataType)

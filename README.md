@@ -267,6 +267,8 @@ Available broad types are:
 
 If not provided, the type will be determined from GORM's data type (defined by the `gorm:"type:..."` tag). If GORM's data type is a database type or a type that is not directly supported by this library, the type will fall back to `-` (unsupported).
 
+If the user input cannot be used with the requested column, the built-in operators will generate a `FALSE` condition.
+
 **Example**
 ```go
 type MyModel struct{
@@ -305,7 +307,7 @@ import (
 
 filter.Operators["$cont"] = &filter.Operator{
 	Function: func(tx *gorm.DB, f *filter.Filter, column string, dataType filter.DataType) *gorm.DB {
-		if dataType != schema.String || dataType.IsArray() {
+		if dataType != filter.DataTypeString {
 			return tx.Where("FALSE")
 		}
 		query := column + " LIKE ?"
@@ -322,7 +324,7 @@ filter.Operators["$eq"] = &filter.Operator{
 		}
 		arg, ok := filter.ConvertToSafeType(f.Args[0], dataType)
 		if !ok {
-			return tx
+			return tx.Where("FALSE")
 		}
 		query := fmt.Sprintf("%s = ?", column, op)
 		return f.Where(tx, query, arg)

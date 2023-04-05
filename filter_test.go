@@ -53,7 +53,7 @@ func TestFilterScope(t *testing.T) {
 	schema := &schema.Schema{
 		DBNames: []string{"name"},
 		FieldsByDBName: map[string]*schema.Field{
-			"name": {Name: "Name", DBName: "name", DataType: schema.String},
+			"name": {Name: "Name", DBName: "name", GORMDataType: schema.String},
 		},
 		Table: "test_scope_models",
 	}
@@ -84,7 +84,7 @@ func TestFilterScopeBlacklisted(t *testing.T) {
 	schema := &schema.Schema{
 		DBNames: []string{"name"},
 		FieldsByDBName: map[string]*schema.Field{
-			"name": {Name: "Name"},
+			"name": {Name: "Name", GORMDataType: schema.String},
 		},
 	}
 
@@ -627,7 +627,7 @@ func TestFilterScopeWithUnsupportedDataType(t *testing.T) {
 	schema := &schema.Schema{
 		DBNames: []string{"name"},
 		FieldsByDBName: map[string]*schema.Field{
-			"name": {Name: "Name", DBName: "name", DataType: "CHARACTER VARYING(255)"},
+			"name": {Name: "Name", DBName: "name", GORMDataType: "custom", DataType: "CHARACTER VARYING(255)"},
 		},
 		Table: "test_scope_models",
 	}

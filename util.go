@@ -127,7 +127,6 @@ func getDataType(field *schema.Field) DataType {
 			case 64:
 				return DataTypeFloat64
 			}
-			return DataTypeFloat64
 		case schema.Int:
 			switch field.Size {
 			case 8:
@@ -139,7 +138,6 @@ func getDataType(field *schema.Field) DataType {
 			case 64:
 				return DataTypeInt64
 			}
-			return DataTypeInt64
 		case schema.Uint:
 			switch field.Size {
 			case 8:
@@ -151,7 +149,6 @@ func getDataType(field *schema.Field) DataType {
 			case 64:
 				return DataTypeUint64
 			}
-			return DataTypeUint64
 		case schema.Time:
 			return DataTypeTime
 		}

@@ -25,9 +25,9 @@ func TestSearchScope(t *testing.T) {
 
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name":  {Name: "Name", DBName: "name", DataType: schema.String},
-			"email": {Name: "Email", DBName: "email", DataType: schema.String},
-			"role":  {Name: "Role", DBName: "role", DataType: schema.String},
+			"name":  {Name: "Name", DBName: "name", GORMDataType: schema.String},
+			"email": {Name: "Email", DBName: "email", GORMDataType: schema.String},
+			"role":  {Name: "Role", DBName: "role", GORMDataType: schema.String},
 		},
 		Table: "test_models",
 	}
@@ -88,9 +88,9 @@ func TestSearchScopeEmptyField(t *testing.T) {
 	}
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name":  {Name: "Name"},
-			"email": {Name: "Email"},
-			"role":  {Name: "Role"},
+			"name":  {Name: "Name", GORMDataType: schema.String},
+			"email": {Name: "Email", GORMDataType: schema.String},
+			"role":  {Name: "Role", GORMDataType: schema.String},
 		},
 		Table: "test_models",
 	}
@@ -454,9 +454,9 @@ func TestSearchScopeWithUnsupportedDataType(t *testing.T) {
 
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name":  {Name: "Name", DBName: "name", DataType: schema.String},
-			"email": {Name: "Email", DBName: "email", DataType: "CHARACTER VARYING(255)"},
-			"role":  {Name: "Role", DBName: "role", DataType: schema.String},
+			"name":  {Name: "Name", DBName: "name", GORMDataType: schema.String},
+			"email": {Name: "Email", DBName: "email", GORMDataType: "custom", DataType: "CHARACTER VARYING(255)"},
+			"role":  {Name: "Role", DBName: "role", GORMDataType: schema.String},
 		},
 		Table: "test_models",
 	}

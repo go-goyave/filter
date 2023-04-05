@@ -57,7 +57,7 @@ func TestEquals(t *testing.T) {
 			op:       "$eq",
 			filter:   &Filter{Field: "age", Args: []string{"test"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeFloat,
+			dataType: DataTypeUint64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -121,7 +121,7 @@ func TestNotEquals(t *testing.T) {
 			op:       "$ne",
 			filter:   &Filter{Field: "age", Args: []string{"test"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeFloat,
+			dataType: DataTypeUint64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -151,7 +151,7 @@ func TestGreaterThan(t *testing.T) {
 			op:       "$gt",
 			filter:   &Filter{Field: "age", Args: []string{"18"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -168,7 +168,7 @@ func TestGreaterThan(t *testing.T) {
 			op:       "$gt",
 			filter:   &Filter{Field: "age", Args: []string{"18"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeIntArray,
+			dataType: DataTypeInt64Array,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -185,7 +185,7 @@ func TestGreaterThan(t *testing.T) {
 			op:       "$gt",
 			filter:   &Filter{Field: "age", Args: []string{"test"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -215,7 +215,7 @@ func TestLowerThan(t *testing.T) {
 			op:       "$lt",
 			filter:   &Filter{Field: "age", Args: []string{"18"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -232,7 +232,7 @@ func TestLowerThan(t *testing.T) {
 			op:       "$lt",
 			filter:   &Filter{Field: "age", Args: []string{"18"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeIntArray,
+			dataType: DataTypeInt64Array,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -249,7 +249,7 @@ func TestLowerThan(t *testing.T) {
 			op:       "$lt",
 			filter:   &Filter{Field: "age", Args: []string{"test"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -279,7 +279,7 @@ func TestGreaterThanEqual(t *testing.T) {
 			op:       "$gte",
 			filter:   &Filter{Field: "age", Args: []string{"18"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -296,7 +296,7 @@ func TestGreaterThanEqual(t *testing.T) {
 			op:       "$gte",
 			filter:   &Filter{Field: "age", Args: []string{"18"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeIntArray,
+			dataType: DataTypeInt64Array,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -313,7 +313,7 @@ func TestGreaterThanEqual(t *testing.T) {
 			op:       "$gte",
 			filter:   &Filter{Field: "age", Args: []string{"test"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -343,7 +343,7 @@ func TestLowerThanEqual(t *testing.T) {
 			op:       "$lte",
 			filter:   &Filter{Field: "age", Args: []string{"18"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -360,7 +360,7 @@ func TestLowerThanEqual(t *testing.T) {
 			op:       "$lte",
 			filter:   &Filter{Field: "age", Args: []string{"18"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeIntArray,
+			dataType: DataTypeInt64Array,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -377,7 +377,7 @@ func TestLowerThanEqual(t *testing.T) {
 			op:       "$lte",
 			filter:   &Filter{Field: "age", Args: []string{"test"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -441,7 +441,7 @@ func TestStarts(t *testing.T) {
 			op:       "$starts",
 			filter:   &Filter{Field: "name", Args: []string{"te%_st"}},
 			column:   "`test_models`.`name`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -505,7 +505,7 @@ func TestEnds(t *testing.T) {
 			op:       "$ends",
 			filter:   &Filter{Field: "name", Args: []string{"te%_st"}},
 			column:   "`test_models`.`name`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -569,7 +569,7 @@ func TestContains(t *testing.T) {
 			op:       "$cont",
 			filter:   &Filter{Field: "name", Args: []string{"te%_st"}},
 			column:   "`test_models`.`name`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -633,7 +633,7 @@ func TestNotContains(t *testing.T) {
 			op:       "$excl",
 			filter:   &Filter{Field: "name", Args: []string{"te%_st"}},
 			column:   "`test_models`.`name`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -697,7 +697,7 @@ func TestIn(t *testing.T) {
 			op:       "$in",
 			filter:   &Filter{Field: "name", Args: []string{"18", "val2"}},
 			column:   "`test_models`.`name`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -761,7 +761,7 @@ func TestNotIn(t *testing.T) {
 			op:       "$notin",
 			filter:   &Filter{Field: "name", Args: []string{"18", "val2"}},
 			column:   "`test_models`.`name`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -851,7 +851,7 @@ func TestBetween(t *testing.T) {
 			op:       "$between",
 			filter:   &Filter{Field: "age", Args: []string{"18", "25"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeUint,
+			dataType: DataTypeUint64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -902,7 +902,7 @@ func TestBetween(t *testing.T) {
 			op:       "$between",
 			filter:   &Filter{Field: "age", Args: []string{"18", "val2"}},
 			column:   "`test_models`.`age`",
-			dataType: DataTypeUint,
+			dataType: DataTypeUint64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -949,7 +949,7 @@ func TestIsTrue(t *testing.T) {
 			op:       "$istrue",
 			filter:   &Filter{Field: "is_active"},
 			column:   "`test_models`.`is_active`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -996,7 +996,7 @@ func TestIsFalse(t *testing.T) {
 			op:       "$isfalse",
 			filter:   &Filter{Field: "is_active"},
 			column:   "`test_models`.`is_active`",
-			dataType: DataTypeInt,
+			dataType: DataTypeInt64,
 			want: map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",

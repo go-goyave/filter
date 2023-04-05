@@ -268,20 +268,20 @@ It is important to make sure your JSON expression returns a value that has a typ
 
 ### Filter type
 
-For non-native types (such as `*null.Time`), you should always use the `filterType` struct tag. This struct tag enforces the field's recognized broad type for the type-safety conversion.
+For non-native types that don't implement the `driver.Valuer` interface, you should always use the `filterType` struct tag. This struct tag enforces the field's recognized broad type for the type-safety conversion. It is also recommended to always add this tag when working with arrays.
 
 Available broad types are:
 - `text` / `text[]`
 - `bool` / `bool[]`
-- `int` / `int[]`
-- `uint` / `uint[]`
-- `float` / `float[]`
+- `int8` / `int8[]`, `int16` / `int16[]`, `int32` / `int32[]`, `int64` / `int64[]`
+- `uint` / `uint[]`, `uint16` / `uint16[]`, `uint32` / `uint32[]`, `uint64` / `uint64[]`
+- `float32` / `float32[]`, `float64` / `float64[]`
 - `time` / `time[]`
 - `-`: unsupported data type. Fields tagged with `-` will be ignored in filters and search: no condition will be added to the `WHERE` clause.
 
-If not provided, the type will be determined from GORM's data type (defined by the `gorm:"type:..."` tag). If GORM's data type is a database type or a type that is not directly supported by this library, the type will fall back to `-` (unsupported).
+If not provided, the type will be determined from GORM's data type. If GORM's data type is a custom type that is not directly supported by this library, the type will fall back to `-` (unsupported) and the field will be ignored in the filters.
 
-If the user input cannot be used with the requested column, the built-in operators will generate a `FALSE` condition.
+If the type is supported but the user input cannot be used with the requested column, the built-in operators will generate a `FALSE` condition.
 
 **Example**
 ```go
@@ -370,11 +370,11 @@ func init() {
 			switch dataType {
 			case filter.DataTypeTextArray, filter.DataTypeTimeArray:
 				return bindArrayArg[string](tx, query, f, dataType)
-			case filter.DataTypeFloatArray:
+			case filter.DataTypeFloat32Array, filter.DataTypeFloat64Array:
 				return bindArrayArg[float64](tx, query, f, dataType)
-			case filter.DataTypeUintArray:
+			case filter.DataTypeUint8Array, filter.DataTypeUint16Array, filter.DataTypeUint32Array, filter.DataTypeUint64Array:
 				return bindArrayArg[uint64](tx, query, f, dataType)
-			case filter.DataTypeIntArray:
+			case filter.DataTypeInt8Array, filter.DataTypeInt16Array, filter.DataTypeInt32Array, filter.DataTypeInt64Array:
 				return bindArrayArg[int64](tx, query, f, dataType)
 			}
 		

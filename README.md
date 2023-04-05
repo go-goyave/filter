@@ -208,11 +208,11 @@ Internally, `goyave.dev/filter` uses [Goyave's `Paginator`](https://goyave.dev/g
 Sometimes you need to work with a "virtual" column that is not stored in your database, but is computed using an SQL expression. A dynamic status depending on a date for example. In order to support the features of this library properly, you will have to add the expression to your model using the `computed` struct tag:
 
 ```go
-type MyModel struct{
+type MyModel struct {
 	ID uint
 	// ...
 	StartDate time.Time
-	Status string `gorm:"->;-:migration" computed:"CASE WHEN ~~~ct~~~.start_date < NOW() THEN 'pending' ELSE 'started' END"` 
+	Status    string `gorm:"->;-:migration" computed:"CASE WHEN ~~~ct~~~.start_date < NOW() THEN 'pending' ELSE 'started' END"`
 }
 ```
 
@@ -231,6 +231,20 @@ type MyModelWithStatus struct{
 	Status string `gorm:"->;-:migration" computed:"CASE WHEN ~~~ct~~~.start_date < NOW() THEN 'pending' ELSE 'started' END"` 
 }
 ```
+
+When using JSON columns, you can support filters on nested fields inside that JSON column using a computed column:
+
+```go
+// This example is compatible with PostgreSQL.
+// JSON processing may be different if you are using another database engine. 
+type MyModel struct {
+	ID            uint
+	JSONColumn    datatypes.JSON
+	SomeJSONField null.Int `gorm:"->;-:migration" computed:"(~~~ct~~~.json_column->>'fieldName')::int"`
+}
+```
+
+It is important to make sure your JSON expression returns a value that has a type that matches the struct field to avoid DB errors. Database engines usually only return text types from JSON. If your field is a number, you'll have to cast it or you will get database errors when filtering on this field.
 
 ## Security
 

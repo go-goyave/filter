@@ -149,7 +149,7 @@ func ConvertToSafeType(arg string, dataType DataType) (interface{}, bool) {
 }
 
 func validateTime(timeStr string) bool {
-	for _, format := range []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"} {
+	for _, format := range []string{time.RFC3339, time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"} {
 		_, err := time.Parse(format, timeStr)
 		if err == nil {
 			return true

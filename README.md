@@ -268,7 +268,7 @@ It is important to make sure your JSON expression returns a value that has a typ
 
 ### Filter type
 
-For non-primitive types (such as `*null.Time`), you should always use the `filterType` struct tag. This struct tag enforces the field's recognized broad type for the type-safety conversion.
+For non-native types (such as `*null.Time`), you should always use the `filterType` struct tag. This struct tag enforces the field's recognized broad type for the type-safety conversion.
 
 Available broad types are:
 - `text` / `text[]`
@@ -344,6 +344,66 @@ filter.Operators["$eq"] = &filter.Operator{
 		return f.Where(tx, query, arg)
 	},
 	RequiredArguments: 1,
+}
+```
+
+#### Array operators
+
+Some database engines such as PostgreSQL provide operators for array operations (`@>`, `&&`, ...). You may encounter issue implementing these operators in your project because of GORM converting slices into records (`("a", "b")` instead of `{"a", "b"}`).
+
+To fix this issue, you will have to implement your own variant of `ConvertArgsToSafeType` so it returns a **pointer** to a slice with a concrete type instead of `[]interface{}`. By sending a pointer to GORM, it won't try to render the slice itself and pass it directly to the underlying driver, which usually knows how to handle slices for the native types.
+
+**Example** (using generics with go 1.18+):
+```go
+type argType interface {
+	string | int64 | uint64 | float64 | bool
+}
+
+func init() {
+	filter.Operators["$arrayin"] = &filter.Operator{
+		Function: func (tx *gorm.DB, f *filter.Filter, column string, dataType filter.DataType) *gorm.DB {
+			if !dataType.IsArray() {
+				return tx.Where("FALSE")
+			}
+		
+			query := fmt.Sprintf("%s @> ?", column)
+			switch dataType {
+			case filter.DataTypeTextArray, filter.DataTypeTimeArray:
+				return bindArrayArg[string](tx, query, f, dataType)
+			case filter.DataTypeFloatArray:
+				return bindArrayArg[float64](tx, query, f, dataType)
+			case filter.DataTypeUintArray:
+				return bindArrayArg[uint64](tx, query, f, dataType)
+			case filter.DataTypeIntArray:
+				return bindArrayArg[int64](tx, query, f, dataType)
+			}
+		
+			// If you need to handle DataTypeBoolArray, use pgtype.BoolArray
+			return tx.Where("FALSE")
+		},
+		RequiredArguments: 1,
+	}
+}
+
+func bindArrayArg[T argType](tx *gorm.DB, query string, f *filter.Filter, dataType filter.DataType) *gorm.DB {
+	args, ok := convertArgsToSafeTypeArray[T](f.Args, dataType)
+	if !ok {
+		return tx.Where("FALSE")
+	}
+	return f.Where(tx, query, args)
+}
+
+func convertArgsToSafeTypeArray[T argType](args []string, dataType filter.DataType) (*[]T, bool) {
+	result := make([]T, 0, len(args))
+	for _, arg := range args {
+		a, ok := filter.ConvertToSafeType(arg, dataType)
+		if !ok {
+			return nil, false
+		}
+		result = append(result, a.(T))
+	}
+
+	return &result, true
 }
 ```
 

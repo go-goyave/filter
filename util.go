@@ -24,6 +24,9 @@ const (
 	DataTypeText      DataType = "text"
 	DataTypeTextArray DataType = "text[]"
 
+	DataTypeEnum      DataType = "enum"
+	DataTypeEnumArray DataType = "enum[]"
+
 	DataTypeBool      DataType = "bool"
 	DataTypeBoolArray DataType = "bool[]"
 
@@ -104,6 +107,7 @@ func getDataType(field *schema.Field) DataType {
 	fromTag := DataType(strings.ToLower(field.Tag.Get("filterType")))
 	switch fromTag {
 	case DataTypeText, DataTypeTextArray,
+		DataTypeEnum, DataTypeEnumArray,
 		DataTypeBool, DataTypeBoolArray,
 		DataTypeFloat32, DataTypeFloat32Array,
 		DataTypeFloat64, DataTypeFloat64Array,
@@ -161,7 +165,7 @@ func getDataType(field *schema.Field) DataType {
 // be converted.
 func ConvertToSafeType(arg string, dataType DataType) (interface{}, bool) {
 	switch dataType {
-	case DataTypeText, DataTypeTextArray:
+	case DataTypeText, DataTypeTextArray, DataTypeEnum, DataTypeEnumArray:
 		return arg, true
 	case DataTypeBool, DataTypeBoolArray:
 		switch arg {

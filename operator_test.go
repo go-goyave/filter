@@ -36,6 +36,23 @@ func TestEquals(t *testing.T) {
 			},
 		},
 		{
+			desc:     "ok_enum",
+			op:       "$eq",
+			filter:   &Filter{Field: "name", Args: []string{"test"}},
+			column:   "`test_models`.`name`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) = ?", Vars: []interface{}{"test"}},
+						},
+					},
+				},
+			},
+		},
+		{
 			desc:     "cannot_compare_array",
 			op:       "$eq",
 			filter:   &Filter{Field: "name", Args: []string{"test"}},
@@ -94,6 +111,23 @@ func TestNotEquals(t *testing.T) {
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_models`.`name` <> ?", Vars: []interface{}{"test"}},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc:     "ok_enum",
+			op:       "$ne",
+			filter:   &Filter{Field: "name", Args: []string{"test"}},
+			column:   "`test_models`.`name`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) <> ?", Vars: []interface{}{"test"}},
 						},
 					},
 				},
@@ -164,6 +198,23 @@ func TestGreaterThan(t *testing.T) {
 			},
 		},
 		{
+			desc:     "ok_enum",
+			op:       "$gt",
+			filter:   &Filter{Field: "enum_col", Args: []string{"18"}},
+			column:   "`test_models`.`enum_col`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) > ?", Vars: []interface{}{"18"}},
+						},
+					},
+				},
+			},
+		},
+		{
 			desc:     "cannot_compare_array",
 			op:       "$gt",
 			filter:   &Filter{Field: "age", Args: []string{"18"}},
@@ -222,6 +273,23 @@ func TestLowerThan(t *testing.T) {
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_models`.`age` < ?", Vars: []interface{}{int64(18)}},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc:     "ok_enum",
+			op:       "$lt",
+			filter:   &Filter{Field: "enum_col", Args: []string{"18"}},
+			column:   "`test_models`.`enum_col`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) < ?", Vars: []interface{}{"18"}},
 						},
 					},
 				},
@@ -292,6 +360,23 @@ func TestGreaterThanEqual(t *testing.T) {
 			},
 		},
 		{
+			desc:     "ok_enum",
+			op:       "$gte",
+			filter:   &Filter{Field: "enum_col", Args: []string{"18"}},
+			column:   "`test_models`.`enum_col`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) >= ?", Vars: []interface{}{"18"}},
+						},
+					},
+				},
+			},
+		},
+		{
 			desc:     "cannot_compare_array",
 			op:       "$gte",
 			filter:   &Filter{Field: "age", Args: []string{"18"}},
@@ -350,6 +435,23 @@ func TestLowerThanEqual(t *testing.T) {
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_models`.`age` <= ?", Vars: []interface{}{int64(18)}},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc:     "ok_enum",
+			op:       "$lte",
+			filter:   &Filter{Field: "enum_col", Args: []string{"18"}},
+			column:   "`test_models`.`enum_col`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) <= ?", Vars: []interface{}{"18"}},
 						},
 					},
 				},
@@ -420,6 +522,23 @@ func TestStarts(t *testing.T) {
 			},
 		},
 		{
+			desc:     "ok_enum",
+			op:       "$starts",
+			filter:   &Filter{Field: "name", Args: []string{"te%_st"}},
+			column:   "`test_models`.`name`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) LIKE ?", Vars: []interface{}{"te\\%\\_st%"}},
+						},
+					},
+				},
+			},
+		},
+		{
 			desc:     "cannot_compare_array",
 			op:       "$starts",
 			filter:   &Filter{Field: "name", Args: []string{"te%_st"}},
@@ -478,6 +597,23 @@ func TestEnds(t *testing.T) {
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_models`.`name` LIKE ?", Vars: []interface{}{"%te\\%\\_st"}},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc:     "ok_enum",
+			op:       "$ends",
+			filter:   &Filter{Field: "name", Args: []string{"te%_st"}},
+			column:   "`test_models`.`name`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) LIKE ?", Vars: []interface{}{"%te\\%\\_st"}},
 						},
 					},
 				},
@@ -548,6 +684,23 @@ func TestContains(t *testing.T) {
 			},
 		},
 		{
+			desc:     "ok_enum",
+			op:       "$cont",
+			filter:   &Filter{Field: "name", Args: []string{"te%_st"}},
+			column:   "`test_models`.`name`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) LIKE ?", Vars: []interface{}{"%te\\%\\_st%"}},
+						},
+					},
+				},
+			},
+		},
+		{
 			desc:     "cannot_compare_array",
 			op:       "$cont",
 			filter:   &Filter{Field: "name", Args: []string{"te%_st"}},
@@ -606,6 +759,23 @@ func TestNotContains(t *testing.T) {
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_models`.`name` NOT LIKE ?", Vars: []interface{}{"%te\\%\\_st%"}},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc:     "ok_enum",
+			op:       "$excl",
+			filter:   &Filter{Field: "name", Args: []string{"te%_st"}},
+			column:   "`test_models`.`name`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) NOT LIKE ?", Vars: []interface{}{"%te\\%\\_st%"}},
 						},
 					},
 				},
@@ -676,6 +846,23 @@ func TestIn(t *testing.T) {
 			},
 		},
 		{
+			desc:     "ok_enum",
+			op:       "$in",
+			filter:   &Filter{Field: "name", Args: []string{"val1", "val2"}},
+			column:   "`test_models`.`name`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) IN ?", Vars: []interface{}{[]interface{}{"val1", "val2"}}},
+						},
+					},
+				},
+			},
+		},
+		{
 			desc:     "cannot_compare_array",
 			op:       "$in",
 			filter:   &Filter{Field: "name", Args: []string{"val1", "val2"}},
@@ -734,6 +921,23 @@ func TestNotIn(t *testing.T) {
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_models`.`name` NOT IN ?", Vars: []interface{}{[]interface{}{"val1", "val2"}}},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc:     "ok_enum",
+			op:       "$notin",
+			filter:   &Filter{Field: "name", Args: []string{"val1", "val2"}},
+			column:   "`test_models`.`name`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) NOT IN ?", Vars: []interface{}{[]interface{}{"val1", "val2"}}},
 						},
 					},
 				},
@@ -858,6 +1062,23 @@ func TestBetween(t *testing.T) {
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
 							clause.Expr{SQL: "`test_models`.`age` BETWEEN ? AND ?", Vars: []interface{}{uint64(18), uint64(25)}},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc:     "ok_enum",
+			op:       "$between",
+			filter:   &Filter{Field: "enum_col", Args: []string{"18", "25"}},
+			column:   "`test_models`.`enum_col`",
+			dataType: DataTypeEnum,
+			want: map[string]clause.Clause{
+				"WHERE": {
+					Name: "WHERE",
+					Expression: clause.Where{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) BETWEEN ? AND ?", Vars: []interface{}{"18", "25"}},
 						},
 					},
 				},

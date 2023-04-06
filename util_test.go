@@ -70,6 +70,10 @@ func TestConvertToSafeType(t *testing.T) {
 		{value: "string", dataType: DataTypeText, want: "string", wantOk: true},
 		{value: "string", dataType: DataTypeTextArray, want: "string", wantOk: true},
 
+		// Enum
+		{value: "string", dataType: DataTypeEnum, want: "string", wantOk: true},
+		{value: "string", dataType: DataTypeEnumArray, want: "string", wantOk: true},
+
 		// Bool
 		{value: "1", dataType: DataTypeBool, want: true, wantOk: true},
 		{value: "on", dataType: DataTypeBool, want: true, wantOk: true},
@@ -337,6 +341,12 @@ func TestGetDataType(t *testing.T) {
 		{desc: "filter type text array", model: struct {
 			Field string `filterType:"text[]"`
 		}{}, want: DataTypeTextArray},
+		{desc: "filter type enum", model: struct {
+			Field string `filterType:"enum"`
+		}{}, want: DataTypeEnum},
+		{desc: "filter type enum array", model: struct {
+			Field string `filterType:"enum[]"`
+		}{}, want: DataTypeEnumArray},
 		{desc: "filter type bool", model: struct {
 			Field string `filterType:"bool"`
 		}{}, want: DataTypeBool},

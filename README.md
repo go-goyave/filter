@@ -266,12 +266,13 @@ It is important to make sure your JSON expression returns a value that has a typ
 - Don't use `gorm.Model` and add the necessary fields manually. You get better control over json struct tags this way.
 - Use pointers for nullable relations and nullable fields that implement `sql.Scanner` (such as `null.Time`).
 
-### Filter type
+### Type-safety
 
-For non-native types that don't implement the `driver.Valuer` interface, you should always use the `filterType` struct tag. This struct tag enforces the field's recognized broad type for the type-safety conversion. It is also recommended to always add this tag when working with arrays.
+For non-native types that don't implement the `driver.Valuer` interface, you should always use the `filterType` struct tag. This struct tag enforces the field's recognized broad type for the type-safety conversion. It is also recommended to always add this tag when working with arrays. This tag is effective for the filter and search features.
 
 Available broad types are:
 - `text` / `text[]`
+- `enum` / `enum[]`: use this with custom enum types to prevent "invalid input value" or "invalid operator" errors
 - `bool` / `bool[]`
 - `int8` / `int8[]`, `int16` / `int16[]`, `int32` / `int32[]`, `int64` / `int64[]`
 - `uint` / `uint[]`, `uint16` / `uint16[]`, `uint32` / `uint32[]`, `uint64` / `uint64[]`
@@ -365,10 +366,14 @@ func init() {
 			if !dataType.IsArray() {
 				return tx.Where("FALSE")
 			}
+
+			if dataType == filter.DataTypeEnumArray {
+				column = fmt.Sprintf("CAST(%s as TEXT[])", column)
+			}
 		
 			query := fmt.Sprintf("%s @> ?", column)
 			switch dataType {
-			case filter.DataTypeTextArray, filter.DataTypeTimeArray:
+			case filter.DataTypeTextArray, filter.DataTypeEnumArray, filter.DataTypeTimeArray:
 				return bindArrayArg[string](tx, query, f, dataType)
 			case filter.DataTypeFloat32Array, filter.DataTypeFloat64Array:
 				return bindArrayArg[float64](tx, query, f, dataType)

@@ -34,7 +34,7 @@ var (
 		"$starts": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				if dataType != DataTypeText && dataType != DataTypeEnum {
-					return tx.Where("FALSE")
+					return filter.Where(tx, "FALSE")
 				}
 				query := castEnumAsText(column, dataType) + " LIKE ?"
 				value := sqlutil.EscapeLike(filter.Args[0]) + "%"
@@ -45,7 +45,7 @@ var (
 		"$ends": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				if dataType != DataTypeText && dataType != DataTypeEnum {
-					return tx.Where("FALSE")
+					return filter.Where(tx, "FALSE")
 				}
 				query := castEnumAsText(column, dataType) + " LIKE ?"
 				value := "%" + sqlutil.EscapeLike(filter.Args[0])
@@ -56,7 +56,7 @@ var (
 		"$cont": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				if dataType != DataTypeText && dataType != DataTypeEnum {
-					return tx.Where("FALSE")
+					return filter.Where(tx, "FALSE")
 				}
 				query := castEnumAsText(column, dataType) + " LIKE ?"
 				value := "%" + sqlutil.EscapeLike(filter.Args[0]) + "%"
@@ -67,7 +67,7 @@ var (
 		"$excl": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				if dataType != DataTypeText && dataType != DataTypeEnum {
-					return tx.Where("FALSE")
+					return filter.Where(tx, "FALSE")
 				}
 				query := castEnumAsText(column, dataType) + " NOT LIKE ?"
 				value := "%" + sqlutil.EscapeLike(filter.Args[0]) + "%"
@@ -86,7 +86,7 @@ var (
 		"$istrue": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				if dataType != DataTypeBool {
-					return tx.Where("FALSE")
+					return filter.Where(tx, "FALSE")
 				}
 				return filter.Where(tx, column+" IS TRUE")
 			},
@@ -95,7 +95,7 @@ var (
 		"$isfalse": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				if dataType != DataTypeBool {
-					return tx.Where("FALSE")
+					return filter.Where(tx, "FALSE")
 				}
 				return filter.Where(tx, column+" IS FALSE")
 			},
@@ -110,11 +110,11 @@ var (
 		"$between": {
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				if dataType.IsArray() {
-					return tx.Where("FALSE")
+					return filter.Where(tx, "FALSE")
 				}
 				args, ok := ConvertArgsToSafeType(filter.Args[:2], dataType)
 				if !ok {
-					return tx.Where("FALSE")
+					return filter.Where(tx, "FALSE")
 				}
 				query := castEnumAsText(column, dataType) + " BETWEEN ? AND ?"
 				return filter.Where(tx, query, args...)
@@ -134,11 +134,11 @@ func castEnumAsText(column string, dataType DataType) string {
 func basicComparison(op string) func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 	return func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 		if dataType.IsArray() {
-			return tx.Where("FALSE")
+			return filter.Where(tx, "FALSE")
 		}
 		arg, ok := ConvertToSafeType(filter.Args[0], dataType)
 		if !ok {
-			return tx.Where("FALSE")
+			return filter.Where(tx, "FALSE")
 		}
 
 		query := fmt.Sprintf("%s %s ?", castEnumAsText(column, dataType), op)
@@ -149,11 +149,11 @@ func basicComparison(op string) func(tx *gorm.DB, filter *Filter, column string,
 func multiComparison(op string) func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 	return func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 		if dataType.IsArray() {
-			return tx.Where("FALSE")
+			return filter.Where(tx, "FALSE")
 		}
 		args, ok := ConvertArgsToSafeType(filter.Args, dataType)
 		if !ok {
-			return tx.Where("FALSE")
+			return filter.Where(tx, "FALSE")
 		}
 
 		query := fmt.Sprintf("%s %s ?", castEnumAsText(column, dataType), op)

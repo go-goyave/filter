@@ -323,7 +323,7 @@ import (
 filter.Operators["$cont"] = &filter.Operator{
 	Function: func(tx *gorm.DB, f *filter.Filter, column string, dataType filter.DataType) *gorm.DB {
 		if dataType != filter.DataTypeString {
-			return tx.Where("FALSE")
+			return f.Where("FALSE")
 		}
 		query := column + " LIKE ?"
 		value := "%" + sqlutil.EscapeLike(f.Args[0]) + "%"
@@ -335,11 +335,11 @@ filter.Operators["$cont"] = &filter.Operator{
 filter.Operators["$eq"] = &filter.Operator{
 	Function: func(tx *gorm.DB, f *filter.Filter, column string, dataType filter.DataType) *gorm.DB {
 		if dataType.IsArray() {
-			return tx.Where("FALSE")
+			return f.Where("FALSE")
 		}
 		arg, ok := filter.ConvertToSafeType(f.Args[0], dataType)
 		if !ok {
-			return tx.Where("FALSE")
+			return f.Where("FALSE")
 		}
 		query := fmt.Sprintf("%s = ?", column, op)
 		return f.Where(tx, query, arg)
@@ -364,7 +364,7 @@ func init() {
 	filter.Operators["$arrayin"] = &filter.Operator{
 		Function: func (tx *gorm.DB, f *filter.Filter, column string, dataType filter.DataType) *gorm.DB {
 			if !dataType.IsArray() {
-				return tx.Where("FALSE")
+				return f.Where("FALSE")
 			}
 
 			if dataType == filter.DataTypeEnumArray {
@@ -384,7 +384,7 @@ func init() {
 			}
 		
 			// If you need to handle DataTypeBoolArray, use pgtype.BoolArray
-			return tx.Where("FALSE")
+			return f.Where("FALSE")
 		},
 		RequiredArguments: 1,
 	}
@@ -393,7 +393,7 @@ func init() {
 func bindArrayArg[T argType](tx *gorm.DB, query string, f *filter.Filter, dataType filter.DataType) *gorm.DB {
 	args, ok := convertArgsToSafeTypeArray[T](f.Args, dataType)
 	if !ok {
-		return tx.Where("FALSE")
+		return f.Where("FALSE")
 	}
 	return f.Where(tx, query, args)
 }

@@ -31,6 +31,10 @@ func (s *Search) Scope(schema *schema.Schema) func(*gorm.DB) *gorm.DB {
 			if f == nil {
 				continue
 			}
+			dataType := getDataType(f)
+			if dataType == DataTypeUnsupported {
+				continue
+			}
 
 			if joinName != "" {
 				if err := tx.Statement.Parse(tx.Statement.Model); err != nil {
@@ -57,7 +61,7 @@ func (s *Search) Scope(schema *schema.Schema) func(*gorm.DB) *gorm.DB {
 				fieldExpr = table + "." + tx.Statement.Quote(f.DBName)
 			}
 
-			searchQuery = s.Operator.Function(searchQuery, filter, fieldExpr, f.DataType)
+			searchQuery = s.Operator.Function(searchQuery, filter, fieldExpr, dataType)
 		}
 
 		return tx.Where(searchQuery)

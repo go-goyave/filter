@@ -16,7 +16,7 @@ func TestSearchScope(t *testing.T) {
 		Fields: []string{"name", "email"},
 		Query:  "My Query",
 		Operator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,
@@ -25,9 +25,9 @@ func TestSearchScope(t *testing.T) {
 
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name":  {Name: "Name", DBName: "name"},
-			"email": {Name: "Email", DBName: "email"},
-			"role":  {Name: "Role", DBName: "role"},
+			"name":  {Name: "Name", DBName: "name", GORMDataType: schema.String},
+			"email": {Name: "Email", DBName: "email", GORMDataType: schema.String},
+			"role":  {Name: "Role", DBName: "role", GORMDataType: schema.String},
 		},
 		Table: "test_models",
 	}
@@ -80,7 +80,7 @@ func TestSearchScopeEmptyField(t *testing.T) {
 		Fields: []string{},
 		Query:  "My Query",
 		Operator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,
@@ -88,9 +88,9 @@ func TestSearchScopeEmptyField(t *testing.T) {
 	}
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name":  {Name: "Name"},
-			"email": {Name: "Email"},
-			"role":  {Name: "Role"},
+			"name":  {Name: "Name", GORMDataType: schema.String},
+			"email": {Name: "Email", GORMDataType: schema.String},
+			"role":  {Name: "Role", GORMDataType: schema.String},
 		},
 		Table: "test_models",
 	}
@@ -123,7 +123,7 @@ func TestSeachScopeWithJoin(t *testing.T) {
 		Fields: []string{"name", "Relation.name"},
 		Query:  "My Query",
 		Operator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,
@@ -232,7 +232,7 @@ func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
 		Fields: []string{"name", "Relation.NestedRelation.field"},
 		Query:  "My Query",
 		Operator: &Operator{
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType schema.DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
 			},
 			RequiredArguments: 1,
@@ -434,6 +434,58 @@ func TestSearchScopeComputed(t *testing.T) {
 					{Table: "search_test_model_computeds", Name: "id"},
 				},
 			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestSearchScopeWithUnsupportedDataType(t *testing.T) {
+	db := openDryRunDB(t)
+	search := &Search{
+		Fields: []string{"name", "email"},
+		Query:  "My Query",
+		Operator: &Operator{
+			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
+				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
+			},
+			RequiredArguments: 1,
+		},
+	}
+
+	schema := &schema.Schema{
+		FieldsByDBName: map[string]*schema.Field{
+			"name":  {Name: "Name", DBName: "name", GORMDataType: schema.String},
+			"email": {Name: "Email", DBName: "email", GORMDataType: "custom", DataType: "CHARACTER VARYING(255)"},
+			"role":  {Name: "Role", DBName: "role", GORMDataType: schema.String},
+		},
+		Table: "test_models",
+	}
+
+	db = db.Scopes(search.Scope(schema)).Table("table").Find(nil)
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{
+								SQL:                "`test_models`.`name` LIKE (?)",
+								Vars:               []interface{}{"My Query"},
+								WithoutParentheses: false,
+							},
+						},
+					},
+				},
+			},
+		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)

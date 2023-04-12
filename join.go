@@ -157,7 +157,7 @@ func join(tx *gorm.DB, joinName string, sch *schema.Schema) *gorm.DB {
 			Table: clause.Table{Name: sch.Table, Alias: relation.Name},
 			ON:    clause.Where{Exprs: exprs},
 		}
-		if !joinExists(tx.Statement, j) && !findStatementJoin(tx.Statement, relation, &j) {
+		if !joinExists(tx.Statement, j) && !findStatementJoin(tx.Statement, &j) {
 			joins = append(joins, j)
 		}
 	}
@@ -201,7 +201,7 @@ func joinExists(stmt *gorm.Statement, join clause.Join) bool {
 // Removes this information from the join afterwards to avoid Gorm reprocessing it.
 // This is used to avoid duplicate joins that produce ambiguous column names and to
 // support computed columns.
-func findStatementJoin(stmt *gorm.Statement, relation *schema.Relationship, join *clause.Join) bool {
+func findStatementJoin(stmt *gorm.Statement, join *clause.Join) bool {
 	for _, j := range stmt.Joins {
 		if j.Name == join.Table.Alias {
 			return true

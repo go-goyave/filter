@@ -10,8 +10,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v4"
-	"goyave.dev/goyave/v4/database"
+	"goyave.dev/goyave/v5"
+	"goyave.dev/goyave/v5/database"
+	"goyave.dev/goyave/v5/lang"
 )
 
 var fifteen = 15
@@ -45,9 +46,9 @@ func openDryRunDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func prepareTestScope(t *testing.T, settings *Settings) (*database.Paginator, *gorm.DB) {
+func prepareTestScope(t *testing.T, settings *Settings[*TestScopeModel]) (*database.Paginator[*TestScopeModel], *gorm.DB) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"filter": []*Filter{
 				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
 				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
@@ -62,21 +63,21 @@ func prepareTestScope(t *testing.T, settings *Settings) (*database.Paginator, *g
 			"fields":   "id,name,email,computed",
 			"search":   "val",
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 
 	results := []*TestScopeModel{}
 	if settings == nil {
-		return Scope(db, request, results)
+		return Scope(db, request, &results)
 	}
 
-	return settings.Scope(db, request, results)
+	return settings.Scope(db, request, &results)
 }
 
-func prepareTestScopeUnpaginated(t *testing.T, settings *Settings) ([]*TestScopeModel, *gorm.DB) {
+func prepareTestScopeUnpaginated(t *testing.T, settings *Settings[*TestScopeModel]) ([]*TestScopeModel, *gorm.DB) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"filter": []*Filter{
 				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
 				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
@@ -91,7 +92,7 @@ func prepareTestScopeUnpaginated(t *testing.T, settings *Settings) ([]*TestScope
 			"fields":   "id,name,email,computed",
 			"search":   "val",
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 
@@ -104,7 +105,7 @@ func prepareTestScopeUnpaginated(t *testing.T, settings *Settings) ([]*TestScope
 }
 
 func TestScope(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings{
+	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{
 		FieldsSearch: []string{"email"},
 		SearchOperator: &Operator{
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
@@ -126,8 +127,8 @@ func TestScope(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -136,7 +137,7 @@ func TestScope(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
 										},
 									},
 								},
@@ -147,7 +148,7 @@ func TestScope(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_scope_models`.`email` LIKE (?)",
-								Vars:               []interface{}{"val"},
+								Vars:               []any{"val"},
 								WithoutParentheses: false,
 							},
 						},
@@ -197,7 +198,7 @@ func TestScope(t *testing.T) {
 }
 
 func TestScopeUnpaginated(t *testing.T) {
-	results, db := prepareTestScopeUnpaginated(t, &Settings{
+	results, db := prepareTestScopeUnpaginated(t, &Settings[*TestScopeModel]{
 		FieldsSearch: []string{"email"},
 		SearchOperator: &Operator{
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
@@ -219,8 +220,8 @@ func TestScopeUnpaginated(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -229,7 +230,7 @@ func TestScopeUnpaginated(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
 										},
 									},
 								},
@@ -240,7 +241,7 @@ func TestScopeUnpaginated(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_scope_models`.`email` LIKE (?)",
-								Vars:               []interface{}{"val"},
+								Vars:               []any{"val"},
 								WithoutParentheses: false,
 							},
 						},
@@ -284,7 +285,7 @@ func TestScopeUnpaginated(t *testing.T) {
 }
 
 func TestScopeDisableFields(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings{DisableFields: true, FieldsSearch: []string{"email"}})
+	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{DisableFields: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -298,8 +299,8 @@ func TestScopeDisableFields(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -308,7 +309,7 @@ func TestScopeDisableFields(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
 										},
 									},
 								},
@@ -319,7 +320,7 @@ func TestScopeDisableFields(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_scope_models`.`email` LIKE ?",
-								Vars:               []interface{}{"%val%"},
+								Vars:               []any{"%val%"},
 								WithoutParentheses: false,
 							},
 						},
@@ -368,7 +369,7 @@ func TestScopeDisableFields(t *testing.T) {
 }
 
 func TestScopeUnpaginatedDisableFields(t *testing.T) {
-	results, db := prepareTestScopeUnpaginated(t, &Settings{DisableFields: true, FieldsSearch: []string{"email"}})
+	results, db := prepareTestScopeUnpaginated(t, &Settings[*TestScopeModel]{DisableFields: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, results)
 
 	expected := map[string]clause.Clause{
@@ -382,8 +383,8 @@ func TestScopeUnpaginatedDisableFields(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -392,7 +393,7 @@ func TestScopeUnpaginatedDisableFields(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
 										},
 									},
 								},
@@ -403,7 +404,7 @@ func TestScopeUnpaginatedDisableFields(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_scope_models`.`email` LIKE ?",
-								Vars:               []interface{}{"%val%"},
+								Vars:               []any{"%val%"},
 								WithoutParentheses: false,
 							},
 						},
@@ -446,7 +447,7 @@ func TestScopeUnpaginatedDisableFields(t *testing.T) {
 }
 
 func TestScopeDisableFilter(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings{DisableFilter: true, FieldsSearch: []string{"email"}})
+	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{DisableFilter: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -458,7 +459,7 @@ func TestScopeDisableFilter(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_scope_models`.`email` LIKE ?",
-								Vars:               []interface{}{"%val%"},
+								Vars:               []any{"%val%"},
 								WithoutParentheses: false,
 							},
 						},
@@ -507,7 +508,7 @@ func TestScopeDisableFilter(t *testing.T) {
 }
 
 func TestScopeUnpaginatedDisableFilter(t *testing.T) {
-	results, db := prepareTestScopeUnpaginated(t, &Settings{DisableFilter: true, FieldsSearch: []string{"email"}})
+	results, db := prepareTestScopeUnpaginated(t, &Settings[*TestScopeModel]{DisableFilter: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, results)
 
 	expected := map[string]clause.Clause{
@@ -519,7 +520,7 @@ func TestScopeUnpaginatedDisableFilter(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_scope_models`.`email` LIKE ?",
-								Vars:               []interface{}{"%val%"},
+								Vars:               []any{"%val%"},
 								WithoutParentheses: false,
 							},
 						},
@@ -562,7 +563,7 @@ func TestScopeUnpaginatedDisableFilter(t *testing.T) {
 }
 
 func TestScopeDisableSort(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings{DisableSort: true, FieldsSearch: []string{"email"}})
+	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{DisableSort: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -576,8 +577,8 @@ func TestScopeDisableSort(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -586,7 +587,7 @@ func TestScopeDisableSort(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
 										},
 									},
 								},
@@ -597,7 +598,7 @@ func TestScopeDisableSort(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_scope_models`.`email` LIKE ?",
-								Vars:               []interface{}{"%val%"},
+								Vars:               []any{"%val%"},
 								WithoutParentheses: false,
 							},
 						},
@@ -633,7 +634,7 @@ func TestScopeDisableSort(t *testing.T) {
 }
 
 func TestScopeUnpaginatedDisableSort(t *testing.T) {
-	results, db := prepareTestScopeUnpaginated(t, &Settings{DisableSort: true, FieldsSearch: []string{"email"}})
+	results, db := prepareTestScopeUnpaginated(t, &Settings[*TestScopeModel]{DisableSort: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, results)
 
 	expected := map[string]clause.Clause{
@@ -647,8 +648,8 @@ func TestScopeUnpaginatedDisableSort(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -657,7 +658,7 @@ func TestScopeUnpaginatedDisableSort(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
 										},
 									},
 								},
@@ -668,7 +669,7 @@ func TestScopeUnpaginatedDisableSort(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_scope_models`.`email` LIKE ?",
-								Vars:               []interface{}{"%val%"},
+								Vars:               []any{"%val%"},
 								WithoutParentheses: false,
 							},
 						},
@@ -698,7 +699,7 @@ func TestScopeUnpaginatedDisableSort(t *testing.T) {
 }
 
 func TestScopeDisableJoin(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings{DisableJoin: true, FieldsSearch: []string{"email"}})
+	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{DisableJoin: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -712,8 +713,8 @@ func TestScopeDisableJoin(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -722,7 +723,7 @@ func TestScopeDisableJoin(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
 										},
 									},
 								},
@@ -733,7 +734,7 @@ func TestScopeDisableJoin(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_scope_models`.`email` LIKE ?",
-								Vars:               []interface{}{"%val%"},
+								Vars:               []any{"%val%"},
 								WithoutParentheses: false,
 							},
 						},
@@ -782,7 +783,7 @@ func TestScopeDisableJoin(t *testing.T) {
 }
 
 func TestScopeUnpaginatedDisableJoin(t *testing.T) {
-	results, db := prepareTestScopeUnpaginated(t, &Settings{DisableJoin: true, FieldsSearch: []string{"email"}})
+	results, db := prepareTestScopeUnpaginated(t, &Settings[*TestScopeModel]{DisableJoin: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, results)
 
 	expected := map[string]clause.Clause{
@@ -796,8 +797,8 @@ func TestScopeUnpaginatedDisableJoin(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -806,7 +807,7 @@ func TestScopeUnpaginatedDisableJoin(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
 										},
 									},
 								},
@@ -817,7 +818,7 @@ func TestScopeUnpaginatedDisableJoin(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_scope_models`.`email` LIKE ?",
-								Vars:               []interface{}{"%val%"},
+								Vars:               []any{"%val%"},
 								WithoutParentheses: false,
 							},
 						},
@@ -860,7 +861,7 @@ func TestScopeUnpaginatedDisableJoin(t *testing.T) {
 }
 
 func TestScopeDisableSearch(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings{DisableSearch: true, FieldsSearch: []string{"name"}})
+	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{DisableSearch: true, FieldsSearch: []string{"name"}})
 	assert.NotNil(t, paginator)
 
 	expected := map[string]clause.Clause{
@@ -874,8 +875,8 @@ func TestScopeDisableSearch(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -884,7 +885,7 @@ func TestScopeDisableSearch(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
 										},
 									},
 								},
@@ -936,7 +937,7 @@ func TestScopeDisableSearch(t *testing.T) {
 }
 
 func TestScopeUnpaginatedDisableSearch(t *testing.T) {
-	results, db := prepareTestScopeUnpaginated(t, &Settings{DisableSearch: true, FieldsSearch: []string{"name"}})
+	results, db := prepareTestScopeUnpaginated(t, &Settings[*TestScopeModel]{DisableSearch: true, FieldsSearch: []string{"name"}})
 	assert.NotNil(t, results)
 
 	expected := map[string]clause.Clause{
@@ -950,8 +951,8 @@ func TestScopeUnpaginatedDisableSearch(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -960,7 +961,7 @@ func TestScopeUnpaginatedDisableSearch(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
 										},
 									},
 								},
@@ -1007,60 +1008,60 @@ func TestScopeUnpaginatedDisableSearch(t *testing.T) {
 
 func TestScopeNoPrimaryKey(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"fields": "name",
 			"join":   []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 
 	results := []*TestScopeModelNoPrimaryKey{}
-	paginator, db := Scope(db, request, results)
+	paginator, db := Scope(db, request, &results)
 	assert.Nil(t, paginator)
-	assert.Equal(t, "Could not find primary key. Add `gorm:\"primaryKey\"` to your model", db.Error.Error())
+	assert.Equal(t, "could not find primary key. Add `gorm:\"primaryKey\"` to your model", db.Error.Error())
 }
 
 func TestScopeUnpaginatedNoPrimaryKey(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"fields": "name",
 			"join":   []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 
 	var results []*TestScopeModelNoPrimaryKey
 	db = ScopeUnpaginated(db, request, &results)
 	assert.Nil(t, results)
-	assert.Equal(t, "Could not find primary key. Add `gorm:\"primaryKey\"` to your model", db.Error.Error())
+	assert.Equal(t, "could not find primary key. Add `gorm:\"primaryKey\"` to your model", db.Error.Error())
 }
 
 func TestScopeWithFieldsBlacklist(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{},
-		Lang: "en-US",
+		Query: map[string]any{},
+		Lang:  lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
-	settings := &Settings{
+	settings := &Settings[*TestScopeModel]{
 		Blacklist: Blacklist{
 			FieldsBlacklist: []string{"name"},
 		},
 	}
 	results := []*TestScopeModel{}
-	paginator, db := settings.Scope(db, request, results)
+	paginator, db := settings.Scope(db, request, &results)
 	assert.NotNil(t, paginator)
 	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`"}, db.Statement.Selects)
 }
 
 func TestScopeUnpaginatedWithFieldsBlacklist(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{},
-		Lang: "en-US",
+		Query: map[string]any{},
+		Lang:  lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
-	settings := &Settings{
+	settings := &Settings[*TestScopeModel]{
 		Blacklist: Blacklist{
 			FieldsBlacklist: []string{"name"},
 		},
@@ -1073,25 +1074,25 @@ func TestScopeUnpaginatedWithFieldsBlacklist(t *testing.T) {
 
 func TestScopeInvalidModel(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{},
-		Lang: "en-US",
+		Query: map[string]any{},
+		Lang:  lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 	model := []string{}
 	assert.Panics(t, func() {
-		Scope(db, request, model)
+		Scope(db, request, &model)
 	})
 }
 
 func TestScopeUnpaginatedInvalidModel(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{},
-		Lang: "en-US",
+		Query: map[string]any{},
+		Lang:  lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 	model := []string{}
 	assert.Panics(t, func() {
-		ScopeUnpaginated(db, request, model)
+		ScopeUnpaginated(db, request, &model)
 	})
 }
 
@@ -1125,13 +1126,13 @@ func (m *TestFilterScopeModel) TableName() string {
 
 func TestApplyFiltersAnd(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"filter": []*Filter{
 				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
 				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
 			},
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 	schema, err := parseModel(db, &TestFilterScopeModel{})
@@ -1139,7 +1140,7 @@ func TestApplyFiltersAnd(t *testing.T) {
 		return
 	}
 
-	db = (&Settings{}).applyFilters(db, request, schema).Find(nil)
+	db = (&Settings[*TestScopeModel]{}).applyFilters(db, request, schema).Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -1149,8 +1150,8 @@ func TestApplyFiltersAnd(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.AndConditions{
 								Exprs: []clause.Expression{
-									clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-									clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+									clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+									clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 								},
 							},
 						},
@@ -1173,13 +1174,13 @@ func TestApplyFiltersAnd(t *testing.T) {
 
 func TestApplyFiltersOr(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"or": []*Filter{
 				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"], Or: true},
 				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"], Or: true},
 			},
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 	schema, err := parseModel(db, &TestFilterScopeModel{})
@@ -1187,7 +1188,7 @@ func TestApplyFiltersOr(t *testing.T) {
 		return
 	}
 
-	db = (&Settings{}).applyFilters(db, request, schema).Find(nil)
+	db = (&Settings[*TestScopeModel]{}).applyFilters(db, request, schema).Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -1199,12 +1200,12 @@ func TestApplyFiltersOr(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.OrConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
 										},
 									},
 									clause.OrConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -1229,7 +1230,7 @@ func TestApplyFiltersOr(t *testing.T) {
 
 func TestApplyFiltersMixed(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"filter": []*Filter{
 				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
 				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
@@ -1239,7 +1240,7 @@ func TestApplyFiltersMixed(t *testing.T) {
 				{Field: "name", Args: []string{"val4"}, Or: true, Operator: Operators["$eq"]},
 			},
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 	schema, err := parseModel(db, &TestFilterScopeModel{})
@@ -1247,7 +1248,7 @@ func TestApplyFiltersMixed(t *testing.T) {
 		return
 	}
 
-	db = (&Settings{}).applyFilters(db, request, schema).Find(nil)
+	db = (&Settings[*TestScopeModel]{}).applyFilters(db, request, schema).Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -1259,8 +1260,8 @@ func TestApplyFiltersMixed(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []interface{}{"%val2%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
 									},
 								},
@@ -1269,8 +1270,8 @@ func TestApplyFiltersMixed(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.AndConditions{
 										Exprs: []clause.Expression{
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val3"}},
-											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val4"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val3"}},
+											clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val4"}},
 										},
 									},
 								},
@@ -1295,12 +1296,12 @@ func TestApplyFiltersMixed(t *testing.T) {
 
 func TestApplyFiltersWithJoin(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"filter": []*Filter{
 				{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$cont"]},
 			},
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 	schema, err := parseModel(db, &FilterTestModel{})
@@ -1310,7 +1311,7 @@ func TestApplyFiltersWithJoin(t *testing.T) {
 
 	results := []*FilterTestModel{}
 	db = db.Model(&results)
-	db = (&Settings{}).applyFilters(db, request, schema).Find(&results)
+	db = (&Settings[*TestScopeModel]{}).applyFilters(db, request, schema).Find(&results)
 	assert.Nil(t, db.Statement.Error)
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -1319,7 +1320,7 @@ func TestApplyFiltersWithJoin(t *testing.T) {
 				Exprs: []clause.Expression{
 					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`Relation`.`name` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`Relation`.`name` LIKE ?", Vars: []any{"%val1%"}},
 						},
 					},
 				},
@@ -1368,31 +1369,17 @@ func TestApplyFiltersWithJoin(t *testing.T) {
 }
 
 func TestApplySearch(t *testing.T) {
-	request := &goyave.Request{
-		Data: map[string]interface{}{
-			"search": "val",
-		},
-		Lang: "en-US",
-	}
 	db := openDryRunDB(t)
 	schema, err := parseModel(db, &TestFilterScopeModel{})
 	if !assert.Nil(t, err) {
 		return
 	}
 
-	search := (&Settings{}).applySearch(request, schema)
+	search := (&Settings[*TestScopeModel]{}).applySearch("val", schema)
 	assert.NotNil(t, search)
 	assert.ElementsMatch(t, []string{"id", "name"}, search.Fields)
 	assert.Equal(t, "val", search.Query)
 	assert.Equal(t, Operators["$cont"], search.Operator)
-}
-
-func TestApplySearchNoQuery(t *testing.T) {
-	request := &goyave.Request{
-		Data: map[string]interface{}{},
-		Lang: "en-US",
-	}
-	assert.Nil(t, (&Settings{}).applySearch(request, &schema.Schema{}))
 }
 
 func TestSelectScope(t *testing.T) {
@@ -1448,13 +1435,13 @@ func TestGetFieldFinalRelation(t *testing.T) {
 		return
 	}
 
-	settings := &Settings{Blacklist: Blacklist{IsFinal: true}}
+	settings := &Settings[*TestScopeModel]{Blacklist: Blacklist{IsFinal: true}}
 	field, sch, joinName := getField("Relation.name", schema, &settings.Blacklist)
 	assert.Nil(t, field)
 	assert.Nil(t, sch)
 	assert.Empty(t, joinName)
 
-	settings = &Settings{Blacklist: Blacklist{
+	settings = &Settings[*TestScopeModel]{Blacklist: Blacklist{
 		Relations: map[string]*Blacklist{
 			"Relation": {IsFinal: true},
 		},
@@ -1467,18 +1454,18 @@ func TestGetFieldFinalRelation(t *testing.T) {
 
 func TestSettingsComputedFieldWithAutoFields(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"filter": []*Filter{
 				{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
 			},
 			"per_page": 15,
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 
 	results := []*TestScopeModel{}
-	paginator, db := Scope(db, request, results)
+	paginator, db := Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
 
@@ -1489,7 +1476,7 @@ func TestSettingsComputedFieldWithAutoFields(t *testing.T) {
 				Exprs: []clause.Expression{
 					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`Relation`.`a` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`Relation`.`a` LIKE ?", Vars: []any{"%val1%"}},
 						},
 					},
 				},
@@ -1548,13 +1535,13 @@ func TestSettingsComputedFieldWithAutoFields(t *testing.T) {
 
 func TestSettingsSelectWithExistingJoin(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"filter": []*Filter{
 				{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
 			},
 			"per_page": 15,
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 
@@ -1563,7 +1550,7 @@ func TestSettingsSelectWithExistingJoin(t *testing.T) {
 	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Where("Relation.id > ?", 0))
 
 	results := []*TestScopeModel{}
-	paginator, db := Scope(db, request, results)
+	paginator, db := Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
 
@@ -1574,7 +1561,7 @@ func TestSettingsSelectWithExistingJoin(t *testing.T) {
 				Exprs: []clause.Expression{
 					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`Relation`.`a` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`Relation`.`a` LIKE ?", Vars: []any{"%val1%"}},
 						},
 					},
 				},
@@ -1602,7 +1589,7 @@ func TestSettingsSelectWithExistingJoin(t *testing.T) {
 										Name:  "id",
 									},
 								},
-								clause.Expr{SQL: "Relation.id > ?", Vars: []interface{}{0}},
+								clause.Expr{SQL: "Relation.id > ?", Vars: []any{0}},
 							},
 						},
 					},
@@ -1652,20 +1639,20 @@ type TestScopeModelWithComputed struct {
 
 func TestSettingsSelectWithExistingJoinAndComputed(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"filter": []*Filter{
 				{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
 			},
 			"per_page": 15,
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 
 	db = db.Joins("Relation")
 
 	results := []*TestScopeModelWithComputed{}
-	paginator, db := Scope(db, request, results)
+	paginator, db := Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
 
@@ -1676,7 +1663,7 @@ func TestSettingsSelectWithExistingJoinAndComputed(t *testing.T) {
 				Exprs: []clause.Expression{
 					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`Relation`.`a` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`Relation`.`a` LIKE ?", Vars: []any{"%val1%"}},
 						},
 					},
 				},
@@ -1739,13 +1726,13 @@ func TestSettingsSelectWithExistingJoinAndComputed(t *testing.T) {
 
 func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"filter": []*Filter{
 				{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
 			},
 			"per_page": 15,
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 
@@ -1753,7 +1740,7 @@ func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Omit("c"))
 
 	results := []*TestScopeModelWithComputed{}
-	paginator, db := Scope(db, request, results)
+	paginator, db := Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
 
@@ -1764,7 +1751,7 @@ func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 				Exprs: []clause.Expression{
 					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`Relation`.`a` LIKE ?", Vars: []interface{}{"%val1%"}},
+							clause.Expr{SQL: "`Relation`.`a` LIKE ?", Vars: []any{"%val1%"}},
 						},
 					},
 				},
@@ -1826,10 +1813,10 @@ func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 
 func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T) {
 	request := &goyave.Request{
-		Data: map[string]interface{}{
+		Query: map[string]any{
 			"per_page": 15,
 		},
-		Lang: "en-US",
+		Lang: lang.New().GetDefault(),
 	}
 	db := openDryRunDB(t)
 
@@ -1838,7 +1825,7 @@ func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T)
 	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Where("Relation.id > ?", 0))
 
 	results := []*TestScopeModelWithComputed{}
-	paginator, db := Scope(db, request, results)
+	paginator, db := Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
 
@@ -1865,7 +1852,7 @@ func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T)
 										Name:  "id",
 									},
 								},
-								clause.Expr{SQL: "Relation.id > ?", Vars: []interface{}{0}},
+								clause.Expr{SQL: "Relation.id > ?", Vars: []any{0}},
 							},
 						},
 					},

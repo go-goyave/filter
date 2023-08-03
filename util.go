@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v4/util/sliceutil"
 )
 
 // DataType is determined by the `filterType` struct tag (see `DataType` for available options).
@@ -64,7 +64,7 @@ func cleanColumns(sch *schema.Schema, columns []string, blacklist []string) []*s
 	fields := make([]*schema.Field, 0, len(columns))
 	for _, c := range columns {
 		f, ok := sch.FieldsByDBName[c]
-		if ok && !sliceutil.ContainsStr(blacklist, c) {
+		if ok && !lo.Contains(blacklist, c) {
 			fields = append(fields, f)
 		}
 	}
@@ -74,7 +74,7 @@ func cleanColumns(sch *schema.Schema, columns []string, blacklist []string) []*s
 
 func addPrimaryKeys(schema *schema.Schema, fields []string) []string {
 	for _, k := range schema.PrimaryFieldDBNames {
-		if !sliceutil.ContainsStr(fields, k) {
+		if !lo.Contains(fields, k) {
 			fields = append(fields, k)
 		}
 	}
@@ -85,7 +85,7 @@ func addForeignKeys(sch *schema.Schema, fields []string) []string {
 	for _, r := range sch.Relationships.Relations {
 		if r.Type == schema.HasOne || r.Type == schema.BelongsTo {
 			for _, ref := range r.References {
-				if !sliceutil.ContainsStr(fields, ref.ForeignKey.DBName) {
+				if !lo.Contains(fields, ref.ForeignKey.DBName) {
 					fields = append(fields, ref.ForeignKey.DBName)
 				}
 			}
@@ -163,7 +163,7 @@ func getDataType(field *schema.Field) DataType {
 // ConvertToSafeType convert the string argument to a safe type that
 // matches the column's data type. Returns false if the input could not
 // be converted.
-func ConvertToSafeType(arg string, dataType DataType) (interface{}, bool) {
+func ConvertToSafeType(arg string, dataType DataType) (any, bool) {
 	switch dataType {
 	case DataTypeText, DataTypeTextArray, DataTypeEnum, DataTypeEnumArray:
 		return arg, true
@@ -241,8 +241,8 @@ func validateTime(timeStr string) bool {
 // ConvertArgsToSafeType converts a slice of string arguments to safe type
 // that matches the column's data type in the same way as `ConvertToSafeType`.
 // If any of the values in the given slice could not be converted, returns false.
-func ConvertArgsToSafeType(args []string, dataType DataType) ([]interface{}, bool) {
-	result := make([]interface{}, 0, len(args))
+func ConvertArgsToSafeType(args []string, dataType DataType) ([]any, bool) {
+	result := make([]any, 0, len(args))
 	for _, arg := range args {
 		a, ok := ConvertToSafeType(arg, dataType)
 		if !ok {

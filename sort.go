@@ -10,6 +10,7 @@ import (
 )
 
 // Sort structured representation of a sort query.
+// The generic parameter is the type pointer type of the model.
 type Sort struct {
 	Field string
 	Order SortOrder
@@ -26,8 +27,8 @@ const (
 )
 
 // Scope returns the GORM scope to use in order to apply sorting.
-func (s *Sort) Scope(settings *Settings, schema *schema.Schema) func(*gorm.DB) *gorm.DB {
-	field, sch, joinName := getField(s.Field, schema, &settings.Blacklist)
+func (s *Sort) Scope(blacklist Blacklist, schema *schema.Schema) func(*gorm.DB) *gorm.DB {
+	field, sch, joinName := getField(s.Field, schema, &blacklist)
 	if field == nil {
 		return nil
 	}

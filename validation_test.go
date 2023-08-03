@@ -1,44 +1,21 @@
 package filter
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"goyave.dev/goyave/v4/validation"
+	"goyave.dev/goyave/v5/validation"
 )
 
 func TestApplyValidation(t *testing.T) {
-	set := validation.RuleSet{}
-	ApplyValidation(set)
+	set := Validation(nil)
 
-	assert.Contains(t, set, "filter")
-	assert.Contains(t, set, "filter[]")
-	assert.Contains(t, set, "or")
-	assert.Contains(t, set, "or[]")
-	assert.Contains(t, set, "sort")
-	assert.Contains(t, set, "sort[]")
-	assert.Contains(t, set, "join")
-	assert.Contains(t, set, "join[]")
-	assert.Contains(t, set, "fields")
-	assert.Contains(t, set, "page")
-	assert.Contains(t, set, "per_page")
-}
-
-func TestApplyValidationRules(t *testing.T) {
-	set := &validation.Rules{Fields: validation.FieldMap{}}
-	ApplyValidationRules(set)
-
-	assert.Contains(t, set.Fields, "filter")
-	assert.Contains(t, set.Fields, "filter[]")
-	assert.Contains(t, set.Fields, "or")
-	assert.Contains(t, set.Fields, "or[]")
-	assert.Contains(t, set.Fields, "sort")
-	assert.Contains(t, set.Fields, "sort[]")
-	assert.Contains(t, set.Fields, "join")
-	assert.Contains(t, set.Fields, "join[]")
-	assert.Contains(t, set.Fields, "fields")
-	assert.Contains(t, set.Fields, "page")
-	assert.Contains(t, set.Fields, "per_page")
+	expectedFields := []string{"filter", "filter[]", "or", "or[]", "sort", "sort[]", "join", "join[]", "fields", "page", "per_page", "search"}
+	assert.True(t, lo.EveryBy(set, func(f *validation.FieldRules) bool {
+		return lo.Contains(expectedFields, f.Path)
+	}))
 }
 
 func TestParseFilter(t *testing.T) {
@@ -61,31 +38,31 @@ func TestParseFilter(t *testing.T) {
 	f, err = ParseFilter("field")
 	assert.Nil(t, f)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Missing operator", err.Error())
+		assert.Equal(t, "missing operator", err.Error())
 	}
 
 	f, err = ParseFilter("||$eq")
 	assert.Nil(t, f)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Invalid filter syntax", err.Error())
+		assert.Equal(t, "invalid filter syntax", err.Error())
 	}
 
 	f, err = ParseFilter("field||$notanoperator")
 	assert.Nil(t, f)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Unknown operator: \"$notanoperator\"", err.Error())
+		assert.Equal(t, "unknown operator: \"$notanoperator\"", err.Error())
 	}
 
 	f, err = ParseFilter("field||$eq||,")
 	assert.Nil(t, f)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Invalid filter syntax", err.Error())
+		assert.Equal(t, "invalid filter syntax", err.Error())
 	}
 
 	f, err = ParseFilter("field||$eq")
 	assert.Nil(t, f)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Operator \"$eq\" requires at least 1 argument(s)", err.Error())
+		assert.Equal(t, "operator \"$eq\" requires at least 1 argument(s)", err.Error())
 	}
 }
 
@@ -120,25 +97,25 @@ func TestParseSort(t *testing.T) {
 	s, err = ParseSort("name")
 	assert.Nil(t, s)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Invalid sort syntax", err.Error())
+		assert.Equal(t, "invalid sort syntax", err.Error())
 	}
 
 	s, err = ParseSort(",DESC")
 	assert.Nil(t, s)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Invalid sort syntax", err.Error())
+		assert.Equal(t, "invalid sort syntax", err.Error())
 	}
 
 	s, err = ParseSort("name,")
 	assert.Nil(t, s)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Invalid sort syntax", err.Error())
+		assert.Equal(t, "invalid sort syntax", err.Error())
 	}
 
 	s, err = ParseSort("name,notanorder")
 	assert.Nil(t, s)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Invalid sort order \"NOTANORDER\"", err.Error())
+		assert.Equal(t, "invalid sort order \"NOTANORDER\"", err.Error())
 	}
 }
 
@@ -181,101 +158,230 @@ func TestParseJoin(t *testing.T) {
 	j, err = ParseJoin("relation||,")
 	assert.Nil(t, j)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Invalid join syntax", err.Error())
+		assert.Equal(t, "invalid join syntax", err.Error())
 	}
 
 	j, err = ParseJoin("||field1,field2")
 	assert.Nil(t, j)
 	if assert.NotNil(t, err) {
-		assert.Equal(t, "Invalid join syntax", err.Error())
+		assert.Equal(t, "invalid join syntax", err.Error())
 	}
 }
 
 func TestValidateFilter(t *testing.T) {
-	ctx := &validation.Context{
-		Value: "field||$eq||value1,value2",
-		Rule: &validation.Rule{
-			Name:   "filter",
-			Params: []string{},
+
+	t.Run("Constructor", func(t *testing.T) {
+		v := &FilterValidator{}
+		assert.NotNil(t, v)
+		assert.Equal(t, "filter", v.Name())
+		assert.True(t, v.IsType())
+		assert.False(t, v.IsTypeDependent())
+		assert.Empty(t, v.MessagePlaceholders(&validation.Context{}))
+	})
+
+	cases := []struct {
+		value     any
+		wantValue *Filter
+		or        bool
+		want      bool
+	}{
+		{
+			value: "field||$eq||value1,value2",
+			or:    false,
+			want:  true,
+			wantValue: &Filter{
+				Field:    "field",
+				Operator: Operators["$eq"],
+				Args:     []string{"value1", "value2"},
+				Or:       false,
+			},
+		},
+		{
+			value: "field||$eq||value1,value2",
+			or:    true,
+			want:  true,
+			wantValue: &Filter{
+				Field:    "field",
+				Operator: Operators["$eq"],
+				Args:     []string{"value1", "value2"},
+				Or:       true,
+			},
+		},
+		{
+			value: 5,
+			want:  false,
+		},
+		{
+			value: "",
+			want:  false,
+		},
+		{
+			value: &Filter{
+				Field:    "field",
+				Operator: Operators["$eq"],
+				Args:     []string{"value1", "value2"},
+				Or:       false,
+			},
+			want: true,
+			wantValue: &Filter{
+				Field:    "field",
+				Operator: Operators["$eq"],
+				Args:     []string{"value1", "value2"},
+				Or:       false,
+			},
 		},
 	}
-	expected := &Filter{
-		Field:    "field",
-		Operator: Operators["$eq"],
-		Args:     []string{"value1", "value2"},
-		Or:       false,
+
+	for _, c := range cases {
+		c := c
+		t.Run(fmt.Sprintf("Validate_%v_%t", c.value, c.want), func(t *testing.T) {
+			v := &FilterValidator{Or: c.or}
+			ctx := &validation.Context{
+				Value: c.value,
+			}
+			assert.Equal(t, c.want, v.Validate(ctx))
+			if c.wantValue != nil {
+				assert.Equal(t, c.wantValue, ctx.Value)
+			}
+		})
 	}
-	assert.True(t, validateFilter(ctx))
-	assert.Equal(t, expected, ctx.Value)
-
-	ctx.Value = "field||$eq||value1,value2"
-	ctx.Rule.Params = []string{"or"}
-	expected.Or = true
-	assert.True(t, validateFilter(ctx))
-	assert.Equal(t, expected, ctx.Value)
-
-	ctx.Value = 5
-	assert.False(t, validateFilter(ctx))
-	assert.Equal(t, 5, ctx.Value)
-
-	ctx.Value = ""
-	assert.False(t, validateFilter(ctx))
-	assert.Equal(t, "", ctx.Value)
-
-	ctx.Value = expected
-	assert.True(t, validateFilter(ctx))
 }
 
 func TestValidateSort(t *testing.T) {
-	ctx := &validation.Context{
-		Value: "name,ASC",
-		Rule: &validation.Rule{
-			Name:   "sort",
-			Params: []string{},
+
+	t.Run("Constructor", func(t *testing.T) {
+		v := &SortValidator{}
+		assert.NotNil(t, v)
+		assert.Equal(t, "sort", v.Name())
+		assert.True(t, v.IsType())
+		assert.False(t, v.IsTypeDependent())
+		assert.Empty(t, v.MessagePlaceholders(&validation.Context{}))
+	})
+
+	cases := []struct {
+		value     any
+		wantValue *Sort
+		want      bool
+	}{
+		{
+			value: "name,ASC",
+			want:  true,
+			wantValue: &Sort{
+				Field: "name",
+				Order: SortAscending,
+			},
+		},
+		{
+			value: "name,DESC",
+			want:  true,
+			wantValue: &Sort{
+				Field: "name",
+				Order: SortDescending,
+			},
+		},
+		{
+			value: "name",
+			want:  false,
+		},
+		{
+			value: 5,
+			want:  false,
+		},
+		{
+			value: "",
+			want:  false,
+		},
+		{
+			value: &Sort{
+				Field: "name",
+				Order: SortAscending,
+			},
+			want: true,
+			wantValue: &Sort{
+				Field: "name",
+				Order: SortAscending,
+			},
 		},
 	}
-	expected := &Sort{
-		Field: "name",
-		Order: SortAscending,
+
+	for _, c := range cases {
+		c := c
+		t.Run(fmt.Sprintf("Validate_%v_%t", c.value, c.want), func(t *testing.T) {
+			v := &SortValidator{}
+			ctx := &validation.Context{
+				Value: c.value,
+			}
+			assert.Equal(t, c.want, v.Validate(ctx))
+			if c.wantValue != nil {
+				assert.Equal(t, c.wantValue, ctx.Value)
+			}
+		})
 	}
-	assert.True(t, validateSort(ctx))
-	assert.Equal(t, expected, ctx.Value)
-
-	ctx.Value = 5
-	assert.False(t, validateSort(ctx))
-	assert.Equal(t, 5, ctx.Value)
-
-	ctx.Value = ""
-	assert.False(t, validateSort(ctx))
-	assert.Equal(t, "", ctx.Value)
-
-	ctx.Value = expected
-	assert.True(t, validateSort(ctx))
 }
 
 func TestValidateJoin(t *testing.T) {
-	ctx := &validation.Context{
-		Value: "relation||field1,field2",
-		Rule: &validation.Rule{
-			Name:   "join",
-			Params: []string{},
+
+	t.Run("Constructor", func(t *testing.T) {
+		v := &JoinValidator{}
+		assert.NotNil(t, v)
+		assert.Equal(t, "join", v.Name())
+		assert.True(t, v.IsType())
+		assert.False(t, v.IsTypeDependent())
+		assert.Empty(t, v.MessagePlaceholders(&validation.Context{}))
+	})
+
+	cases := []struct {
+		value     any
+		wantValue *Join
+		want      bool
+	}{
+		{
+			value: "relation||field1,field2",
+			want:  true,
+			wantValue: &Join{
+				Relation: "relation",
+				Fields:   []string{"field1", "field2"},
+			},
+		},
+		{
+			value: "relation",
+			want:  true,
+			wantValue: &Join{
+				Relation: "relation",
+			},
+		},
+		{
+			value: 5,
+			want:  false,
+		},
+		{
+			value: "",
+			want:  false,
+		},
+		{
+			value: &Join{
+				Relation: "relation",
+				Fields:   []string{"field1", "field2"},
+			},
+			want: true,
+			wantValue: &Join{
+				Relation: "relation",
+				Fields:   []string{"field1", "field2"},
+			},
 		},
 	}
-	expected := &Join{
-		Relation: "relation",
-		Fields:   []string{"field1", "field2"},
+
+	for _, c := range cases {
+		c := c
+		t.Run(fmt.Sprintf("Validate_%v_%t", c.value, c.want), func(t *testing.T) {
+			v := &JoinValidator{}
+			ctx := &validation.Context{
+				Value: c.value,
+			}
+			assert.Equal(t, c.want, v.Validate(ctx))
+			if c.wantValue != nil {
+				assert.Equal(t, c.wantValue, ctx.Value)
+			}
+		})
 	}
-	assert.True(t, validateJoin(ctx))
-	assert.Equal(t, expected, ctx.Value)
-
-	ctx.Value = 5
-	assert.False(t, validateJoin(ctx))
-	assert.Equal(t, 5, ctx.Value)
-
-	ctx.Value = ""
-	assert.False(t, validateJoin(ctx))
-	assert.Equal(t, "", ctx.Value)
-
-	ctx.Value = expected
-	assert.True(t, validateJoin(ctx))
 }

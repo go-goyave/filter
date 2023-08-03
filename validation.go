@@ -4,29 +4,28 @@ import (
 	"fmt"
 	"strings"
 
-	"goyave.dev/goyave/v4/lang"
-	"goyave.dev/goyave/v4/validation"
+	"goyave.dev/goyave/v5"
+	"goyave.dev/goyave/v5/lang"
+	v "goyave.dev/goyave/v5/validation"
 )
 
 // Separator the separator used when parsing the query
 var Separator = "||"
 
 func init() {
-	validation.AddRule("filter", &validation.RuleDefinition{
-		Function: validateFilter,
-	})
-	validation.AddRule("sort", &validation.RuleDefinition{
-		Function: validateSort,
-	})
-	validation.AddRule("join", &validation.RuleDefinition{
-		Function: validateJoin,
-	})
 	lang.SetDefaultValidationRule("filter.array", "The filter format is invalid.")
 	lang.SetDefaultValidationRule("join.array", "The join format is invalid.")
 	lang.SetDefaultValidationRule("sort.array", "The sort format is invalid.")
 }
 
-func validateFilter(ctx *validation.Context) bool {
+// FilterValidator checks the `filter` format and converts it to `*Filter` struct.
+type FilterValidator struct {
+	v.BaseValidator
+	Or bool
+}
+
+// Validate checks the field under validation satisfies this validator's criteria.
+func (v *FilterValidator) Validate(ctx *v.Context) bool {
 	if _, ok := ctx.Value.(*Filter); ok {
 		return true
 	}
@@ -38,14 +37,24 @@ func validateFilter(ctx *validation.Context) bool {
 	if err != nil {
 		return false
 	}
-	if len(ctx.Rule.Params) > 0 && ctx.Rule.Params[0] == "or" {
-		f.Or = true
-	}
+	f.Or = v.Or
 	ctx.Value = f
 	return true
 }
 
-func validateSort(ctx *validation.Context) bool {
+// Name returns the string name of the validator.
+func (v *FilterValidator) Name() string { return "filter" }
+
+// IsType returns true
+func (v *FilterValidator) IsType() bool { return true }
+
+// SortValidator checks the `sort` format and converts it to `*Sort` struct.
+type SortValidator struct {
+	v.BaseValidator
+}
+
+// Validate checks the field under validation satisfies this validator's criteria.
+func (v *SortValidator) Validate(ctx *v.Context) bool {
 	if _, ok := ctx.Value.(*Sort); ok {
 		return true
 	}
@@ -61,7 +70,19 @@ func validateSort(ctx *validation.Context) bool {
 	return true
 }
 
-func validateJoin(ctx *validation.Context) bool {
+// Name returns the string name of the validator.
+func (v *SortValidator) Name() string { return "sort" }
+
+// IsType returns true
+func (v *SortValidator) IsType() bool { return true }
+
+// JoinValidator checks the `sort` format and converts it to `*Join` struct.
+type JoinValidator struct {
+	v.BaseValidator
+}
+
+// Validate checks the field under validation satisfies this validator's criteria.
+func (v *JoinValidator) Validate(ctx *v.Context) bool {
 	if _, ok := ctx.Value.(*Join); ok {
 		return true
 	}
@@ -77,36 +98,28 @@ func validateJoin(ctx *validation.Context) bool {
 	return true
 }
 
-// ApplyValidation add all fields used by the filter module to the given RuleSet.
-func ApplyValidation(set validation.RuleSet) {
-	set["filter"] = validation.List{"array"}
-	set["filter[]"] = validation.List{"filter"}
-	set["or"] = validation.List{"array"}
-	set["or[]"] = validation.List{"filter:or"}
-	set["sort"] = validation.List{"array"}
-	set["sort[]"] = validation.List{"sort"}
-	set["join"] = validation.List{"array"}
-	set["join[]"] = validation.List{"join"}
-	set["fields"] = validation.List{"string"}
-	set["page"] = validation.List{"integer", "min:1"}
-	set["per_page"] = validation.List{"integer", "between:1,500"}
-	set["search"] = validation.List{"string"}
-}
+// Name returns the string name of the validator.
+func (v *JoinValidator) Name() string { return "join" }
 
-// ApplyValidationRules add all fields used by the filter module to the given *Rules.
-func ApplyValidationRules(set *validation.Rules) {
-	set.Fields["filter"] = &validation.Field{Rules: []*validation.Rule{{Name: "array"}}}
-	set.Fields["filter[]"] = &validation.Field{Rules: []*validation.Rule{{Name: "filter"}}}
-	set.Fields["or"] = &validation.Field{Rules: []*validation.Rule{{Name: "array"}}}
-	set.Fields["or[]"] = &validation.Field{Rules: []*validation.Rule{{Name: "filter", Params: []string{"or"}}}}
-	set.Fields["sort"] = &validation.Field{Rules: []*validation.Rule{{Name: "array"}}}
-	set.Fields["sort[]"] = &validation.Field{Rules: []*validation.Rule{{Name: "sort"}}}
-	set.Fields["join"] = &validation.Field{Rules: []*validation.Rule{{Name: "array"}}}
-	set.Fields["join[]"] = &validation.Field{Rules: []*validation.Rule{{Name: "join"}}}
-	set.Fields["fields"] = &validation.Field{Rules: []*validation.Rule{{Name: "string"}}}
-	set.Fields["page"] = &validation.Field{Rules: []*validation.Rule{{Name: "integer"}, {Name: "min", Params: []string{"1"}}}}
-	set.Fields["per_page"] = &validation.Field{Rules: []*validation.Rule{{Name: "integer"}, {Name: "between", Params: []string{"1", "500"}}}}
-	set.Fields["search"] = &validation.Field{Rules: []*validation.Rule{{Name: "string"}}}
+// IsType returns true
+func (v *JoinValidator) IsType() bool { return true }
+
+// Validation returns a new RuleSet for query validation.
+func Validation(_ *goyave.Request) v.RuleSet {
+	return v.RuleSet{
+		{Path: "filter", Rules: v.List{v.Array()}},
+		{Path: "filter[]", Rules: v.List{&FilterValidator{}}},
+		{Path: "or", Rules: v.List{v.Array()}},
+		{Path: "or[]", Rules: v.List{&FilterValidator{Or: true}}},
+		{Path: "sort", Rules: v.List{v.Array()}},
+		{Path: "sort[]", Rules: v.List{&SortValidator{}}},
+		{Path: "join", Rules: v.List{v.Array()}},
+		{Path: "join[]", Rules: v.List{&JoinValidator{}}},
+		{Path: "page", Rules: v.List{v.Int(), v.Min(1)}},
+		{Path: "per_page", Rules: v.List{v.Int(), v.Between(1, 500)}},
+		{Path: "search", Rules: v.List{v.String(), v.Max(255)}},
+		{Path: "fields", Rules: v.List{v.String()}},
+	}
 }
 
 // ParseFilter parse a string in format "field||$operator||value" and return
@@ -119,11 +132,11 @@ func ParseFilter(filter string) (*Filter, error) {
 
 	index := strings.Index(f, Separator)
 	if index == -1 {
-		return nil, fmt.Errorf("Missing operator")
+		return nil, fmt.Errorf("missing operator")
 	}
 	res.Field = strings.TrimSpace(f[:index])
 	if res.Field == "" {
-		return nil, fmt.Errorf("Invalid filter syntax")
+		return nil, fmt.Errorf("invalid filter syntax")
 	}
 	f = f[index+2:]
 
@@ -134,7 +147,7 @@ func ParseFilter(filter string) (*Filter, error) {
 	op = strings.TrimSpace(f[:index])
 	operator, ok := Operators[op]
 	if !ok {
-		return nil, fmt.Errorf("Unknown operator: %q", f[:index])
+		return nil, fmt.Errorf("unknown operator: %q", f[:index])
 	}
 	res.Operator = operator
 
@@ -146,7 +159,7 @@ func ParseFilter(filter string) (*Filter, error) {
 			}
 			p := strings.TrimSpace(f[:paramIndex])
 			if p == "" {
-				return nil, fmt.Errorf("Invalid filter syntax")
+				return nil, fmt.Errorf("invalid filter syntax")
 			}
 			res.Args = append(res.Args, p)
 			if paramIndex+1 >= len(f) {
@@ -157,7 +170,7 @@ func ParseFilter(filter string) (*Filter, error) {
 	}
 
 	if len(res.Args) < int(res.Operator.RequiredArguments) {
-		return nil, fmt.Errorf("Operator %q requires at least %d argument(s)", op, res.Operator.RequiredArguments)
+		return nil, fmt.Errorf("operator %q requires at least %d argument(s)", op, res.Operator.RequiredArguments)
 	}
 
 	return res, nil
@@ -169,17 +182,17 @@ func ParseFilter(filter string) (*Filter, error) {
 func ParseSort(sort string) (*Sort, error) {
 	commaIndex := strings.Index(sort, ",")
 	if commaIndex == -1 {
-		return nil, fmt.Errorf("Invalid sort syntax")
+		return nil, fmt.Errorf("invalid sort syntax")
 	}
 
 	fieldName := strings.TrimSpace(sort[:commaIndex])
 	order := strings.TrimSpace(strings.ToUpper(sort[commaIndex+1:]))
 	if fieldName == "" || order == "" {
-		return nil, fmt.Errorf("Invalid sort syntax")
+		return nil, fmt.Errorf("invalid sort syntax")
 	}
 
 	if order != string(SortAscending) && order != string(SortDescending) {
-		return nil, fmt.Errorf("Invalid sort order %q", order)
+		return nil, fmt.Errorf("invalid sort order %q", order)
 	}
 
 	s := &Sort{
@@ -199,7 +212,7 @@ func ParseJoin(join string) (*Join, error) {
 
 	relation := strings.TrimSpace(join[:separatorIndex])
 	if relation == "" {
-		return nil, fmt.Errorf("Invalid join syntax")
+		return nil, fmt.Errorf("invalid join syntax")
 	}
 
 	var fields []string
@@ -208,7 +221,7 @@ func ParseJoin(join string) (*Join, error) {
 		for i, f := range fields {
 			f = strings.TrimSpace(f)
 			if f == "" {
-				return nil, fmt.Errorf("Invalid join syntax")
+				return nil, fmt.Errorf("invalid join syntax")
 			}
 			fields[i] = f
 		}

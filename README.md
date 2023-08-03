@@ -5,7 +5,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/go-goyave/filter/badge.svg)](https://coveralls.io/github/go-goyave/filter)
 [![Go Reference](https://pkg.go.dev/badge/goyave.dev/filter.svg)](https://pkg.go.dev/goyave.dev/filter)
 
-**Compatible with Goyave `v4` only**
+**Compatible with Goyave `v5` only**. If you want to use the library for v4, use `v0.6.0`.
 
 `goyave.dev/filter` allows powerful filtering using query parameters. Inspired by [nestjsx/crud](https://github.com/nestjsx/crud/wiki/Requests).
 
@@ -15,23 +15,9 @@
 go get goyave.dev/filter
 ```
 
-First, apply filters validation to the `RuleSet` used on the routes you wish the filters on.
 ```go
-import "goyave.dev/filter"
-
-//...
-
-
-var (
-	IndexRequest = validation.RuleSet{}
-)
-
-func init() {
-	filter.ApplyValidation(IndexRequest)
-}
-```
-```go
-router.Get("/users", user.Index).Validate(user.IndexRequest)
+router.GlobalMiddleware(&parse.Middleware{}) // Don't forget the parse middleware!
+router.Get("/users", user.Index).ValidateQuery(filter.Validation)
 ```
 
 Then implement your controller handler:
@@ -40,12 +26,16 @@ import "goyave.dev/filter"
 
 //...
 
-func Index(response *goyave.Response, request *goyave.Request) {
+func (ctrl *UserController) Index(response *goyave.Response, request *goyave.Request) {
 	var users []*model.User
-	paginator, tx := filter.Scope(database.GetConnection(), request, &users)
-	if response.HandleDatabaseError(tx) {
-		response.JSON(http.StatusOK, paginator)
+	paginator, tx := filter.Scope(ctrl.DB(), request, &users)
+	if response.WriteDBError(tx.Error) {
+		return
 	}
+
+	// Convert to DTO and write response
+	dto := typeutil.MustConvert[database.PaginatorDTO[dto.User]](paginator)
+	response.JSON(http.StatusOK, dto)
 }
 ```
 
@@ -54,10 +44,12 @@ And **that's it**! Now your front-end can add query parameters to filter as it w
 You can also find records without paginating using `ScopeUnpaginated()`:
 ```go
 var users []*model.User
-tx := filter.ScopeUnpaginated(database.GetConnection(), request, &users)
-if response.HandleDatabaseError(tx) {
-	response.JSON(http.StatusOK, users)
+tx := filter.ScopeUnpaginated(ctrl.DB(), request, &users)
+if response.WriteDBError(tx.Error) {
+	return
 }
+dto := typeutil.MustConvert[database.PaginatorDTO[dto.User]](paginator)
+response.JSON(http.StatusOK, dto)
 ```
 
 ### Settings
@@ -65,7 +57,7 @@ if response.HandleDatabaseError(tx) {
 You can disable certain features, or blacklist certain fields using `filter.Settings`:
 
 ```go
-settings := &filter.Settings{
+settings := &filter.Settings[*model.User]{
 	DisableFields: true, // Prevent usage of "fields"
 	DisableFilter: true, // Prevent usage of "filter"
 	DisableSort:   true, // Prevent usage of "sort"
@@ -92,7 +84,8 @@ settings := &filter.Settings{
 		},
 	},
 }
-paginator, tx := settings.Scope(database.GetConnection(), request, &results)
+results := []*model.User{}
+paginator, tx := settings.Scope(ctrl.DB(), request, &results)
 ```
 
 ### Filter
@@ -298,12 +291,14 @@ type MyModel struct{
 If you want to add static conditions (not automatically defined by the library), it is advised to group them like so:
 ```go
 users := []model.User{}
-db := database.GetConnection()
+db := ctrl.DB()
 db = db.Where(db.Session(&gorm.Session{NewDB: true}).Where("username LIKE ?", "%Miss%").Or("username LIKE ?", "%Ms.%"))
 paginator, tx := filter.Scope(db, request, &users)
-if response.HandleDatabaseError(tx) {
-	response.JSON(http.StatusOK, paginator)
+if response.WriteDBError(tx.Error) {
+	return
 }
+dto := typeutil.MustConvert[database.PaginatorDTO[dto.User]](paginator)
+response.JSON(http.StatusOK, dto)
 ```
 
 ### Custom operators
@@ -315,7 +310,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"goyave.dev/filter"
-	"goyave.dev/goyave/v4/util/sqlutil"
+	"goyave.dev/goyave/v5/util/sqlutil"
 )
 
 // ...
@@ -352,9 +347,9 @@ filter.Operators["$eq"] = &filter.Operator{
 
 Some database engines such as PostgreSQL provide operators for array operations (`@>`, `&&`, ...). You may encounter issue implementing these operators in your project because of GORM converting slices into records (`("a", "b")` instead of `{"a", "b"}`).
 
-To fix this issue, you will have to implement your own variant of `ConvertArgsToSafeType` so it returns a **pointer** to a slice with a concrete type instead of `[]interface{}`. By sending a pointer to GORM, it won't try to render the slice itself and pass it directly to the underlying driver, which usually knows how to handle slices for the native types.
+To fix this issue, you will have to implement your own variant of `ConvertArgsToSafeType` so it returns a **pointer** to a slice with a concrete type instead of `[]any`. By sending a pointer to GORM, it won't try to render the slice itself and pass it directly to the underlying driver, which usually knows how to handle slices for the native types.
 
-**Example** (using generics with go 1.18+):
+**Example** (using generics):
 ```go
 type argType interface {
 	string | int64 | uint64 | float64 | bool
@@ -417,18 +412,43 @@ func convertArgsToSafeTypeArray[T argType](args []string, dataType filter.DataTy
 Manual joins are supported and won't clash with joins that are automatically generated by the library. That means that if needed, you can write something like described in the following piece of code.
 
 ```go
-func Index(response *goyave.Response, request *goyave.Request) {
+func (ctrl *UserController) Index(response *goyave.Response, request *goyave.Request) {
 	var users []*model.User
 
-	db := database.GetConnection().Joins("Relation")
+	db := ctrl.DB().Joins("Relation")
 
 	paginator, tx := filter.Scope(db, request, &users)
-	if response.HandleDatabaseError(tx) {
-		response.JSON(http.StatusOK, paginator)
+	if response.WriteDBError(tx.Error) {
+		return
 	}
+
+	// Convert to DTO and write response
+	dto := typeutil.MustConvert[database.PaginatorDTO[dto.User]](paginator)
+	response.JSON(http.StatusOK, dto)
 }
+```
+
+### Upgrading from Goyave v4 to v5
+
+User parameter are expected to be in the `Query` now. Update validation on your routes:
+```go
+router.Get("/", ctrl.Index).ValidateQuery(filter.Validation)
+```
+
+If your route has custom query parameters as well, you can append the lib's validation:
+```go
+func IndexRequest(r *goyave.Request) v.RuleSet {
+	return append(v.RuleSet{
+		{Path: "foo", Rules: v.List{v.Int(), v.Min(1)}},
+	}, filter.Validation(r)...)
+}
+```
+
+`*filter.Settings` now takes a generic parameter: a pointer to the target model. The slice given to the `Scope` method is expected to be a pointer to a slice of the same type. 
+```go
+settings := &Settings[*model.User]{}
 ```
 
 ## License
 
-`goyave.dev/filter` is MIT Licensed. Copyright (c) 2021 Jérémy LAMBERT (SystemGlitch)
+`goyave.dev/filter` is MIT Licensed. Copyright (c) 2023 Jérémy LAMBERT (SystemGlitch)

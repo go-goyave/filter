@@ -18,7 +18,7 @@ func TestFilterWhere(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "name = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "name = ?", Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -37,7 +37,7 @@ func TestFilterWhereOr(t *testing.T) {
 				Exprs: []clause.Expression{
 					clause.OrConditions{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "name = ?", Vars: []interface{}{"val1"}},
+							clause.Expr{SQL: "name = ?", Vars: []any{"val1"}},
 						},
 					},
 				},
@@ -58,20 +58,20 @@ func TestFilterScope(t *testing.T) {
 		Table: "test_scope_models",
 	}
 
-	joinScope, conditionScope := filter.Scope(&Settings{}, schema)
+	joinScope, conditionScope := filter.Scope(Blacklist{}, schema)
 	assert.Nil(t, joinScope)
 	assert.Nil(t, conditionScope)
 
 	filter.Field = "name"
 
-	results := []map[string]interface{}{}
-	db = db.Scopes(filter.Scope(&Settings{}, schema)).Find(results)
+	results := []map[string]any{}
+	db = db.Scopes(filter.Scope(Blacklist{}, schema)).Find(results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -88,7 +88,7 @@ func TestFilterScopeBlacklisted(t *testing.T) {
 		},
 	}
 
-	joinScope, conditionScope := filter.Scope(&Settings{Blacklist: Blacklist{FieldsBlacklist: []string{"name"}}}, schema)
+	joinScope, conditionScope := filter.Scope(Blacklist{FieldsBlacklist: []string{"name"}}, schema)
 	assert.Nil(t, joinScope)
 	assert.Nil(t, conditionScope)
 }
@@ -135,13 +135,13 @@ func TestFilterScopeWithJoin(t *testing.T) {
 	}
 
 	db.DryRun = true
-	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -197,13 +197,11 @@ func TestFilterScopeWithJoinBlacklistedRelation(t *testing.T) {
 		return
 	}
 
-	settings := &Settings{
-		Blacklist: Blacklist{
-			RelationsBlacklist: []string{"Relation"},
-		},
+	blacklist := Blacklist{
+		RelationsBlacklist: []string{"Relation"},
 	}
 
-	joinScope, conditionScope := filter.Scope(settings, schema)
+	joinScope, conditionScope := filter.Scope(blacklist, schema)
 	assert.Nil(t, joinScope)
 	assert.Nil(t, conditionScope)
 }
@@ -218,7 +216,7 @@ func TestFilterScopeWithJoinHasMany(t *testing.T) {
 		return
 	}
 	sch.Relationships.Relations["Relation"].Type = schema.HasMany
-	joinScope, conditionScope := filter.Scope(&Settings{}, sch)
+	joinScope, conditionScope := filter.Scope(Blacklist{}, sch)
 	assert.Nil(t, joinScope)
 	assert.Nil(t, conditionScope)
 	sch.Relationships.Relations["Relation"].Type = schema.HasOne
@@ -234,7 +232,7 @@ func TestFilterScopeWithJoinInvalidModel(t *testing.T) {
 		return
 	}
 
-	db = db.Scopes(filter.Scope(&Settings{}, sch)).Find(&results)
+	db = db.Scopes(filter.Scope(Blacklist{}, sch)).Find(&results)
 	assert.Equal(t, "unsupported data type: <nil>", db.Error.Error())
 }
 
@@ -248,7 +246,7 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 		return
 	}
 
-	joinScope, conditionScope := filter.Scope(&Settings{}, sch)
+	joinScope, conditionScope := filter.Scope(Blacklist{}, sch)
 	assert.NotNil(t, joinScope)
 	assert.NotNil(t, conditionScope)
 	conditionTx := db.Session(&gorm.Session{NewDB: true}).Model(&results).Scopes(conditionScope).Find(&results)
@@ -257,7 +255,7 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`NestedRelation`.`field` = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "`NestedRelation`.`field` = ?", Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -338,7 +336,6 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 
 func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
 	db := openDryRunDB(t)
-	settings := &Settings{}
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 	filter2 := &Filter{Field: "Relation.id", Args: []string{"0"}, Operator: Operators["$gt"]}
 
@@ -349,16 +346,16 @@ func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
 	}
 
 	db = db.Model(&results).
-		Scopes(filter.Scope(settings, schema)).
-		Scopes(filter2.Scope(settings, schema)).
+		Scopes(filter.Scope(Blacklist{}, schema)).
+		Scopes(filter2.Scope(Blacklist{}, schema)).
 		Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []interface{}{"val1"}},
-					clause.Expr{SQL: "`Relation`.`id` > ?", Vars: []interface{}{uint64(0)}},
+					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []any{"val1"}},
+					clause.Expr{SQL: "`Relation`.`id` > ?", Vars: []any{uint64(0)}},
 				},
 			},
 		},
@@ -417,13 +414,13 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 	// We expect this join to not be removed nor duplicated, with the condition kept.
 	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Where("id > ?", 0))
 
-	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -449,7 +446,7 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 										Name:  "parent_id",
 									},
 								},
-								clause.Expr{SQL: "id > ?", Vars: []interface{}{0}},
+								clause.Expr{SQL: "id > ?", Vars: []any{0}},
 							},
 						},
 					},
@@ -476,13 +473,13 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 	// We expect this join to not be removed nor duplicated, with the condition kept.
 	db = db.Joins(`LEFT JOIN filter_test_relations AS "Relation" ON id > ?`, 0)
 
-	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -493,7 +490,7 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 					{
 						Expression: clause.NamedExpr{
 							SQL:  `LEFT JOIN filter_test_relations AS "Relation" ON id > ?`,
-							Vars: []interface{}{0},
+							Vars: []any{0},
 						},
 					},
 				},
@@ -537,13 +534,13 @@ func TestFilterScopeComputed(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "(`filter_test_model_computeds`.computedcolumn) = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "(`filter_test_model_computeds`.computedcolumn) = ?", Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -569,13 +566,13 @@ func TestFilterScopeComputedRelation(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "(`Relation`.computedcolumnrelation) = ?", Vars: []interface{}{"val1"}},
+					clause.Expr{SQL: "(`Relation`.computedcolumnrelation) = ?", Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -632,8 +629,8 @@ func TestFilterScopeWithUnsupportedDataType(t *testing.T) {
 		Table: "test_scope_models",
 	}
 
-	results := []map[string]interface{}{}
-	db = db.Scopes(filter.Scope(&Settings{}, schema)).Find(results)
+	results := []map[string]any{}
+	db = db.Scopes(filter.Scope(Blacklist{}, schema)).Find(results)
 	expected := map[string]clause.Clause{}
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
@@ -649,7 +646,7 @@ func TestFilterScopeWithJoinedUnsupportedDataType(t *testing.T) {
 	}
 
 	db.DryRun = true
-	db = db.Model(&results).Scopes(filter.Scope(&Settings{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": {
 			Name:       "FROM",

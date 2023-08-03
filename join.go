@@ -6,10 +6,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v4/util/sliceutil"
+	"goyave.dev/goyave/v5/util/errors"
 )
 
 var (
@@ -24,8 +25,8 @@ type Join struct {
 }
 
 // Scopes returns the GORM scopes to use in order to apply this joint.
-func (j *Join) Scopes(settings *Settings, schema *schema.Schema) []func(*gorm.DB) *gorm.DB {
-	scopes := j.applyRelation(schema, &settings.Blacklist, j.Relation, 0, make([]func(*gorm.DB) *gorm.DB, 0, strings.Count(j.Relation, ".")+1))
+func (j *Join) Scopes(blacklist Blacklist, schema *schema.Schema) []func(*gorm.DB) *gorm.DB {
+	scopes := j.applyRelation(schema, &blacklist, j.Relation, 0, make([]func(*gorm.DB) *gorm.DB, 0, strings.Count(j.Relation, ".")+1))
 	if scopes != nil {
 		return scopes
 	}
@@ -40,7 +41,7 @@ func (j *Join) applyRelation(schema *schema.Schema, blacklist *Blacklist, relati
 	i := strings.Index(trimmedRelationName, ".")
 	if i == -1 {
 		if blacklist != nil {
-			if sliceutil.ContainsStr(blacklist.RelationsBlacklist, trimmedRelationName) {
+			if lo.Contains(blacklist.RelationsBlacklist, trimmedRelationName) {
 				return nil
 			}
 			blacklist = blacklist.Relations[trimmedRelationName]
@@ -62,7 +63,7 @@ func (j *Join) applyRelation(schema *schema.Schema, blacklist *Blacklist, relati
 	name := trimmedRelationName[:i]
 	var b *Blacklist
 	if blacklist != nil {
-		if sliceutil.ContainsStr(blacklist.RelationsBlacklist, name) {
+		if lo.Contains(blacklist.RelationsBlacklist, name) {
 			return nil
 		}
 		b = blacklist.Relations[name]
@@ -95,19 +96,19 @@ func joinScope(relationName string, rel *schema.Relationship, fields []string, b
 
 	return func(tx *gorm.DB) *gorm.DB {
 		if rel.FieldSchema.Table == "" {
-			tx.AddError(fmt.Errorf("Relation %q is anonymous, could not get table name", relationName))
+			tx.AddError(errors.New(fmt.Errorf("relation %q is anonymous, could not get table name", relationName)))
 			return tx
 		}
 		if columns != nil {
 			for _, primaryField := range rel.FieldSchema.PrimaryFields {
-				if !columnsContain(columns, primaryField) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, primaryField.DBName)) {
+				if !columnsContain(columns, primaryField) && (blacklist == nil || !lo.Contains(blacklist.FieldsBlacklist, primaryField.DBName)) {
 					columns = append(columns, primaryField)
 				}
 			}
 			for _, backwardsRelation := range rel.FieldSchema.Relationships.Relations {
 				if backwardsRelation.FieldSchema == rel.Schema && backwardsRelation.Type == schema.BelongsTo {
 					for _, ref := range backwardsRelation.References {
-						if !columnsContain(columns, ref.ForeignKey) && (blacklist == nil || !sliceutil.ContainsStr(blacklist.FieldsBlacklist, ref.ForeignKey.DBName)) {
+						if !columnsContain(columns, ref.ForeignKey) && (blacklist == nil || !lo.Contains(blacklist.FieldsBlacklist, ref.ForeignKey.DBName)) {
 							columns = append(columns, ref.ForeignKey)
 						}
 					}

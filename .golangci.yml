@@ -37,3 +37,4 @@ issues:
   max-same-issues: 0
   exclude:
     - should have a package comment
+    - type name will be used as filter.FilterValidator by other packages, and that stutters; consider calling this Validator

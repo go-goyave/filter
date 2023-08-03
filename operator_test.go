@@ -29,7 +29,7 @@ func TestEquals(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`name` = ?", Vars: []interface{}{"test"}},
+							clause.Expr{SQL: "`test_models`.`name` = ?", Vars: []any{"test"}},
 						},
 					},
 				},
@@ -46,7 +46,7 @@ func TestEquals(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) = ?", Vars: []interface{}{"test"}},
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) = ?", Vars: []any{"test"}},
 						},
 					},
 				},
@@ -110,7 +110,7 @@ func TestNotEquals(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`name` <> ?", Vars: []interface{}{"test"}},
+							clause.Expr{SQL: "`test_models`.`name` <> ?", Vars: []any{"test"}},
 						},
 					},
 				},
@@ -127,7 +127,7 @@ func TestNotEquals(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) <> ?", Vars: []interface{}{"test"}},
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) <> ?", Vars: []any{"test"}},
 						},
 					},
 				},
@@ -191,7 +191,7 @@ func TestGreaterThan(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`age` > ?", Vars: []interface{}{int64(18)}},
+							clause.Expr{SQL: "`test_models`.`age` > ?", Vars: []any{int64(18)}},
 						},
 					},
 				},
@@ -208,7 +208,7 @@ func TestGreaterThan(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) > ?", Vars: []interface{}{"18"}},
+							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) > ?", Vars: []any{"18"}},
 						},
 					},
 				},
@@ -272,7 +272,7 @@ func TestLowerThan(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`age` < ?", Vars: []interface{}{int64(18)}},
+							clause.Expr{SQL: "`test_models`.`age` < ?", Vars: []any{int64(18)}},
 						},
 					},
 				},
@@ -289,7 +289,7 @@ func TestLowerThan(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) < ?", Vars: []interface{}{"18"}},
+							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) < ?", Vars: []any{"18"}},
 						},
 					},
 				},
@@ -353,7 +353,7 @@ func TestGreaterThanEqual(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`age` >= ?", Vars: []interface{}{int64(18)}},
+							clause.Expr{SQL: "`test_models`.`age` >= ?", Vars: []any{int64(18)}},
 						},
 					},
 				},
@@ -370,7 +370,7 @@ func TestGreaterThanEqual(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) >= ?", Vars: []interface{}{"18"}},
+							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) >= ?", Vars: []any{"18"}},
 						},
 					},
 				},
@@ -434,7 +434,7 @@ func TestLowerThanEqual(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`age` <= ?", Vars: []interface{}{int64(18)}},
+							clause.Expr{SQL: "`test_models`.`age` <= ?", Vars: []any{int64(18)}},
 						},
 					},
 				},
@@ -451,7 +451,7 @@ func TestLowerThanEqual(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) <= ?", Vars: []interface{}{"18"}},
+							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) <= ?", Vars: []any{"18"}},
 						},
 					},
 				},
@@ -515,7 +515,7 @@ func TestStarts(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`name` LIKE ?", Vars: []interface{}{"te\\%\\_st%"}},
+							clause.Expr{SQL: "`test_models`.`name` LIKE ?", Vars: []any{"te\\%\\_st%"}},
 						},
 					},
 				},
@@ -532,7 +532,7 @@ func TestStarts(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) LIKE ?", Vars: []interface{}{"te\\%\\_st%"}},
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) LIKE ?", Vars: []any{"te\\%\\_st%"}},
 						},
 					},
 				},
@@ -596,7 +596,7 @@ func TestEnds(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`name` LIKE ?", Vars: []interface{}{"%te\\%\\_st"}},
+							clause.Expr{SQL: "`test_models`.`name` LIKE ?", Vars: []any{"%te\\%\\_st"}},
 						},
 					},
 				},
@@ -613,7 +613,7 @@ func TestEnds(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) LIKE ?", Vars: []interface{}{"%te\\%\\_st"}},
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) LIKE ?", Vars: []any{"%te\\%\\_st"}},
 						},
 					},
 				},
@@ -677,7 +677,7 @@ func TestContains(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`name` LIKE ?", Vars: []interface{}{"%te\\%\\_st%"}},
+							clause.Expr{SQL: "`test_models`.`name` LIKE ?", Vars: []any{"%te\\%\\_st%"}},
 						},
 					},
 				},
@@ -694,7 +694,7 @@ func TestContains(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) LIKE ?", Vars: []interface{}{"%te\\%\\_st%"}},
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) LIKE ?", Vars: []any{"%te\\%\\_st%"}},
 						},
 					},
 				},
@@ -758,7 +758,7 @@ func TestNotContains(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`name` NOT LIKE ?", Vars: []interface{}{"%te\\%\\_st%"}},
+							clause.Expr{SQL: "`test_models`.`name` NOT LIKE ?", Vars: []any{"%te\\%\\_st%"}},
 						},
 					},
 				},
@@ -775,7 +775,7 @@ func TestNotContains(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) NOT LIKE ?", Vars: []interface{}{"%te\\%\\_st%"}},
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) NOT LIKE ?", Vars: []any{"%te\\%\\_st%"}},
 						},
 					},
 				},
@@ -839,7 +839,7 @@ func TestIn(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`name` IN ?", Vars: []interface{}{[]interface{}{"val1", "val2"}}},
+							clause.Expr{SQL: "`test_models`.`name` IN ?", Vars: []any{[]any{"val1", "val2"}}},
 						},
 					},
 				},
@@ -856,7 +856,7 @@ func TestIn(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) IN ?", Vars: []interface{}{[]interface{}{"val1", "val2"}}},
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) IN ?", Vars: []any{[]any{"val1", "val2"}}},
 						},
 					},
 				},
@@ -920,7 +920,7 @@ func TestNotIn(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`name` NOT IN ?", Vars: []interface{}{[]interface{}{"val1", "val2"}}},
+							clause.Expr{SQL: "`test_models`.`name` NOT IN ?", Vars: []any{[]any{"val1", "val2"}}},
 						},
 					},
 				},
@@ -937,7 +937,7 @@ func TestNotIn(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) NOT IN ?", Vars: []interface{}{[]interface{}{"val1", "val2"}}},
+							clause.Expr{SQL: "CAST(`test_models`.`name` AS TEXT) NOT IN ?", Vars: []any{[]any{"val1", "val2"}}},
 						},
 					},
 				},
@@ -1061,7 +1061,7 @@ func TestBetween(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`age` BETWEEN ? AND ?", Vars: []interface{}{uint64(18), uint64(25)}},
+							clause.Expr{SQL: "`test_models`.`age` BETWEEN ? AND ?", Vars: []any{uint64(18), uint64(25)}},
 						},
 					},
 				},
@@ -1078,7 +1078,7 @@ func TestBetween(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) BETWEEN ? AND ?", Vars: []interface{}{"18", "25"}},
+							clause.Expr{SQL: "CAST(`test_models`.`enum_col` AS TEXT) BETWEEN ? AND ?", Vars: []any{"18", "25"}},
 						},
 					},
 				},
@@ -1095,7 +1095,7 @@ func TestBetween(t *testing.T) {
 					Name: "WHERE",
 					Expression: clause.Where{
 						Exprs: []clause.Expression{
-							clause.Expr{SQL: "`test_models`.`birthday` BETWEEN ? AND ?", Vars: []interface{}{"2023-04-04", "2023-05-05 12:00:00"}},
+							clause.Expr{SQL: "`test_models`.`birthday` BETWEEN ? AND ?", Vars: []any{"2023-04-04", "2023-05-05 12:00:00"}},
 						},
 					},
 				},

@@ -37,10 +37,10 @@ func TestJoinScope(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	assert.Nil(t, join.Scopes(&Settings{}, schema))
+	assert.Nil(t, join.Scopes(Blacklist{}, schema))
 	join.Relation = "Relation"
 
-	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`"}, tx.Statement.Selects)
@@ -57,7 +57,7 @@ func TestJoinScopeAutoSelectFieldsNoBlacklist(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"(UPPER(`relation`.b)) `c`", "`relation`.`b`", "`relation`.`a`"}, tx.Statement.Selects)
@@ -82,7 +82,7 @@ func TestJoinScopeAutoSelectFieldsWithBlacklist(t *testing.T) {
 		},
 	}
 
-	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(&Settings{Blacklist: blacklist}, schema)...).Find(nil)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"(UPPER(`relation`.b)) `c`", "`relation`.`a`"}, tx.Statement.Selects)
@@ -109,13 +109,13 @@ func TestJoinScopeAnonymousRelation(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	assert.Nil(t, join.Scopes(&Settings{}, schema))
+	assert.Nil(t, join.Scopes(Blacklist{}, schema))
 	join.Relation = "Relation"
 
-	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
 	assert.Empty(t, db.Statement.Preloads)
 	assert.Empty(t, db.Statement.Selects)
-	assert.Equal(t, "Relation \"Relation\" is anonymous, could not get table name", db.Error.Error())
+	assert.Equal(t, "relation \"Relation\" is anonymous, could not get table name", db.Error.Error())
 	assert.Equal(t, []string{"a", "b", "notacolumn"}, join.selectCache["Relation"])
 }
 
@@ -127,7 +127,7 @@ func TestJoinScopeBlacklisted(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	assert.Nil(t, join.Scopes(&Settings{Blacklist: Blacklist{RelationsBlacklist: []string{"Relation"}}}, schema))
+	assert.Nil(t, join.Scopes(Blacklist{RelationsBlacklist: []string{"Relation"}}, schema))
 }
 
 type JoinHopTestModel struct {
@@ -175,17 +175,15 @@ func TestJoinScopeBlacklistedRelationHop(t *testing.T) {
 		return
 	}
 
-	settings := &Settings{
-		Blacklist: Blacklist{
-			Relations: map[string]*Blacklist{
-				"Relation": {
-					RelationsBlacklist: []string{"Parent"},
-				},
+	blacklist := Blacklist{
+		Relations: map[string]*Blacklist{
+			"Relation": {
+				RelationsBlacklist: []string{"Parent"},
 			},
 		},
 	}
 
-	assert.Nil(t, join.Scopes(settings, schema))
+	assert.Nil(t, join.Scopes(blacklist, schema))
 }
 
 func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
@@ -197,7 +195,7 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&JoinHopTestModel{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
+	db = db.Model(&JoinHopTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`a`", "`relation`.`parent_id`"}, tx.Statement.Selects)
@@ -205,17 +203,15 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 	assert.Equal(t, []string{"b"}, join.selectCache["Relation"])
 
 	// Don't select it if it's blacklisted
-	settings := &Settings{
-		Blacklist: Blacklist{
-			Relations: map[string]*Blacklist{
-				"Relation": {
-					FieldsBlacklist: []string{"a"},
-				},
+	blacklist := Blacklist{
+		Relations: map[string]*Blacklist{
+			"Relation": {
+				FieldsBlacklist: []string{"a"},
 			},
 		},
 	}
 	db = openDryRunDB(t)
-	db = db.Model(&JoinHopTestModel{}).Scopes(join.Scopes(settings, schema)...).Find(nil)
+	db = db.Model(&JoinHopTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`parent_id`"}, tx.Statement.Selects)
@@ -231,7 +227,7 @@ func TestJoinScopeHasMany(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`", "`relation`.`parent_id`"}, tx.Statement.Selects)
@@ -239,17 +235,15 @@ func TestJoinScopeHasMany(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, join.selectCache["Relation"])
 
 	// Don't select parent_id if blacklisted
-	settings := &Settings{
-		Blacklist: Blacklist{
-			Relations: map[string]*Blacklist{
-				"Relation": {
-					FieldsBlacklist: []string{"parent_id"},
-				},
+	blacklist := Blacklist{
+		Relations: map[string]*Blacklist{
+			"Relation": {
+				FieldsBlacklist: []string{"parent_id"},
 			},
 		},
 	}
 	db = openDryRunDB(t)
-	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(settings, schema)...).Find(nil)
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`"}, tx.Statement.Selects)
@@ -265,24 +259,22 @@ func TestJoinScopeNestedRelations(t *testing.T) {
 		return
 	}
 
-	settings := &Settings{
-		Blacklist: Blacklist{
-			FieldsBlacklist: []string{"name"},
-			Relations: map[string]*Blacklist{
-				"Relation": {
-					FieldsBlacklist: []string{"b"},
-					Relations: map[string]*Blacklist{
-						"Parent": {
-							FieldsBlacklist: []string{"relation_id"},
-							IsFinal:         true,
-						},
+	blacklist := Blacklist{
+		FieldsBlacklist: []string{"name"},
+		Relations: map[string]*Blacklist{
+			"Relation": {
+				FieldsBlacklist: []string{"b"},
+				Relations: map[string]*Blacklist{
+					"Parent": {
+						FieldsBlacklist: []string{"relation_id"},
+						IsFinal:         true,
 					},
 				},
 			},
 		},
 	}
 
-	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(settings, schema)...).Find(nil)
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation.Parent") {
 		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation.Parent"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`join_hop_many_test_models`.`id`"}, tx.Statement.Selects)
@@ -303,9 +295,7 @@ func TestJoinScopeFinal(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	settings := &Settings{Blacklist: Blacklist{IsFinal: true}}
-
-	assert.Nil(t, join.Scopes(settings, schema))
+	assert.Nil(t, join.Scopes(Blacklist{IsFinal: true}, schema))
 }
 
 func TestJoinNestedRelationsWithSelect(t *testing.T) {
@@ -318,23 +308,21 @@ func TestJoinNestedRelationsWithSelect(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	settings := &Settings{
-		Blacklist: Blacklist{
-			FieldsBlacklist: []string{"name"},
-			Relations: map[string]*Blacklist{
-				"Relation": {
-					Relations: map[string]*Blacklist{
-						"Parent": {
-							FieldsBlacklist: []string{"relation_id"},
-							IsFinal:         true,
-						},
+	blacklist := Blacklist{
+		FieldsBlacklist: []string{"name"},
+		Relations: map[string]*Blacklist{
+			"Relation": {
+				Relations: map[string]*Blacklist{
+					"Parent": {
+						FieldsBlacklist: []string{"relation_id"},
+						IsFinal:         true,
 					},
 				},
 			},
 		},
 	}
 
-	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(settings, schema)...).Scopes(join2.Scopes(settings, schema)...).Find(nil)
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Scopes(join2.Scopes(blacklist, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation.Parent") {
 		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation.Parent"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`join_hop_many_test_models`.`id`"}, tx.Statement.Selects)
@@ -355,7 +343,7 @@ func TestJoinScopeInvalidSyntax(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	assert.Nil(t, join.Scopes(&Settings{}, schema))
+	assert.Nil(t, join.Scopes(Blacklist{}, schema))
 }
 
 func TestJoinScopeNonExistingRelation(t *testing.T) {
@@ -366,7 +354,7 @@ func TestJoinScopeNonExistingRelation(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	assert.Nil(t, join.Scopes(&Settings{}, schema))
+	assert.Nil(t, join.Scopes(Blacklist{}, schema))
 }
 
 type JoinTestModelComputed struct {
@@ -392,7 +380,7 @@ func TestJoinScopeComputedField(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&JoinTestModelComputed{}).Scopes(join.Scopes(&Settings{}, schema)...).Find(nil)
+	db = db.Model(&JoinTestModelComputed{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
 		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
 		assert.Equal(t, []string{"`join_relation_model_computeds`.`a`", "`join_relation_model_computeds`.`b`", "(UPPER(`join_relation_model_computeds`.b)) `c`"}, tx.Statement.Selects)

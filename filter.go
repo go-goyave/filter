@@ -10,6 +10,7 @@ import (
 )
 
 // Filter structured representation of a filter query.
+// The generic parameter is the type pointer type of the model.
 type Filter struct {
 	Field    string
 	Operator *Operator
@@ -18,8 +19,8 @@ type Filter struct {
 }
 
 // Scope returns the GORM scope to use in order to apply this filter.
-func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *gorm.DB, func(*gorm.DB) *gorm.DB) {
-	field, s, joinName := getField(f.Field, sch, &settings.Blacklist)
+func (f *Filter) Scope(blacklist Blacklist, sch *schema.Schema) (func(*gorm.DB) *gorm.DB, func(*gorm.DB) *gorm.DB) {
+	field, s, joinName := getField(f.Field, sch, &blacklist)
 	if field == nil {
 		return nil, nil
 	}
@@ -64,7 +65,7 @@ func (f *Filter) Scope(settings *Settings, sch *schema.Schema) (func(*gorm.DB) *
 
 // Where applies a condition to given transaction, automatically taking the "Or"
 // filter value into account.
-func (f *Filter) Where(tx *gorm.DB, query string, args ...interface{}) *gorm.DB {
+func (f *Filter) Where(tx *gorm.DB, query string, args ...any) *gorm.DB {
 	if f.Or {
 		return tx.Or(query, args...)
 	}

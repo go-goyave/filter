@@ -44,7 +44,7 @@ func TestSearchScope(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.Expr{
 										SQL:                "`test_models`.`name` LIKE (?)",
-										Vars:               []interface{}{"My Query"},
+										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
 								},
@@ -53,7 +53,7 @@ func TestSearchScope(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.Expr{
 										SQL:                "`test_models`.`email` LIKE (?)",
-										Vars:               []interface{}{"My Query"},
+										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
 								},
@@ -176,7 +176,7 @@ func TestSeachScopeWithJoin(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.Expr{
 										SQL:                "`search_test_models`.`name` LIKE (?)",
-										Vars:               []interface{}{"My Query"},
+										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
 								},
@@ -185,7 +185,7 @@ func TestSeachScopeWithJoin(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.Expr{
 										SQL:                "`Relation`.`name` LIKE (?)",
-										Vars:               []interface{}{"My Query"},
+										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
 								},
@@ -306,7 +306,7 @@ func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.Expr{
 										SQL:                "`search_test_models`.`name` LIKE (?)",
-										Vars:               []interface{}{"My Query"},
+										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
 								},
@@ -315,7 +315,7 @@ func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.Expr{
 										SQL:                "`NestedRelation`.`field` LIKE (?)",
-										Vars:               []interface{}{"My Query"},
+										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
 								},
@@ -378,7 +378,7 @@ func TestSearchScopeComputed(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.Expr{
 										SQL:                "(`search_test_model_computeds`.computedcolumn) = ?",
-										Vars:               []interface{}{"My Query"},
+										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
 								},
@@ -387,7 +387,7 @@ func TestSearchScopeComputed(t *testing.T) {
 								Exprs: []clause.Expression{
 									clause.Expr{
 										SQL:                "(`Relation`.computedcolumnrelation) = ?",
-										Vars:               []interface{}{"My Query"},
+										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
 								},
@@ -471,7 +471,7 @@ func TestSearchScopeWithUnsupportedDataType(t *testing.T) {
 						Exprs: []clause.Expression{
 							clause.Expr{
 								SQL:                "`test_models`.`name` LIKE (?)",
-								Vars:               []interface{}{"My Query"},
+								Vars:               []any{"My Query"},
 								WithoutParentheses: false,
 							},
 						},

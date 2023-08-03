@@ -18,12 +18,12 @@ func TestSortScope(t *testing.T) {
 		Table: "test_models",
 	}
 
-	assert.Nil(t, sort.Scope(&Settings{}, schema))
+	assert.Nil(t, sort.Scope(Blacklist{}, schema))
 
 	sort.Field = "name"
 
-	results := []map[string]interface{}{}
-	db = db.Scopes(sort.Scope(&Settings{}, schema)).Table("table").Find(&results)
+	results := []map[string]any{}
+	db = db.Scopes(sort.Scope(Blacklist{}, schema)).Table("table").Find(&results)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -52,8 +52,8 @@ func TestSortScope(t *testing.T) {
 	sort.Order = SortDescending
 	db = openDryRunDB(t)
 
-	results = []map[string]interface{}{}
-	db = db.Scopes(sort.Scope(&Settings{}, schema)).Table("table").Find(&results)
+	results = []map[string]any{}
+	db = db.Scopes(sort.Scope(Blacklist{}, schema)).Table("table").Find(&results)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
@@ -66,7 +66,7 @@ func TestSortScopeBlacklisted(t *testing.T) {
 		},
 		Table: "test_models",
 	}
-	assert.Nil(t, sort.Scope(&Settings{Blacklist: Blacklist{FieldsBlacklist: []string{"name"}}}, schema))
+	assert.Nil(t, sort.Scope(Blacklist{FieldsBlacklist: []string{"name"}}, schema))
 }
 
 type SortTestNestedRelation struct {
@@ -98,7 +98,7 @@ func TestSortScopeWithJoin(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&results).Scopes(sort.Scope(&Settings{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": {
 			Name: "FROM",
@@ -164,7 +164,7 @@ func TestSortScopeWithJoinInvalidModel(t *testing.T) {
 		return
 	}
 
-	db = db.Scopes(sort.Scope(&Settings{}, sch)).Find(&results)
+	db = db.Scopes(sort.Scope(Blacklist{}, sch)).Find(&results)
 	assert.Equal(t, "unsupported data type: <nil>", db.Error.Error())
 }
 
@@ -178,7 +178,7 @@ func TestSortScopeWithJoinNestedRelation(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&results).Scopes(sort.Scope(&Settings{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": {
 			Name: "FROM",
@@ -279,7 +279,7 @@ func TestSortScopeComputed(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&results).Scopes(sort.Scope(&Settings{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -316,7 +316,7 @@ func TestSortScopeComputedWithJoin(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&results).Scopes(sort.Scope(&Settings{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": {
 			Name: "FROM",

@@ -61,7 +61,7 @@ func TestAddForeignKeys(t *testing.T) {
 
 func TestConvertToSafeType(t *testing.T) {
 	cases := []struct {
-		want     interface{}
+		want     any
 		dataType DataType
 		value    string
 		wantOk   bool
@@ -238,14 +238,14 @@ func TestConvertArgsToSafeType(t *testing.T) {
 
 	// No need for exhaustive testing here since it's already done by TestConvertToSafeType
 	cases := []struct {
-		want     interface{}
+		want     any
 		dataType DataType
 		value    []string
 		wantOk   bool
 	}{
-		{value: []string{"a", "b"}, dataType: DataTypeText, want: []interface{}{"a", "b"}, wantOk: true},
-		{value: []string{"3", "4"}, dataType: DataTypeInt64, want: []interface{}{int64(3), int64(4)}, wantOk: true},
-		{value: []string{"a", "2"}, dataType: DataTypeInt64, want: []interface{}(nil), wantOk: false},
+		{value: []string{"a", "b"}, dataType: DataTypeText, want: []any{"a", "b"}, wantOk: true},
+		{value: []string{"3", "4"}, dataType: DataTypeInt64, want: []any{int64(3), int64(4)}, wantOk: true},
+		{value: []string{"a", "2"}, dataType: DataTypeInt64, want: []any(nil), wantOk: false},
 	}
 
 	for _, c := range cases {
@@ -261,7 +261,7 @@ func TestConvertArgsToSafeType(t *testing.T) {
 func TestGetDataType(t *testing.T) {
 	cases := []struct {
 		desc  string
-		model interface{}
+		model any
 		want  DataType
 	}{
 		{desc: "gorm type string", model: struct {

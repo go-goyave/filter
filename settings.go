@@ -18,6 +18,12 @@ import (
 // and relations.
 // The generic type is the pointer type of the model.
 type Settings[T any] struct {
+
+	// DefaultSort if not nil and not empty, and if the request is not providing any
+	// sort, the request will be sorted according to the `*Sort` defined in this slice.
+	// If `DisableSort` is enabled, this has no effect.
+	DefaultSort []*Sort
+
 	// FieldsSearch allows search for these fields
 	FieldsSearch []string
 	// SearchOperator is used by the search scope, by default it use the $cont operator
@@ -183,13 +189,18 @@ func (s *Settings[T]) scopeFields(db *gorm.DB, request *goyave.Request, schema *
 
 func (s *Settings[T]) scopeSort(db *gorm.DB, request *goyave.Request, schema *schema.Schema) *gorm.DB {
 	querySort, queryHasSort := request.Query["sort"]
-	if !s.DisableSort && queryHasSort {
-		sorts, ok := querySort.([]*Sort)
-		if ok {
-			for _, sort := range sorts {
-				if scope := sort.Scope(s.Blacklist, schema); scope != nil {
-					db = db.Scopes(scope)
-				}
+
+	var sorts []*Sort
+	if !queryHasSort {
+		sorts = s.DefaultSort
+	} else if s, ok := querySort.([]*Sort); ok {
+		sorts = s
+	}
+
+	if !s.DisableSort {
+		for _, sort := range sorts {
+			if scope := sort.Scope(s.Blacklist, schema); scope != nil {
+				db = db.Scopes(scope)
 			}
 		}
 	}

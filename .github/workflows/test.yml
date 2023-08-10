@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: ["1.20"]
+        go: ["1.20", "1.21"]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
@@ -23,7 +23,7 @@ jobs:
       - name: Run tests
         run: |
           go test -v -race -coverprofile=coverage.txt -covermode=atomic -coverpkg=./... ./...
-      - if: ${{ matrix.go == '1.20' }}
+      - if: ${{ matrix.go == '1.21' }}
         uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: coverage.txt
@@ -36,5 +36,5 @@ jobs:
       - name: Run lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.53
+          version: v1.54
           args: --timeout 5m

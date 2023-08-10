@@ -1885,3 +1885,157 @@ func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T)
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.Empty(t, db.Statement.Joins)
 }
+
+func TestSettingsDefaultSort(t *testing.T) {
+	request := &goyave.Request{
+		Query: map[string]any{
+			"filter": []*Filter{
+				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+			},
+			"fields":   "id,name,email",
+			"page":     2,
+			"per_page": 15,
+		},
+		Lang: lang.New().GetDefault(),
+	}
+	db := openDryRunDB(t)
+
+	results := []*TestScopeModel{}
+
+	settings := &Settings[*TestScopeModel]{
+		DefaultSort: []*Sort{
+			{Field: "name", Order: SortAscending},
+			{Field: "email", Order: SortDescending},
+		},
+	}
+
+	paginator, db := settings.Scope(db, request, &results)
+
+	assert.NotNil(t, paginator)
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+						},
+					},
+				},
+			},
+		},
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Table: "test_scope_models",
+							Name:  "name",
+						},
+					},
+					{
+						Column: clause.Column{
+							Table: "test_scope_models",
+							Name:  "email",
+						},
+						Desc: true,
+					},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  &fifteen,
+				Offset: 15,
+			},
+		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Raw: true, Name: "`test_scope_models`.`id`"},
+					{Raw: true, Name: "`test_scope_models`.`name`"},
+					{Raw: true, Name: "`test_scope_models`.`email`"},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	request = &goyave.Request{
+		Query: map[string]any{
+			"filter": []*Filter{
+				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+			},
+			"sort":     []*Sort{{Field: "name", Order: SortDescending}},
+			"fields":   "id,name,email",
+			"page":     2,
+			"per_page": 15,
+		},
+		Lang: lang.New().GetDefault(),
+	}
+	db = openDryRunDB(t)
+
+	results = []*TestScopeModel{}
+
+	paginator, db = settings.Scope(db, request, &results)
+
+	assert.NotNil(t, paginator)
+
+	expected = map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
+						},
+					},
+				},
+			},
+		},
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Table: "test_scope_models",
+							Name:  "name",
+						},
+						Desc: true,
+					},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  &fifteen,
+				Offset: 15,
+			},
+		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Raw: true, Name: "`test_scope_models`.`id`"},
+					{Raw: true, Name: "`test_scope_models`.`name`"},
+					{Raw: true, Name: "`test_scope_models`.`email`"},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}

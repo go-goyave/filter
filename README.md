@@ -63,6 +63,11 @@ settings := &filter.Settings[*model.User]{
 	DisableSort:   true, // Prevent usage of "sort"
 	DisableJoin:   true, // Prevent usage of "join"
 
+	// If not nil and not empty, and if the request is not providing any
+	// sort, the request will be sorted according to the `*Sort` defined in this slice.
+	// If `DisableSort` is enabled, this has no effect.
+	DefaultSort: []*Sort{{Field: "name", Order: SortDescending}}
+
 	FieldsSearch:   []string{"a", "b"},      // Optional, the fields used for the search feature
 	SearchOperator: filter.Operators["$eq"], // Optional, operator used for the search feature, defaults to "$cont"
 

@@ -28,7 +28,7 @@ import "goyave.dev/filter"
 
 func (ctrl *UserController) Index(response *goyave.Response, request *goyave.Request) {
 	var users []*model.User
-	paginator, tx := filter.Scope(ctrl.DB(), request, &users)
+	paginator, tx := filter.Scope(ctrl.DB(), filter.NewRequest(request.Query), &users)
 	if response.WriteDBError(tx.Error) {
 		return
 	}
@@ -44,7 +44,7 @@ And **that's it**! Now your front-end can add query parameters to filter as it w
 You can also find records without paginating using `ScopeUnpaginated()`:
 ```go
 var users []*model.User
-tx := filter.ScopeUnpaginated(ctrl.DB(), request, &users)
+tx := filter.ScopeUnpaginated(ctrl.DB(), filter.NewRequest(request.Query), &users)
 if response.WriteDBError(tx.Error) {
 	return
 }
@@ -90,7 +90,7 @@ settings := &filter.Settings[*model.User]{
 	},
 }
 results := []*model.User{}
-paginator, tx := settings.Scope(ctrl.DB(), request, &results)
+paginator, tx := settings.Scope(ctrl.DB(), filter.NewRequest(request.Query), &results)
 ```
 
 ### Filter
@@ -298,7 +298,7 @@ If you want to add static conditions (not automatically defined by the library),
 users := []model.User{}
 db := ctrl.DB()
 db = db.Where(db.Session(&gorm.Session{NewDB: true}).Where("username LIKE ?", "%Miss%").Or("username LIKE ?", "%Ms.%"))
-paginator, tx := filter.Scope(db, request, &users)
+paginator, tx := filter.Scope(db, filter.NewRequest(request.Query), &users)
 if response.WriteDBError(tx.Error) {
 	return
 }
@@ -422,7 +422,7 @@ func (ctrl *UserController) Index(response *goyave.Response, request *goyave.Req
 
 	db := ctrl.DB().Joins("Relation")
 
-	paginator, tx := filter.Scope(db, request, &users)
+	paginator, tx := filter.Scope(db, filter.NewRequest(request.Query), &users)
 	if response.WriteDBError(tx.Error) {
 		return
 	}

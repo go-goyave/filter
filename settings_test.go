@@ -10,9 +10,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v5"
 	"goyave.dev/goyave/v5/database"
-	"goyave.dev/goyave/v5/lang"
+	"goyave.dev/goyave/v5/util/typeutil"
 )
 
 var fifteen = 15
@@ -47,23 +46,20 @@ func openDryRunDB(t *testing.T) *gorm.DB {
 }
 
 func prepareTestScope(t *testing.T, settings *Settings[*TestScopeModel]) (*database.Paginator[*TestScopeModel], *gorm.DB) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
-				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
-			},
-			"or": []*Filter{
-				{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
-			},
-			"sort":     []*Sort{{Field: "name", Order: SortAscending}},
-			"join":     []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
-			"page":     2,
-			"per_page": 15,
-			"fields":   []string{"id", "name", "email", "computed"},
-			"search":   "val",
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+			{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
+		}),
+		Or: typeutil.NewUndefined([]*Filter{
+			{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
+		}),
+		Sort:    typeutil.NewUndefined([]*Sort{{Field: "name", Order: SortAscending}}),
+		Join:    typeutil.NewUndefined([]*Join{{Relation: "Relation", Fields: []string{"a", "b"}}}),
+		Page:    typeutil.NewUndefined(2),
+		PerPage: typeutil.NewUndefined(15),
+		Fields:  typeutil.NewUndefined([]string{"id", "name", "email", "computed"}),
+		Search:  typeutil.NewUndefined("val"),
 	}
 	db := openDryRunDB(t)
 
@@ -76,23 +72,20 @@ func prepareTestScope(t *testing.T, settings *Settings[*TestScopeModel]) (*datab
 }
 
 func prepareTestScopeUnpaginated(t *testing.T, settings *Settings[*TestScopeModel]) ([]*TestScopeModel, *gorm.DB) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
-				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
-			},
-			"or": []*Filter{
-				{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
-			},
-			"sort":     []*Sort{{Field: "name", Order: SortAscending}},
-			"join":     []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
-			"page":     2, // Those two should be ignored since we are not paginating
-			"per_page": 15,
-			"fields":   []string{"id", "name", "email", "computed"},
-			"search":   "val",
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+			{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
+		}),
+		Or: typeutil.NewUndefined([]*Filter{
+			{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
+		}),
+		Sort:    typeutil.NewUndefined([]*Sort{{Field: "name", Order: SortAscending}}),
+		Join:    typeutil.NewUndefined([]*Join{{Relation: "Relation", Fields: []string{"a", "b"}}}),
+		Page:    typeutil.NewUndefined(2), // Those two should be ignored since we are not paginating
+		PerPage: typeutil.NewUndefined(15),
+		Fields:  typeutil.NewUndefined([]string{"id", "name", "email", "computed"}),
+		Search:  typeutil.NewUndefined("val"),
 	}
 	db := openDryRunDB(t)
 
@@ -1007,12 +1000,9 @@ func TestScopeUnpaginatedDisableSearch(t *testing.T) {
 }
 
 func TestScopeNoPrimaryKey(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"fields": []string{"name"},
-			"join":   []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Fields: typeutil.NewUndefined([]string{"name"}),
+		Join:   typeutil.NewUndefined([]*Join{{Relation: "Relation", Fields: []string{"a", "b"}}}),
 	}
 	db := openDryRunDB(t)
 
@@ -1023,12 +1013,9 @@ func TestScopeNoPrimaryKey(t *testing.T) {
 }
 
 func TestScopeUnpaginatedNoPrimaryKey(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"fields": []string{"name"},
-			"join":   []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Fields: typeutil.NewUndefined([]string{"name"}),
+		Join:   typeutil.NewUndefined([]*Join{{Relation: "Relation", Fields: []string{"a", "b"}}}),
 	}
 	db := openDryRunDB(t)
 
@@ -1039,10 +1026,7 @@ func TestScopeUnpaginatedNoPrimaryKey(t *testing.T) {
 }
 
 func TestScopeWithFieldsBlacklist(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{},
-		Lang:  lang.New().GetDefault(),
-	}
+	request := &Request{}
 	db := openDryRunDB(t)
 	settings := &Settings[*TestScopeModel]{
 		Blacklist: Blacklist{
@@ -1056,10 +1040,7 @@ func TestScopeWithFieldsBlacklist(t *testing.T) {
 }
 
 func TestScopeUnpaginatedWithFieldsBlacklist(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{},
-		Lang:  lang.New().GetDefault(),
-	}
+	request := &Request{}
 	db := openDryRunDB(t)
 	settings := &Settings[*TestScopeModel]{
 		Blacklist: Blacklist{
@@ -1073,10 +1054,7 @@ func TestScopeUnpaginatedWithFieldsBlacklist(t *testing.T) {
 }
 
 func TestScopeInvalidModel(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{},
-		Lang:  lang.New().GetDefault(),
-	}
+	request := &Request{}
 	db := openDryRunDB(t)
 	model := []string{}
 	assert.Panics(t, func() {
@@ -1085,10 +1063,7 @@ func TestScopeInvalidModel(t *testing.T) {
 }
 
 func TestScopeUnpaginatedInvalidModel(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{},
-		Lang:  lang.New().GetDefault(),
-	}
+	request := &Request{}
 	db := openDryRunDB(t)
 	model := []string{}
 	assert.Panics(t, func() {
@@ -1125,14 +1100,11 @@ func (m *TestFilterScopeModel) TableName() string {
 }
 
 func TestApplyFiltersAnd(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
-				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
-			},
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+			{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
+		}),
 	}
 	db := openDryRunDB(t)
 	schema, err := parseModel(db, &TestFilterScopeModel{})
@@ -1173,14 +1145,11 @@ func TestApplyFiltersAnd(t *testing.T) {
 }
 
 func TestApplyFiltersOr(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"or": []*Filter{
-				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"], Or: true},
-				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"], Or: true},
-			},
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Or: typeutil.NewUndefined([]*Filter{
+			{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"], Or: true},
+			{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"], Or: true},
+		}),
 	}
 	db := openDryRunDB(t)
 	schema, err := parseModel(db, &TestFilterScopeModel{})
@@ -1229,18 +1198,15 @@ func TestApplyFiltersOr(t *testing.T) {
 }
 
 func TestApplyFiltersMixed(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
-				{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
-			},
-			"or": []*Filter{
-				{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
-				{Field: "name", Args: []string{"val4"}, Or: true, Operator: Operators["$eq"]},
-			},
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+			{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
+		}),
+		Or: typeutil.NewUndefined([]*Filter{
+			{Field: "name", Args: []string{"val3"}, Operator: Operators["$eq"], Or: true},
+			{Field: "name", Args: []string{"val4"}, Operator: Operators["$eq"], Or: true},
+		}),
 	}
 	db := openDryRunDB(t)
 	schema, err := parseModel(db, &TestFilterScopeModel{})
@@ -1295,13 +1261,10 @@ func TestApplyFiltersMixed(t *testing.T) {
 }
 
 func TestApplyFiltersWithJoin(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$cont"]},
-			},
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+		}),
 	}
 	db := openDryRunDB(t)
 	schema, err := parseModel(db, &FilterTestModel{})
@@ -1453,14 +1416,11 @@ func TestGetFieldFinalRelation(t *testing.T) {
 }
 
 func TestSettingsComputedFieldWithAutoFields(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
-			},
-			"per_page": 15,
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
+		}),
+		PerPage: typeutil.NewUndefined(15),
 	}
 	db := openDryRunDB(t)
 
@@ -1534,14 +1494,11 @@ func TestSettingsComputedFieldWithAutoFields(t *testing.T) {
 }
 
 func TestSettingsSelectWithExistingJoin(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
-			},
-			"per_page": 15,
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
+		}),
+		PerPage: typeutil.NewUndefined(15),
 	}
 	db := openDryRunDB(t)
 
@@ -1638,14 +1595,11 @@ type TestScopeModelWithComputed struct {
 }
 
 func TestSettingsSelectWithExistingJoinAndComputed(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
-			},
-			"per_page": 15,
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
+		}),
+		PerPage: typeutil.NewUndefined(15),
 	}
 	db := openDryRunDB(t)
 
@@ -1725,14 +1679,11 @@ func TestSettingsSelectWithExistingJoinAndComputed(t *testing.T) {
 }
 
 func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
-			},
-			"per_page": 15,
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "Relation.a", Args: []string{"val1"}, Operator: Operators["$cont"]},
+		}),
+		PerPage: typeutil.NewUndefined(15),
 	}
 	db := openDryRunDB(t)
 
@@ -1812,11 +1763,8 @@ func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 }
 
 func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"per_page": 15,
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		PerPage: typeutil.NewUndefined(15),
 	}
 	db := openDryRunDB(t)
 
@@ -1887,16 +1835,13 @@ func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T)
 }
 
 func TestSettingsDefaultSort(t *testing.T) {
-	request := &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
-			},
-			"fields":   []string{"id", "name", "email"},
-			"page":     2,
-			"per_page": 15,
-		},
-		Lang: lang.New().GetDefault(),
+	request := &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+		}),
+		Fields:  typeutil.NewUndefined([]string{"id", "name", "email"}),
+		Page:    typeutil.NewUndefined(2),
+		PerPage: typeutil.NewUndefined(15),
 	}
 	db := openDryRunDB(t)
 
@@ -1969,17 +1914,14 @@ func TestSettingsDefaultSort(t *testing.T) {
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 
-	request = &goyave.Request{
-		Query: map[string]any{
-			"filter": []*Filter{
-				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
-			},
-			"sort":     []*Sort{{Field: "name", Order: SortDescending}},
-			"fields":   []string{"id", "name", "email"},
-			"page":     2,
-			"per_page": 15,
-		},
-		Lang: lang.New().GetDefault(),
+	request = &Request{
+		Filter: typeutil.NewUndefined([]*Filter{
+			{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+		}),
+		Sort:    typeutil.NewUndefined([]*Sort{{Field: "name", Order: SortDescending}}),
+		Fields:  typeutil.NewUndefined([]string{"id", "name", "email"}),
+		Page:    typeutil.NewUndefined(2),
+		PerPage: typeutil.NewUndefined(15),
 	}
 	db = openDryRunDB(t)
 
@@ -2038,4 +1980,88 @@ func TestSettingsDefaultSort(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestNewRequest(t *testing.T) {
+	cases := []struct {
+		query map[string]any
+		want  *Request
+		desc  string
+	}{
+		{
+			desc: "all_fields",
+			query: map[string]any{
+				"filter": []*Filter{
+					{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+					{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
+				},
+				"or": []*Filter{
+					{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
+				},
+				"sort":     []*Sort{{Field: "name", Order: SortDescending}},
+				"join":     []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
+				"page":     2,
+				"per_page": 15,
+				"fields":   []string{"id", "name", "email", "computed"},
+				"search":   "val",
+			},
+			want: &Request{
+				Filter: typeutil.NewUndefined([]*Filter{
+					{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+					{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
+				}),
+				Or: typeutil.NewUndefined([]*Filter{
+					{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
+				}),
+				Sort:    typeutil.NewUndefined([]*Sort{{Field: "name", Order: SortDescending}}),
+				Join:    typeutil.NewUndefined([]*Join{{Relation: "Relation", Fields: []string{"a", "b"}}}),
+				Page:    typeutil.NewUndefined(2),
+				PerPage: typeutil.NewUndefined(15),
+				Fields:  typeutil.NewUndefined([]string{"id", "name", "email", "computed"}),
+				Search:  typeutil.NewUndefined("val"),
+			},
+		},
+		{
+			desc: "partial",
+			query: map[string]any{
+				"filter": []*Filter{
+					{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+					{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
+				},
+				"sort":     []*Sort{{Field: "name", Order: SortDescending}},
+				"per_page": 15,
+			},
+			want: &Request{
+				Filter: typeutil.NewUndefined([]*Filter{
+					{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
+					{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
+				}),
+				Sort:    typeutil.NewUndefined([]*Sort{{Field: "name", Order: SortDescending}}),
+				PerPage: typeutil.NewUndefined(15),
+			},
+		},
+		{
+			desc: "incorrect_type",
+			query: map[string]any{
+				"filter":   "a",
+				"or":       "b",
+				"sort":     "c",
+				"join":     "d",
+				"page":     "e",
+				"per_page": "f",
+				"fields":   "g",
+				"search":   1,
+			},
+			want: &Request{},
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.desc, func(t *testing.T) {
+			request := NewRequest(c.query)
+			assert.Equal(t, c.want, request)
+		})
+	}
+
 }

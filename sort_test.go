@@ -11,9 +11,13 @@ import (
 func TestSortScope(t *testing.T) {
 	db := openDryRunDB(t)
 	sort := &Sort{Field: "notacolumn", Order: SortAscending}
+	field := &schema.Field{Name: "Name", DBName: "name"}
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name": {Name: "Name", DBName: "name"},
+			"name": field,
+		},
+		FieldsByName: map[string]*schema.Field{
+			"Name": field,
 		},
 		Table: "test_models",
 	}
@@ -50,11 +54,17 @@ func TestSortScope(t *testing.T) {
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	sort.Order = SortDescending
-	db = openDryRunDB(t)
-
 	results = []map[string]any{}
+	db = openDryRunDB(t)
 	db = db.Scopes(sort.Scope(Blacklist{}, schema)).Table("table").Find(&results)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	// Using struct field name
+	sort.Field = "Name"
+	results = []map[string]any{}
+	db = openDryRunDB(t)
+	db = db.Scopes(sort.Scope(Blacklist{}, schema)).Table("table").Find(&results)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 

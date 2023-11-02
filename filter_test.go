@@ -50,10 +50,14 @@ func TestFilterWhereOr(t *testing.T) {
 func TestFilterScope(t *testing.T) {
 	db := openDryRunDB(t)
 	filter := &Filter{Field: "notacolumn", Args: []string{"val1"}, Operator: Operators["$eq"]}
+	field := &schema.Field{Name: "Name", DBName: "name", GORMDataType: schema.String}
 	schema := &schema.Schema{
 		DBNames: []string{"name"},
 		FieldsByDBName: map[string]*schema.Field{
-			"name": {Name: "Name", DBName: "name", GORMDataType: schema.String},
+			"name": field,
+		},
+		FieldsByName: map[string]*schema.Field{
+			"Name": field,
 		},
 		Table: "test_scope_models",
 	}
@@ -67,6 +71,24 @@ func TestFilterScope(t *testing.T) {
 	results := []map[string]any{}
 	db = db.Scopes(filter.Scope(Blacklist{}, schema)).Find(results)
 	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val1"}},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	// Using struct field name
+	filter.Field = "Name"
+
+	results = []map[string]any{}
+	db = openDryRunDB(t)
+	db = db.Scopes(filter.Scope(Blacklist{}, schema)).Find(results)
+	expected = map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{

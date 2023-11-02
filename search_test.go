@@ -29,6 +29,11 @@ func TestSearchScope(t *testing.T) {
 			"email": {Name: "Email", DBName: "email", GORMDataType: schema.String},
 			"role":  {Name: "Role", DBName: "role", GORMDataType: schema.String},
 		},
+		FieldsByName: map[string]*schema.Field{
+			"Name":  {Name: "Name", DBName: "name", GORMDataType: schema.String},
+			"Email": {Name: "Email", DBName: "email", GORMDataType: schema.String},
+			"Role":  {Name: "Role", DBName: "role", GORMDataType: schema.String},
+		},
 		Table: "test_models",
 	}
 
@@ -72,6 +77,13 @@ func TestSearchScope(t *testing.T) {
 			Expression: clause.Select{},
 		},
 	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	// Using struct field names
+	search.Fields = []string{"Name", "Email"}
+
+	db = openDryRunDB(t)
+	db = db.Scopes(search.Scope(schema)).Table("table").Find(nil)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 

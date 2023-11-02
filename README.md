@@ -254,11 +254,11 @@ It is important to make sure your JSON expression returns a value that has a typ
 
 ## Tips
 
-### Model recommendations
+### Model and DTO recommendations
 
-- Use `json:",omitempty"` on all model fields.
+- Use `json:",omitempty"` on all DTO fields.
 	- *Note: using `omitempty` on slices will remove them from the json result if they are not nil and empty. There is currently no solution to this problem using the standard json package.*
-- Use `json:"-"` on foreign keys.
+- Don't include the foreign keys in the DTO.
 - Use `*null.Time` from the [`gopkg.in/guregu/null.v4`](https://github.com/guregu/null) library instead of `sql.NullTime`.
 - Always specify `gorm:"foreignKey"`, otherwise falls back to "ID".
 - Don't use `gorm.Model` and add the necessary fields manually. You get better control over json struct tags this way.

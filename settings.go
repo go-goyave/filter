@@ -401,8 +401,8 @@ func getField(field string, sch *schema.Schema, blacklist *Blacklist) (*schema.F
 	if blacklist != nil && lo.Contains(blacklist.FieldsBlacklist, field) {
 		return nil, nil, ""
 	}
-	col, ok := s.FieldsByDBName[field]
-	if !ok {
+	col := s.LookUpField(field)
+	if col == nil {
 		return nil, nil, ""
 	}
 	return col, s, joinName

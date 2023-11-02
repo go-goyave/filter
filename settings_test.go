@@ -60,7 +60,7 @@ func prepareTestScope(t *testing.T, settings *Settings[*TestScopeModel]) (*datab
 			"join":     []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
 			"page":     2,
 			"per_page": 15,
-			"fields":   "id,name,email,computed",
+			"fields":   []string{"id", "name", "email", "computed"},
 			"search":   "val",
 		},
 		Lang: lang.New().GetDefault(),
@@ -89,7 +89,7 @@ func prepareTestScopeUnpaginated(t *testing.T, settings *Settings[*TestScopeMode
 			"join":     []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
 			"page":     2, // Those two should be ignored since we are not paginating
 			"per_page": 15,
-			"fields":   "id,name,email,computed",
+			"fields":   []string{"id", "name", "email", "computed"},
 			"search":   "val",
 		},
 		Lang: lang.New().GetDefault(),
@@ -1009,7 +1009,7 @@ func TestScopeUnpaginatedDisableSearch(t *testing.T) {
 func TestScopeNoPrimaryKey(t *testing.T) {
 	request := &goyave.Request{
 		Query: map[string]any{
-			"fields": "name",
+			"fields": []string{"name"},
 			"join":   []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
 		},
 		Lang: lang.New().GetDefault(),
@@ -1025,7 +1025,7 @@ func TestScopeNoPrimaryKey(t *testing.T) {
 func TestScopeUnpaginatedNoPrimaryKey(t *testing.T) {
 	request := &goyave.Request{
 		Query: map[string]any{
-			"fields": "name",
+			"fields": []string{"name"},
 			"join":   []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
 		},
 		Lang: lang.New().GetDefault(),
@@ -1892,7 +1892,7 @@ func TestSettingsDefaultSort(t *testing.T) {
 			"filter": []*Filter{
 				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
 			},
-			"fields":   "id,name,email",
+			"fields":   []string{"id", "name", "email"},
 			"page":     2,
 			"per_page": 15,
 		},
@@ -1975,7 +1975,7 @@ func TestSettingsDefaultSort(t *testing.T) {
 				{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
 			},
 			"sort":     []*Sort{{Field: "name", Order: SortDescending}},
-			"fields":   "id,name,email",
+			"fields":   []string{"id", "name", "email"},
 			"page":     2,
 			"per_page": 15,
 		},

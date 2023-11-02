@@ -173,7 +173,7 @@ func TestValidateFilter(t *testing.T) {
 	t.Run("Constructor", func(t *testing.T) {
 		v := &FilterValidator{}
 		assert.NotNil(t, v)
-		assert.Equal(t, "filter", v.Name())
+		assert.Equal(t, "goyave-filter-filter", v.Name())
 		assert.True(t, v.IsType())
 		assert.False(t, v.IsTypeDependent())
 		assert.Empty(t, v.MessagePlaceholders(&validation.Context{}))
@@ -252,7 +252,7 @@ func TestValidateSort(t *testing.T) {
 	t.Run("Constructor", func(t *testing.T) {
 		v := &SortValidator{}
 		assert.NotNil(t, v)
-		assert.Equal(t, "sort", v.Name())
+		assert.Equal(t, "goyave-filter-sort", v.Name())
 		assert.True(t, v.IsType())
 		assert.False(t, v.IsTypeDependent())
 		assert.Empty(t, v.MessagePlaceholders(&validation.Context{}))
@@ -324,7 +324,7 @@ func TestValidateJoin(t *testing.T) {
 	t.Run("Constructor", func(t *testing.T) {
 		v := &JoinValidator{}
 		assert.NotNil(t, v)
-		assert.Equal(t, "join", v.Name())
+		assert.Equal(t, "goyave-filter-join", v.Name())
 		assert.True(t, v.IsType())
 		assert.False(t, v.IsTypeDependent())
 		assert.Empty(t, v.MessagePlaceholders(&validation.Context{}))
@@ -377,6 +377,57 @@ func TestValidateJoin(t *testing.T) {
 			v := &JoinValidator{}
 			ctx := &validation.Context{
 				Value: c.value,
+			}
+			assert.Equal(t, c.want, v.Validate(ctx))
+			if c.wantValue != nil {
+				assert.Equal(t, c.wantValue, ctx.Value)
+			}
+		})
+	}
+}
+
+func TestValidateFields(t *testing.T) {
+
+	t.Run("Constructor", func(t *testing.T) {
+		v := &FieldsValidator{}
+		assert.NotNil(t, v)
+		assert.Equal(t, "goyave-filter-fields", v.Name())
+		assert.True(t, v.IsType())
+		assert.False(t, v.IsTypeDependent())
+		assert.Empty(t, v.MessagePlaceholders(&validation.Context{}))
+	})
+
+	cases := []struct {
+		value     any
+		wantValue any
+		want      bool
+		invalid   bool
+	}{
+		{
+			value:     []string{"field a", "field b  ", "  field c"},
+			want:      true,
+			wantValue: []string{"field a", "field b", "field c"},
+		},
+		{
+			value:     "field a,field b   ,    field c",
+			want:      true,
+			wantValue: []string{"field a", "field b", "field c"},
+		},
+		{
+			value:     123,
+			invalid:   true,
+			want:      true,
+			wantValue: 123,
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(fmt.Sprintf("Validate_%v_%t", c.value, c.want), func(t *testing.T) {
+			v := &FieldsValidator{}
+			ctx := &validation.Context{
+				Value:   c.value,
+				Invalid: c.invalid,
 			}
 			assert.Equal(t, c.want, v.Validate(ctx))
 			if c.wantValue != nil {

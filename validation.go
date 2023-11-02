@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	"goyave.dev/goyave/v5"
 	"goyave.dev/goyave/v5/lang"
 	v "goyave.dev/goyave/v5/validation"
@@ -13,9 +14,9 @@ import (
 var Separator = "||"
 
 func init() {
-	lang.SetDefaultValidationRule("filter.array", "The filter format is invalid.")
-	lang.SetDefaultValidationRule("join.array", "The join format is invalid.")
-	lang.SetDefaultValidationRule("sort.array", "The sort format is invalid.")
+	lang.SetDefaultValidationRule("goyave-filter-filter.array", "The filter format is invalid.")
+	lang.SetDefaultValidationRule("goyave-filter-join.array", "The join format is invalid.")
+	lang.SetDefaultValidationRule("goyave-filter-sort.array", "The sort format is invalid.")
 }
 
 // FilterValidator checks the `filter` format and converts it to `*Filter` struct.
@@ -43,7 +44,7 @@ func (v *FilterValidator) Validate(ctx *v.Context) bool {
 }
 
 // Name returns the string name of the validator.
-func (v *FilterValidator) Name() string { return "filter" }
+func (v *FilterValidator) Name() string { return "goyave-filter-filter" }
 
 // IsType returns true
 func (v *FilterValidator) IsType() bool { return true }
@@ -71,7 +72,7 @@ func (v *SortValidator) Validate(ctx *v.Context) bool {
 }
 
 // Name returns the string name of the validator.
-func (v *SortValidator) Name() string { return "sort" }
+func (v *SortValidator) Name() string { return "goyave-filter-sort" }
 
 // IsType returns true
 func (v *SortValidator) IsType() bool { return true }
@@ -80,6 +81,33 @@ func (v *SortValidator) IsType() bool { return true }
 type JoinValidator struct {
 	v.BaseValidator
 }
+
+// FieldsValidator splits the string field under validation by comma and trims every element.
+type FieldsValidator struct {
+	v.BaseValidator
+}
+
+// Validate checks the field under validation satisfies this validator's criteria.
+func (v *FieldsValidator) Validate(ctx *v.Context) bool {
+	if ctx.Invalid {
+		return true
+	}
+	trim := func(s string, _ int) string { return strings.TrimSpace(s) }
+	if slice, ok := ctx.Value.([]string); ok {
+		ctx.Value = lo.Map(slice, trim)
+		return true
+	}
+
+	str := ctx.Value.(string)
+	ctx.Value = lo.Map(strings.Split(str, ","), trim)
+	return true
+}
+
+// Name returns the string name of the validator.
+func (v *FieldsValidator) Name() string { return "goyave-filter-fields" }
+
+// IsType returns true
+func (v *FieldsValidator) IsType() bool { return true }
 
 // Validate checks the field under validation satisfies this validator's criteria.
 func (v *JoinValidator) Validate(ctx *v.Context) bool {
@@ -99,7 +127,7 @@ func (v *JoinValidator) Validate(ctx *v.Context) bool {
 }
 
 // Name returns the string name of the validator.
-func (v *JoinValidator) Name() string { return "join" }
+func (v *JoinValidator) Name() string { return "goyave-filter-join" }
 
 // IsType returns true
 func (v *JoinValidator) IsType() bool { return true }
@@ -118,7 +146,7 @@ func Validation(_ *goyave.Request) v.RuleSet {
 		{Path: "page", Rules: v.List{v.Int(), v.Min(1)}},
 		{Path: "per_page", Rules: v.List{v.Int(), v.Between(1, 500)}},
 		{Path: "search", Rules: v.List{v.String(), v.Max(255)}},
-		{Path: "fields", Rules: v.List{v.String()}},
+		{Path: "fields", Rules: v.List{v.String(), &FieldsValidator{}}},
 	}
 }
 

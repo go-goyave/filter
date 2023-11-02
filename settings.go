@@ -2,6 +2,7 @@ package filter
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -171,9 +172,9 @@ func (s *Settings[T]) scopeCommon(db *gorm.DB, request *goyave.Request, dest any
 }
 
 func (s *Settings[T]) scopeFields(db *gorm.DB, request *goyave.Request, schema *schema.Schema, hasJoins bool) *gorm.DB {
-	queryFields, queryHasFields := request.Query["fields"]
+	queryFields, queryHasFields := request.Query["fields"].([]string)
 	if !s.DisableFields && queryHasFields {
-		fields := lo.Map(strings.Split(queryFields.(string), ","), func(s string, _ int) string { return strings.TrimSpace(s) })
+		fields := slices.Clone(queryFields)
 		if hasJoins {
 			if len(schema.PrimaryFieldDBNames) == 0 {
 				db.AddError(errors.New("could not find primary key. Add `gorm:\"primaryKey\"` to your model"))

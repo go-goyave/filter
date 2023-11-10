@@ -14,9 +14,9 @@ import (
 var Separator = "||"
 
 func init() {
-	lang.SetDefaultValidationRule("goyave-filter-filter.array", "The filter format is invalid.")
-	lang.SetDefaultValidationRule("goyave-filter-join.array", "The join format is invalid.")
-	lang.SetDefaultValidationRule("goyave-filter-sort.array", "The sort format is invalid.")
+	lang.SetDefaultValidationRule("goyave-filter-filter.element", "The filter format is invalid.")
+	lang.SetDefaultValidationRule("goyave-filter-join.element", "The join format is invalid.")
+	lang.SetDefaultValidationRule("goyave-filter-sort.element", "The sort format is invalid.")
 }
 
 // FilterValidator checks the `filter` format and converts it to `*Filter` struct.

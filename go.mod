@@ -7,7 +7,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	gorm.io/driver/sqlite v1.5.4
 	gorm.io/gorm v1.25.5
-	goyave.dev/goyave/v5 v5.0.0-preview5
+	goyave.dev/goyave/v5 v5.0.0-preview6.0.20231201171501-32722c77ca39
 )
 
 require (
@@ -18,7 +18,7 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/mattn/go-sqlite3 v1.14.18 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
+	golang.org/x/exp v0.0.0-20231108232855-2478ac86f678 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	goyave.dev/copier v0.4.3 // indirect
 )

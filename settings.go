@@ -125,7 +125,7 @@ func parseModel(db *gorm.DB, model any) (*schema.Schema, error) {
 }
 
 // Scope using the default FilterSettings. See `FilterSettings.Scope()` for more details.
-func Scope[T any](db *gorm.DB, request *Request, dest *[]T) (*database.Paginator[T], *gorm.DB) {
+func Scope[T any](db *gorm.DB, request *Request, dest *[]T) (*database.Paginator[T], error) {
 	return (&Settings[T]{}).Scope(db, request, dest)
 }
 
@@ -135,26 +135,33 @@ func ScopeUnpaginated[T any](db *gorm.DB, request *Request, dest *[]T) *gorm.DB 
 }
 
 // Scope apply all filters, sorts and joins defined in the request's data to the given `*gorm.DB`
-// and process pagination. Returns the resulting `*database.Paginator` and the `*gorm.DB` result,
-// which can be used to check for database errors.
+// and process pagination. Returns the resulting `*database.Paginator`.
 // The given request is expected to be validated using `ApplyValidation`.
-func (s *Settings[T]) Scope(db *gorm.DB, request *Request, dest *[]T) (*database.Paginator[T], *gorm.DB) {
-	db, schema, hasJoins := s.scopeCommon(db, request, dest)
+func (s *Settings[T]) Scope(db *gorm.DB, request *Request, dest *[]T) (*database.Paginator[T], error) {
 
 	page := request.Page.Default(1)
 	pageSize := request.PerPage.Default(DefaultPageSize)
 
-	paginator := database.NewPaginator(db, page, pageSize, dest)
-	paginator.UpdatePageInfo()
+	var paginator *database.Paginator[T]
+	err := db.Transaction(func(tx *gorm.DB) error {
+		tx, schema, hasJoins := s.scopeCommon(tx, request, dest)
 
-	paginator.DB = s.scopeSort(paginator.DB, request, schema)
-	if fieldsDB := s.scopeFields(paginator.DB, request, schema, hasJoins); fieldsDB != nil {
-		paginator.DB = fieldsDB
-	} else {
-		return nil, paginator.DB
-	}
+		paginator = database.NewPaginator(tx, page, pageSize, dest)
+		err := paginator.UpdatePageInfo()
+		if err != nil {
+			return errors.New(err)
+		}
+		paginator.DB = s.scopeSort(paginator.DB, request, schema)
+		if fieldsDB := s.scopeFields(paginator.DB, request, schema, hasJoins); fieldsDB != nil {
+			paginator.DB = fieldsDB
+		} else {
+			return errors.New(paginator.DB.Error)
+		}
 
-	return paginator, paginator.Find()
+		return paginator.Find()
+	})
+
+	return paginator, err
 }
 
 // ScopeUnpaginated apply all filters, sorts and joins defined in the request's data to the given `*gorm.DB`

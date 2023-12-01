@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 	"goyave.dev/goyave/v5/database"
+
 	"goyave.dev/goyave/v5/util/typeutil"
 )
 
@@ -45,7 +46,7 @@ func openDryRunDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func prepareTestScope(t *testing.T, settings *Settings[*TestScopeModel]) (*database.Paginator[*TestScopeModel], *gorm.DB) {
+func prepareTestScope(t *testing.T, settings *Settings[*TestScopeModel]) (*database.Paginator[*TestScopeModel], error) {
 	request := &Request{
 		Filter: typeutil.NewUndefined([]*Filter{
 			{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
@@ -98,7 +99,7 @@ func prepareTestScopeUnpaginated(t *testing.T, settings *Settings[*TestScopeMode
 }
 
 func TestScope(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{
+	paginator, err := prepareTestScope(t, &Settings[*TestScopeModel]{
 		FieldsSearch: []string{"email"},
 		SearchOperator: &Operator{
 			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
@@ -108,6 +109,7 @@ func TestScope(t *testing.T) {
 		},
 	})
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -185,9 +187,9 @@ func TestScope(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Contains(t, db.Statement.Preloads, "Relation")
-	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.Contains(t, paginator.DB.Statement.Preloads, "Relation")
+	assert.Equal(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`", "`test_scope_models`.`relation_id`"}, paginator.DB.Statement.Selects)
 }
 
 func TestScopeUnpaginated(t *testing.T) {
@@ -278,8 +280,9 @@ func TestScopeUnpaginated(t *testing.T) {
 }
 
 func TestScopeDisableFields(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{DisableFields: true, FieldsSearch: []string{"email"}})
+	paginator, err := prepareTestScope(t, &Settings[*TestScopeModel]{DisableFields: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -357,8 +360,8 @@ func TestScopeDisableFields(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`"}, db.Statement.Selects)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`"}, paginator.DB.Statement.Selects)
 }
 
 func TestScopeUnpaginatedDisableFields(t *testing.T) {
@@ -440,8 +443,9 @@ func TestScopeUnpaginatedDisableFields(t *testing.T) {
 }
 
 func TestScopeDisableFilter(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{DisableFilter: true, FieldsSearch: []string{"email"}})
+	paginator, err := prepareTestScope(t, &Settings[*TestScopeModel]{DisableFilter: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -496,8 +500,8 @@ func TestScopeDisableFilter(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`", "(UPPER(`test_scope_models`.name)) `computed`"}, db.Statement.Selects)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`", "(UPPER(`test_scope_models`.name)) `computed`"}, paginator.DB.Statement.Selects)
 }
 
 func TestScopeUnpaginatedDisableFilter(t *testing.T) {
@@ -556,8 +560,9 @@ func TestScopeUnpaginatedDisableFilter(t *testing.T) {
 }
 
 func TestScopeDisableSort(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{DisableSort: true, FieldsSearch: []string{"email"}})
+	paginator, err := prepareTestScope(t, &Settings[*TestScopeModel]{DisableSort: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -622,8 +627,8 @@ func TestScopeDisableSort(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`", "(UPPER(`test_scope_models`.name)) `computed`"}, db.Statement.Selects)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`", "(UPPER(`test_scope_models`.name)) `computed`"}, paginator.DB.Statement.Selects)
 }
 
 func TestScopeUnpaginatedDisableSort(t *testing.T) {
@@ -692,8 +697,9 @@ func TestScopeUnpaginatedDisableSort(t *testing.T) {
 }
 
 func TestScopeDisableJoin(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{DisableJoin: true, FieldsSearch: []string{"email"}})
+	paginator, err := prepareTestScope(t, &Settings[*TestScopeModel]{DisableJoin: true, FieldsSearch: []string{"email"}})
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -770,9 +776,9 @@ func TestScopeDisableJoin(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Empty(t, db.Statement.Preloads)
-	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`"}, db.Statement.Selects)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.Empty(t, paginator.DB.Statement.Preloads)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`"}, paginator.DB.Statement.Selects)
 }
 
 func TestScopeUnpaginatedDisableJoin(t *testing.T) {
@@ -854,8 +860,9 @@ func TestScopeUnpaginatedDisableJoin(t *testing.T) {
 }
 
 func TestScopeDisableSearch(t *testing.T) {
-	paginator, db := prepareTestScope(t, &Settings[*TestScopeModel]{DisableSearch: true, FieldsSearch: []string{"name"}})
+	paginator, err := prepareTestScope(t, &Settings[*TestScopeModel]{DisableSearch: true, FieldsSearch: []string{"name"}})
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -925,8 +932,8 @@ func TestScopeDisableSearch(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`", "(UPPER(`test_scope_models`.name)) `computed`"}, db.Statement.Selects)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`name`", "`test_scope_models`.`email`", "`test_scope_models`.`relation_id`", "(UPPER(`test_scope_models`.name)) `computed`"}, paginator.DB.Statement.Selects)
 }
 
 func TestScopeUnpaginatedDisableSearch(t *testing.T) {
@@ -1007,9 +1014,9 @@ func TestScopeNoPrimaryKey(t *testing.T) {
 	db := openDryRunDB(t)
 
 	results := []*TestScopeModelNoPrimaryKey{}
-	paginator, db := Scope(db, request, &results)
-	assert.Nil(t, paginator)
-	assert.Equal(t, "could not find primary key. Add `gorm:\"primaryKey\"` to your model", db.Error.Error())
+	paginator, err := Scope(db, request, &results)
+	assert.Equal(t, "could not find primary key. Add `gorm:\"primaryKey\"` to your model", err.Error())
+	assert.Equal(t, err, paginator.DB.Error)
 }
 
 func TestScopeUnpaginatedNoPrimaryKey(t *testing.T) {
@@ -1034,9 +1041,10 @@ func TestScopeWithFieldsBlacklist(t *testing.T) {
 		},
 	}
 	results := []*TestScopeModel{}
-	paginator, db := settings.Scope(db, request, &results)
+	paginator, err := settings.Scope(db, request, &results)
 	assert.NotNil(t, paginator)
-	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`"}, db.Statement.Selects)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`id`", "`test_scope_models`.`relation_id`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`"}, paginator.DB.Statement.Selects)
 }
 
 func TestScopeUnpaginatedWithFieldsBlacklist(t *testing.T) {
@@ -1058,7 +1066,7 @@ func TestScopeInvalidModel(t *testing.T) {
 	db := openDryRunDB(t)
 	model := []string{}
 	assert.Panics(t, func() {
-		Scope(db, request, &model)
+		_, _ = Scope(db, request, &model)
 	})
 }
 
@@ -1425,9 +1433,10 @@ func TestSettingsComputedFieldWithAutoFields(t *testing.T) {
 	db := openDryRunDB(t)
 
 	results := []*TestScopeModel{}
-	paginator, db := Scope(db, request, &results)
+	paginator, err := Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -1489,8 +1498,8 @@ func TestSettingsComputedFieldWithAutoFields(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.ElementsMatch(t, []string{"`test_scope_models`.`name`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`", "`test_scope_models`.`id`", "`test_scope_models`.`relation_id`"}, db.Statement.Selects)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.ElementsMatch(t, []string{"`test_scope_models`.`name`", "`test_scope_models`.`email`", "(UPPER(`test_scope_models`.name)) `computed`", "`test_scope_models`.`id`", "`test_scope_models`.`relation_id`"}, paginator.DB.Statement.Selects)
 }
 
 func TestSettingsSelectWithExistingJoin(t *testing.T) {
@@ -1507,9 +1516,10 @@ func TestSettingsSelectWithExistingJoin(t *testing.T) {
 	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Where("Relation.id > ?", 0))
 
 	results := []*TestScopeModel{}
-	paginator, db := Scope(db, request, &results)
+	paginator, err := Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -1575,8 +1585,8 @@ func TestSettingsSelectWithExistingJoin(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Empty(t, db.Statement.Joins)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.Empty(t, paginator.DB.Statement.Joins)
 }
 
 type TestScopeRelationWithComputed struct {
@@ -1606,9 +1616,10 @@ func TestSettingsSelectWithExistingJoinAndComputed(t *testing.T) {
 	db = db.Joins("Relation")
 
 	results := []*TestScopeModelWithComputed{}
-	paginator, db := Scope(db, request, &results)
+	paginator, err := Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -1674,8 +1685,8 @@ func TestSettingsSelectWithExistingJoinAndComputed(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Empty(t, db.Statement.Joins)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.Empty(t, paginator.DB.Statement.Joins)
 }
 
 func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
@@ -1691,9 +1702,10 @@ func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Omit("c"))
 
 	results := []*TestScopeModelWithComputed{}
-	paginator, db := Scope(db, request, &results)
+	paginator, err := Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -1758,8 +1770,8 @@ func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Empty(t, db.Statement.Joins)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.Empty(t, paginator.DB.Statement.Joins)
 }
 
 func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T) {
@@ -1773,9 +1785,10 @@ func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T)
 	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Where("Relation.id > ?", 0))
 
 	results := []*TestScopeModelWithComputed{}
-	paginator, db := Scope(db, request, &results)
+	paginator, err := Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"FROM": {
@@ -1830,8 +1843,8 @@ func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T)
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Empty(t, db.Statement.Joins)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.Empty(t, paginator.DB.Statement.Joins)
 }
 
 func TestSettingsDefaultSort(t *testing.T) {
@@ -1854,9 +1867,10 @@ func TestSettingsDefaultSort(t *testing.T) {
 		},
 	}
 
-	paginator, db := settings.Scope(db, request, &results)
+	paginator, err := settings.Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -1912,7 +1926,7 @@ func TestSettingsDefaultSort(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
 
 	request = &Request{
 		Filter: typeutil.NewUndefined([]*Filter{
@@ -1927,9 +1941,10 @@ func TestSettingsDefaultSort(t *testing.T) {
 
 	results = []*TestScopeModel{}
 
-	paginator, db = settings.Scope(db, request, &results)
+	paginator, err = settings.Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
 
 	expected = map[string]clause.Clause{
 		"WHERE": {
@@ -1979,7 +1994,7 @@ func TestSettingsDefaultSort(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
 }
 
 func TestNewRequest(t *testing.T) {

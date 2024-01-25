@@ -96,7 +96,7 @@ func joinScope(relationName string, rel *schema.Relationship, fields []string, b
 
 	return func(tx *gorm.DB) *gorm.DB {
 		if rel.FieldSchema.Table == "" {
-			tx.AddError(errors.New(fmt.Errorf("relation %q is anonymous, could not get table name", relationName)))
+			tx.AddError(errors.Errorf("relation %q is anonymous, could not get table name", relationName))
 			return tx
 		}
 		if columns != nil {

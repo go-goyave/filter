@@ -7,7 +7,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	gorm.io/driver/sqlite v1.5.4
 	gorm.io/gorm v1.25.6
-	goyave.dev/goyave/v5 v5.0.0-rc4
+	goyave.dev/goyave/v5 v5.0.0-rc5
 )
 
 require (

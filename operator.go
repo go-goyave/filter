@@ -78,7 +78,7 @@ var (
 		"$in":    {Function: multiComparison("IN"), RequiredArguments: 1},
 		"$notin": {Function: multiComparison("NOT IN"), RequiredArguments: 1},
 		"$isnull": {
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, _ DataType) *gorm.DB {
 				return filter.Where(tx, column+" IS NULL")
 			},
 			RequiredArguments: 0,
@@ -102,7 +102,7 @@ var (
 			RequiredArguments: 0,
 		},
 		"$notnull": {
-			Function: func(tx *gorm.DB, filter *Filter, column string, dataType DataType) *gorm.DB {
+			Function: func(tx *gorm.DB, filter *Filter, column string, _ DataType) *gorm.DB {
 				return filter.Where(tx, column+" IS NOT NULL")
 			},
 			RequiredArguments: 0,

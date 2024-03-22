@@ -16,6 +16,7 @@ import (
 )
 
 var fifteen = 15
+var ten = 10
 
 type TestScopeRelation struct {
 	A  string
@@ -2079,4 +2080,58 @@ func TestNewRequest(t *testing.T) {
 		})
 	}
 
+}
+
+func TestScopeWithCaseInsensitiveSort(t *testing.T) {
+	request := &Request{
+		Sort: typeutil.NewUndefined([]*Sort{{Field: "name", Order: SortAscending}}),
+	}
+	db := openDryRunDB(t)
+
+	results := []*TestScopeModel{}
+	settings := &Settings[*TestScopeModel]{
+		CaseInsensitiveSort: true,
+	}
+	paginator, err := settings.Scope(db, request, &results)
+	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
+
+	expected := map[string]clause.Clause{
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Raw:  true,
+							Name: "LOWER(`test_scope_models`.`name`)",
+						},
+					},
+				},
+			},
+		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Raw: true, Name: "`test_scope_models`.`name`"},
+					{Raw: true, Name: "`test_scope_models`.`email`"},
+					{Raw: true, Name: "(UPPER(`test_scope_models`.name)) `computed`"},
+					{Raw: true, Name: "`test_scope_models`.`id`"},
+					{Raw: true, Name: "`test_scope_models`.`relation_id`"},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  &ten,
+				Offset: 0,
+			},
+		},
+	}
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
 }

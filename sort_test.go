@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +12,7 @@ import (
 func TestSortScope(t *testing.T) {
 	db := openDryRunDB(t)
 	sort := &Sort{Field: "notacolumn", Order: SortAscending}
-	field := &schema.Field{Name: "Name", DBName: "name"}
+	field := &schema.Field{Name: "Name", DBName: "name", GORMDataType: schema.String}
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
 			"name": field,
@@ -22,12 +23,12 @@ func TestSortScope(t *testing.T) {
 		Table: "test_models",
 	}
 
-	assert.Nil(t, sort.Scope(Blacklist{}, schema))
+	assert.Nil(t, sort.Scope(Blacklist{}, schema, false))
 
 	sort.Field = "name"
 
 	results := []map[string]any{}
-	db = db.Scopes(sort.Scope(Blacklist{}, schema)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, false)).Table("table").Find(&results)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -56,7 +57,7 @@ func TestSortScope(t *testing.T) {
 	sort.Order = SortDescending
 	results = []map[string]any{}
 	db = openDryRunDB(t)
-	db = db.Scopes(sort.Scope(Blacklist{}, schema)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, false)).Table("table").Find(&results)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
 
@@ -64,7 +65,7 @@ func TestSortScope(t *testing.T) {
 	sort.Field = "Name"
 	results = []map[string]any{}
 	db = openDryRunDB(t)
-	db = db.Scopes(sort.Scope(Blacklist{}, schema)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, false)).Table("table").Find(&results)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
@@ -72,11 +73,11 @@ func TestSortScopeBlacklisted(t *testing.T) {
 	sort := &Sort{Field: "name", Order: SortAscending}
 	schema := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"name": {Name: "Name"},
+			"name": {Name: "Name", GORMDataType: schema.String},
 		},
 		Table: "test_models",
 	}
-	assert.Nil(t, sort.Scope(Blacklist{FieldsBlacklist: []string{"name"}}, schema))
+	assert.Nil(t, sort.Scope(Blacklist{FieldsBlacklist: []string{"name"}}, schema, false))
 }
 
 type SortTestNestedRelation struct {
@@ -108,7 +109,7 @@ func TestSortScopeWithJoin(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": {
 			Name: "FROM",
@@ -174,7 +175,7 @@ func TestSortScopeWithJoinInvalidModel(t *testing.T) {
 		return
 	}
 
-	db = db.Scopes(sort.Scope(Blacklist{}, sch)).Find(&results)
+	db = db.Scopes(sort.Scope(Blacklist{}, sch, false)).Find(&results)
 	assert.Equal(t, "unsupported data type: <nil>", db.Error.Error())
 }
 
@@ -188,7 +189,7 @@ func TestSortScopeWithJoinNestedRelation(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": {
 			Name: "FROM",
@@ -289,7 +290,7 @@ func TestSortScopeComputed(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -326,7 +327,7 @@ func TestSortScopeComputedWithJoin(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": {
 			Name: "FROM",
@@ -380,5 +381,185 @@ func TestSortScopeComputedWithJoin(t *testing.T) {
 			},
 		},
 	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestSortScopeCaseInsensitive(t *testing.T) {
+	db := openDryRunDB(t)
+	sort := &Sort{Field: "notacolumn", Order: SortAscending}
+	field := &schema.Field{Name: "Name", DBName: "name", GORMDataType: schema.String}
+	schema := &schema.Schema{
+		FieldsByDBName: map[string]*schema.Field{
+			"name": field,
+		},
+		FieldsByName: map[string]*schema.Field{
+			"Name": field,
+		},
+		Table: "test_models",
+	}
+
+	assert.Nil(t, sort.Scope(Blacklist{}, schema, false))
+
+	sort.Field = "name"
+
+	results := []map[string]any{}
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	expected := map[string]clause.Clause{
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Raw:  true,
+							Name: "LOWER(`test_models`.`name`)",
+						},
+					},
+				},
+			},
+		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	sort.Order = SortDescending
+	results = []map[string]any{}
+	db = openDryRunDB(t)
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	// Using struct field name
+	sort.Field = "Name"
+	results = []map[string]any{}
+	db = openDryRunDB(t)
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestSortScopeCaseInsensitiveNotString(t *testing.T) {
+	db := openDryRunDB(t)
+	sort := &Sort{Field: "notacolumn", Order: SortAscending}
+	field := &schema.Field{Name: "ID", DBName: "id", GORMDataType: schema.Int}
+	schema := &schema.Schema{
+		FieldsByDBName: map[string]*schema.Field{
+			"id": field,
+		},
+		FieldsByName: map[string]*schema.Field{
+			"ID": field,
+		},
+		Table: "test_models",
+	}
+
+	assert.Nil(t, sort.Scope(Blacklist{}, schema, false))
+
+	sort.Field = "id"
+
+	results := []map[string]any{}
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	expected := map[string]clause.Clause{
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Table: "test_models",
+							Name:  "id",
+						},
+					},
+				},
+			},
+		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	sort.Order = SortDescending
+	results = []map[string]any{}
+	db = openDryRunDB(t)
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	// Using struct field name
+	sort.Field = "ID"
+	results = []map[string]any{}
+	db = openDryRunDB(t)
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	assert.Equal(t, expected, db.Statement.Clauses)
+}
+
+func TestSortScopeCaseInsensitiveComputed(t *testing.T) {
+	db := openDryRunDB(t)
+	sort := &Sort{Field: "notacolumn", Order: SortAscending}
+	field := &schema.Field{Name: "Name", DBName: "name", GORMDataType: schema.String, StructField: reflect.StructField{Tag: `computed:"UPPER(name)"`}}
+	schema := &schema.Schema{
+		FieldsByDBName: map[string]*schema.Field{
+			"name": field,
+		},
+		FieldsByName: map[string]*schema.Field{
+			"Name": field,
+		},
+		Table: "test_models",
+	}
+
+	assert.Nil(t, sort.Scope(Blacklist{}, schema, false))
+
+	sort.Field = "name"
+
+	results := []map[string]any{}
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	expected := map[string]clause.Clause{
+		"ORDER BY": {
+			Name: "ORDER BY",
+			Expression: clause.OrderBy{
+				Columns: []clause.OrderByColumn{
+					{
+						Column: clause.Column{
+							Raw:  true,
+							Name: "(UPPER(name))",
+						},
+					},
+				},
+			},
+		},
+		"FROM": {
+			Name:       "FROM",
+			Expression: clause.From{},
+		},
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	sort.Order = SortDescending
+	results = []map[string]any{}
+	db = openDryRunDB(t)
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
+	assert.Equal(t, expected, db.Statement.Clauses)
+
+	// Using struct field name
+	sort.Field = "Name"
+	results = []map[string]any{}
+	db = openDryRunDB(t)
+	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }

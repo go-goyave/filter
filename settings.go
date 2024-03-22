@@ -96,6 +96,10 @@ type Settings[T any] struct {
 	DisableJoin bool
 	// DisableSearch ignore the "search" query if true.
 	DisableSearch bool
+
+	// CaseInsensitiveSort if true, the sort will wrap the value in `LOWER()` if it's a string,
+	// resulting in `ORDER BY LOWER(column)`.
+	CaseInsensitiveSort bool
 }
 
 // Blacklist definition of blacklisted relations and fields.
@@ -248,7 +252,7 @@ func (s *Settings[T]) scopeSort(db *gorm.DB, request *Request, schema *schema.Sc
 
 	if !s.DisableSort {
 		for _, sort := range sorts {
-			if scope := sort.Scope(s.Blacklist, schema); scope != nil {
+			if scope := sort.Scope(s.Blacklist, schema, s.CaseInsensitiveSort); scope != nil {
 				db = db.Scopes(scope)
 			}
 		}

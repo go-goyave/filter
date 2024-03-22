@@ -66,7 +66,10 @@ settings := &filter.Settings[*model.User]{
 	// If not nil and not empty, and if the request is not providing any
 	// sort, the request will be sorted according to the `*Sort` defined in this slice.
 	// If `DisableSort` is enabled, this has no effect.
-	DefaultSort: []*Sort{{Field: "name", Order: SortDescending}}
+	DefaultSort: []*Sort{{Field: "name", Order: SortDescending}},
+
+	// If true, the sort will wrap the value in `LOWER()` if it's a string, resulting in `ORDER BY LOWER(column)`.
+	CaseInsensitiveSort: true, 
 
 	FieldsSearch:   []string{"a", "b"},      // Optional, the fields used for the search feature
 	SearchOperator: filter.Operators["$eq"], // Optional, operator used for the search feature, defaults to "$cont"

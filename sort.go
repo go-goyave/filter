@@ -27,7 +27,8 @@ const (
 )
 
 // Scope returns the GORM scope to use in order to apply sorting.
-func (s *Sort) Scope(blacklist Blacklist, schema *schema.Schema) func(*gorm.DB) *gorm.DB {
+// If caseInsensitive is true, the column is wrapped in a `LOWER()` function.
+func (s *Sort) Scope(blacklist Blacklist, schema *schema.Schema, caseInsensitive bool) func(*gorm.DB) *gorm.DB {
 	field, sch, joinName := getField(s.Field, schema, &blacklist)
 	if field == nil {
 		return nil
@@ -51,9 +52,14 @@ func (s *Sort) Scope(blacklist Blacklist, schema *schema.Schema) func(*gorm.DB) 
 				Raw:  true,
 				Name: fmt.Sprintf("(%s)", strings.ReplaceAll(computed, clause.CurrentTable, tx.Statement.Quote(table))),
 			}
+		} else if caseInsensitive && getDataType(field) == DataTypeText {
+			column = clause.Column{
+				Raw:  true,
+				Name: fmt.Sprintf("LOWER(%s.%s)", tx.Statement.Quote(table), tx.Statement.Quote(field.DBName)),
+			}
 		} else {
 			column = clause.Column{
-				Table: tableFromJoinName(sch.Table, joinName),
+				Table: table,
 				Name:  field.DBName,
 			}
 		}

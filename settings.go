@@ -173,7 +173,7 @@ func (s *Settings[T]) Scope(db *gorm.DB, request *Request, dest *[]T) (*database
 // Returns the `*gorm.DB` result, which can be used to check for database errors.
 // The records will be added in the given `dest` slice.
 // The given request is expected to be validated using `ApplyValidation`.
-func (s *Settings[T]) ScopeUnpaginated(db *gorm.DB, request *Request, dest any) *gorm.DB {
+func (s *Settings[T]) ScopeUnpaginated(db *gorm.DB, request *Request, dest *[]T) *gorm.DB {
 	db, schema, hasJoins := s.scopeCommon(db, request, dest)
 	db = s.scopeSort(db, request, schema)
 	if fieldsDB := s.scopeFields(db, request, schema, hasJoins); fieldsDB != nil {

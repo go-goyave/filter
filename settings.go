@@ -363,7 +363,8 @@ func selectScope(table string, fields []*schema.Field, override bool) func(*gorm
 
 		var fieldsWithTableName []string
 		if len(fields) == 0 {
-			fieldsWithTableName = []string{"1"}
+			// Use two filler values so Gorm doesn't attempt to Scan into a []int64
+			fieldsWithTableName = []string{"1", "2"}
 		} else {
 			fieldsWithTableName = make([]string, 0, len(fields))
 			tableName := tx.Statement.Quote(table)

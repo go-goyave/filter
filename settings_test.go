@@ -1386,8 +1386,8 @@ func TestSelectScope(t *testing.T) {
 
 	db = openDryRunDB(t)
 	db = db.Scopes(selectScope(sch.Table, []*schema.Field{}, true)).Select("*, 1 + 1 AS count").Find(nil)
-	assert.Equal(t, []string{"1"}, db.Statement.Selects)
-	assert.Equal(t, []clause.Column{{Raw: true, Name: "1"}}, db.Statement.Clauses["SELECT"].Expression.(clause.Select).Columns)
+	assert.Equal(t, []string{"1", "2"}, db.Statement.Selects)
+	assert.Equal(t, []clause.Column{{Raw: true, Name: "1"}, {Raw: true, Name: "2"}}, db.Statement.Clauses["SELECT"].Expression.(clause.Select).Columns)
 
 	db = openDryRunDB(t)
 	db = db.Scopes(selectScope(sch.Table, []*schema.Field{{DBName: "c", StructField: reflect.StructField{Tag: `computed:"a+b"`}}}, true)).Select("*, 1 + 1 AS count").Find(nil)

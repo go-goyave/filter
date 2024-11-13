@@ -142,7 +142,6 @@ func ScopeUnpaginated[T any](db *gorm.DB, request *Request, dest *[]T) *gorm.DB 
 // and process pagination. Returns the resulting `*database.Paginator`.
 // The given request is expected to be validated using `ApplyValidation`.
 func (s *Settings[T]) Scope(db *gorm.DB, request *Request, dest *[]T) (*database.Paginator[T], error) {
-
 	page := request.Page.Default(1)
 	pageSize := request.PerPage.Default(DefaultPageSize)
 
@@ -356,7 +355,6 @@ func getSelectableFields(blacklist *Blacklist, sch *schema.Schema) []*schema.Fie
 
 func selectScope(table string, fields []*schema.Field, override bool) func(*gorm.DB) *gorm.DB {
 	return func(tx *gorm.DB) *gorm.DB {
-
 		if fields == nil {
 			return tx
 		}

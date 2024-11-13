@@ -2073,13 +2073,11 @@ func TestNewRequest(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.desc, func(t *testing.T) {
 			request := NewRequest(c.query)
 			assert.Equal(t, c.want, request)
 		})
 	}
-
 }
 
 func TestScopeWithCaseInsensitiveSort(t *testing.T) {

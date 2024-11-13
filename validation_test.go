@@ -169,7 +169,6 @@ func TestParseJoin(t *testing.T) {
 }
 
 func TestValidateFilter(t *testing.T) {
-
 	t.Run("Constructor", func(t *testing.T) {
 		v := &FilterValidator{}
 		assert.NotNil(t, v)
@@ -233,7 +232,6 @@ func TestValidateFilter(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(fmt.Sprintf("Validate_%v_%t", c.value, c.want), func(t *testing.T) {
 			v := &FilterValidator{Or: c.or}
 			ctx := &validation.Context{
@@ -248,7 +246,6 @@ func TestValidateFilter(t *testing.T) {
 }
 
 func TestValidateSort(t *testing.T) {
-
 	t.Run("Constructor", func(t *testing.T) {
 		v := &SortValidator{}
 		assert.NotNil(t, v)
@@ -305,7 +302,6 @@ func TestValidateSort(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(fmt.Sprintf("Validate_%v_%t", c.value, c.want), func(t *testing.T) {
 			v := &SortValidator{}
 			ctx := &validation.Context{
@@ -320,7 +316,6 @@ func TestValidateSort(t *testing.T) {
 }
 
 func TestValidateJoin(t *testing.T) {
-
 	t.Run("Constructor", func(t *testing.T) {
 		v := &JoinValidator{}
 		assert.NotNil(t, v)
@@ -372,7 +367,6 @@ func TestValidateJoin(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(fmt.Sprintf("Validate_%v_%t", c.value, c.want), func(t *testing.T) {
 			v := &JoinValidator{}
 			ctx := &validation.Context{
@@ -387,7 +381,6 @@ func TestValidateJoin(t *testing.T) {
 }
 
 func TestValidateFields(t *testing.T) {
-
 	t.Run("Constructor", func(t *testing.T) {
 		v := &FieldsValidator{}
 		assert.NotNil(t, v)
@@ -422,7 +415,6 @@ func TestValidateFields(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(fmt.Sprintf("Validate_%v_%t", c.value, c.want), func(t *testing.T) {
 			v := &FieldsValidator{}
 			ctx := &validation.Context{

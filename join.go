@@ -121,7 +121,6 @@ func joinScope(relationName string, rel *schema.Relationship, fields []string, b
 }
 
 func join(tx *gorm.DB, joinName string, sch *schema.Schema) *gorm.DB {
-
 	var lastTable string
 	var relation *schema.Relationship
 	joins := make([]clause.Join, 0, strings.Count(joinName, ".")+1)

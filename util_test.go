@@ -225,7 +225,6 @@ func TestConvertToSafeType(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(fmt.Sprintf("%s_%s", c.value, c.dataType), func(t *testing.T) {
 			val, ok := ConvertToSafeType(c.value, c.dataType)
 			assert.Equal(t, c.want, val)
@@ -235,7 +234,6 @@ func TestConvertToSafeType(t *testing.T) {
 }
 
 func TestConvertArgsToSafeType(t *testing.T) {
-
 	// No need for exhaustive testing here since it's already done by TestConvertToSafeType
 	cases := []struct {
 		want     any
@@ -249,7 +247,6 @@ func TestConvertArgsToSafeType(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(fmt.Sprintf("%s_%s", c.value, c.dataType), func(t *testing.T) {
 			val, ok := ConvertArgsToSafeType(c.value, c.dataType)
 			assert.Equal(t, c.want, val)
@@ -384,7 +381,6 @@ func TestGetDataType(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.desc, func(t *testing.T) {
 			model, err := parseModel(openDryRunDB(t), c.model)
 			if !assert.NoError(t, err) {

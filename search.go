@@ -26,7 +26,6 @@ func (s *Search) Scope(schema *schema.Schema) func(*gorm.DB) *gorm.DB {
 		searchQuery := tx.Session(&gorm.Session{NewDB: true})
 
 		for _, field := range s.Fields {
-
 			f, sch, joinName := getField(field, schema, nil)
 			if f == nil {
 				continue

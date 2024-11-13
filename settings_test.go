@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -1510,7 +1511,7 @@ func TestSettingsSelectWithExistingJoin(t *testing.T) {
 		}),
 		PerPage: typeutil.NewUndefined(15),
 	}
-	db := openDryRunDB(t)
+	db := openDryRunDB(t).Debug()
 
 	// We manually join a relation with a condition.
 	// We expect this join to not be removed nor duplicated, with the condition kept and the fields selected.
@@ -1538,30 +1539,7 @@ func TestSettingsSelectWithExistingJoin(t *testing.T) {
 		"FROM": {
 			Name: "FROM",
 			Expression: clause.From{
-				Joins: []clause.Join{
-					{
-						Type: clause.LeftJoin,
-						Table: clause.Table{
-							Name:  "test_scope_relations",
-							Alias: "Relation",
-						},
-						ON: clause.Where{
-							Exprs: []clause.Expression{
-								clause.Eq{
-									Column: clause.Column{
-										Table: clause.CurrentTable,
-										Name:  "relation_id",
-									},
-									Value: clause.Column{
-										Table: "Relation",
-										Name:  "id",
-									},
-								},
-								clause.Expr{SQL: "Relation.id > ?", Vars: []any{0}},
-							},
-						},
-					},
-				},
+				Joins: []clause.Join{},
 			},
 		},
 		"LIMIT": {
@@ -1587,7 +1565,21 @@ func TestSettingsSelectWithExistingJoin(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
-	assert.Empty(t, paginator.DB.Statement.Joins)
+	require.Len(t, paginator.DB.Statement.Joins, 1)
+	j := paginator.DB.Statement.Joins[0]
+	assert.Equal(t, "Relation", j.Name)
+	assert.Equal(t, clause.LeftJoin, j.JoinType)
+	assert.Equal(t, []string{"*"}, j.Omits)
+	if assert.Len(t, j.Conds, 1) {
+		assert.Equal(t, clause.Where{Exprs: []clause.Expression{clause.Expr{SQL: "Relation.id > ?", Vars: []any{0}}}}, j.Conds[0].(*gorm.DB).Statement.Clauses["WHERE"].Expression)
+	}
+	assert.Empty(t, j.Selects)
+	expectedOn := &clause.Where{
+		Exprs: []clause.Expression{
+			clause.Expr{SQL: "Relation.id > ?", Vars: []any{0}},
+		},
+	}
+	assert.Equal(t, expectedOn, j.On)
 }
 
 type TestScopeRelationWithComputed struct {
@@ -1638,29 +1630,7 @@ func TestSettingsSelectWithExistingJoinAndComputed(t *testing.T) {
 		"FROM": {
 			Name: "FROM",
 			Expression: clause.From{
-				Joins: []clause.Join{
-					{
-						Type: clause.LeftJoin,
-						Table: clause.Table{
-							Name:  "test_scope_relation_with_computeds",
-							Alias: "Relation",
-						},
-						ON: clause.Where{
-							Exprs: []clause.Expression{
-								clause.Eq{
-									Column: clause.Column{
-										Table: clause.CurrentTable,
-										Name:  "relation_id",
-									},
-									Value: clause.Column{
-										Table: "Relation",
-										Name:  "id",
-									},
-								},
-							},
-						},
-					},
-				},
+				Joins: []clause.Join{},
 			},
 		},
 		"LIMIT": {
@@ -1687,7 +1657,26 @@ func TestSettingsSelectWithExistingJoinAndComputed(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
-	assert.Empty(t, paginator.DB.Statement.Joins)
+	expectedSelect := []string{
+		"`Relation`.`a` `Relation__a`",
+		"`Relation`.`b` `Relation__b`",
+		"(UPPER(`Relation`.b)) `Relation__c`",
+		"`Relation`.`id` `Relation__id`",
+		"`test_scope_model_with_computeds`.`name`",
+		"`test_scope_model_with_computeds`.`email`",
+		"(UPPER(`test_scope_model_with_computeds`.name)) `computed`",
+		"`test_scope_model_with_computeds`.`id`",
+		"`test_scope_model_with_computeds`.`relation_id`",
+	}
+	assert.Equal(t, expectedSelect, paginator.DB.Statement.Selects)
+	require.Len(t, paginator.DB.Statement.Joins, 1)
+	j := paginator.DB.Statement.Joins[0]
+	assert.Equal(t, "Relation", j.Name)
+	assert.Equal(t, clause.LeftJoin, j.JoinType)
+	assert.Equal(t, []string{"*"}, j.Omits)
+	assert.Empty(t, j.Conds)
+	assert.Empty(t, j.Selects)
+	assert.Empty(t, j.On)
 }
 
 func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
@@ -1724,29 +1713,7 @@ func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 		"FROM": {
 			Name: "FROM",
 			Expression: clause.From{
-				Joins: []clause.Join{
-					{
-						Type: clause.LeftJoin,
-						Table: clause.Table{
-							Name:  "test_scope_relation_with_computeds",
-							Alias: "Relation",
-						},
-						ON: clause.Where{
-							Exprs: []clause.Expression{
-								clause.Eq{
-									Column: clause.Column{
-										Table: clause.CurrentTable,
-										Name:  "relation_id",
-									},
-									Value: clause.Column{
-										Table: "Relation",
-										Name:  "id",
-									},
-								},
-							},
-						},
-					},
-				},
+				Joins: []clause.Join{},
 			},
 		},
 		"LIMIT": {
@@ -1772,7 +1739,27 @@ func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
-	assert.Empty(t, paginator.DB.Statement.Joins)
+	expectedSelect := []string{
+		"`Relation`.`a` `Relation__a`",
+		"`Relation`.`b` `Relation__b`",
+		"`Relation`.`id` `Relation__id`",
+		"`test_scope_model_with_computeds`.`name`",
+		"`test_scope_model_with_computeds`.`email`",
+		"(UPPER(`test_scope_model_with_computeds`.name)) `computed`",
+		"`test_scope_model_with_computeds`.`id`",
+		"`test_scope_model_with_computeds`.`relation_id`",
+	}
+	assert.Equal(t, expectedSelect, paginator.DB.Statement.Selects)
+	require.Len(t, paginator.DB.Statement.Joins, 1)
+	j := paginator.DB.Statement.Joins[0]
+	assert.Equal(t, "Relation", j.Name)
+	assert.Equal(t, clause.LeftJoin, j.JoinType)
+	assert.Equal(t, []string{"*"}, j.Omits)
+	if assert.Len(t, j.Conds, 1) {
+		assert.Equal(t, []string{"c"}, j.Conds[0].(*gorm.DB).Statement.Omits)
+	}
+	assert.Empty(t, j.Selects)
+	assert.Empty(t, j.On)
 }
 
 func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T) {
@@ -1795,30 +1782,7 @@ func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T)
 		"FROM": {
 			Name: "FROM",
 			Expression: clause.From{
-				Joins: []clause.Join{
-					{
-						Type: clause.LeftJoin,
-						Table: clause.Table{
-							Name:  "test_scope_relation_with_computeds",
-							Alias: "Relation",
-						},
-						ON: clause.Where{
-							Exprs: []clause.Expression{
-								clause.Eq{
-									Column: clause.Column{
-										Table: clause.CurrentTable,
-										Name:  "relation_id",
-									},
-									Value: clause.Column{
-										Table: "Relation",
-										Name:  "id",
-									},
-								},
-								clause.Expr{SQL: "Relation.id > ?", Vars: []any{0}},
-							},
-						},
-					},
-				},
+				Joins: []clause.Join{},
 			},
 		},
 		"LIMIT": {
@@ -1845,7 +1809,33 @@ func TestSettingsSelectWithExistingJoinAndComputedWithoutFiltering(t *testing.T)
 		},
 	}
 	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
-	assert.Empty(t, paginator.DB.Statement.Joins)
+	expectedSelect := []string{
+		"`Relation`.`a` `Relation__a`",
+		"`Relation`.`b` `Relation__b`",
+		"(UPPER(`Relation`.b)) `Relation__c`",
+		"`Relation`.`id` `Relation__id`",
+		"`test_scope_model_with_computeds`.`name`",
+		"`test_scope_model_with_computeds`.`email`",
+		"(UPPER(`test_scope_model_with_computeds`.name)) `computed`",
+		"`test_scope_model_with_computeds`.`id`",
+		"`test_scope_model_with_computeds`.`relation_id`",
+	}
+	assert.Equal(t, expectedSelect, paginator.DB.Statement.Selects)
+	require.Len(t, paginator.DB.Statement.Joins, 1)
+	j := paginator.DB.Statement.Joins[0]
+	assert.Equal(t, "Relation", j.Name)
+	assert.Equal(t, clause.LeftJoin, j.JoinType)
+	assert.Equal(t, []string{"*"}, j.Omits)
+	if assert.Len(t, j.Conds, 1) {
+		assert.Equal(t, clause.Where{Exprs: []clause.Expression{clause.Expr{SQL: "Relation.id > ?", Vars: []any{0}}}}, j.Conds[0].(*gorm.DB).Statement.Clauses["WHERE"].Expression)
+	}
+	assert.Empty(t, j.Selects)
+	expectedOn := &clause.Where{
+		Exprs: []clause.Expression{
+			clause.Expr{SQL: "Relation.id > ?", Vars: []any{0}},
+		},
+	}
+	assert.Equal(t, expectedOn, j.On)
 }
 
 func TestSettingsDefaultSort(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
@@ -449,36 +450,27 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 		"FROM": {
 			Name: "FROM",
 			Expression: clause.From{
-				Joins: []clause.Join{
-					{
-						Type: clause.LeftJoin,
-						Table: clause.Table{
-							Name:  "filter_test_relations",
-							Alias: "Relation",
-						},
-						ON: clause.Where{
-							Exprs: []clause.Expression{
-								clause.Eq{
-									Column: clause.Column{
-										Table: clause.CurrentTable,
-										Name:  "id",
-									},
-									Value: clause.Column{
-										Table: "Relation",
-										Name:  "parent_id",
-									},
-								},
-								clause.Expr{SQL: "id > ?", Vars: []any{0}},
-							},
-						},
-					},
-				},
+				Joins: []clause.Join{},
 			},
 		},
 	}
 	assert.Equal(t, expected["FROM"], db.Statement.Clauses["FROM"])
 	assert.Equal(t, expected["WHERE"], db.Statement.Clauses["WHERE"])
-	assert.Empty(t, db.Statement.Joins)
+	require.Len(t, db.Statement.Joins, 1)
+	j := db.Statement.Joins[0]
+	assert.Equal(t, "Relation", j.Name)
+	assert.Equal(t, clause.LeftJoin, j.JoinType)
+	assert.Empty(t, j.Omits)
+	if assert.Len(t, j.Conds, 1) {
+		assert.Equal(t, clause.Where{Exprs: []clause.Expression{clause.Expr{SQL: "id > ?", Vars: []any{0}}}}, j.Conds[0].(*gorm.DB).Statement.Clauses["WHERE"].Expression)
+	}
+	assert.Empty(t, j.Selects)
+	expectedOn := &clause.Where{
+		Exprs: []clause.Expression{
+			clause.Expr{SQL: "id > ?", Vars: []any{0}},
+		},
+	}
+	assert.Equal(t, expectedOn, j.On)
 }
 
 func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
@@ -509,12 +501,12 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 			Name: "FROM",
 			Expression: clause.From{
 				Joins: []clause.Join{
-					{
-						Expression: clause.NamedExpr{
-							SQL:  `LEFT JOIN filter_test_relations AS "Relation" ON id > ?`,
-							Vars: []any{0},
-						},
-					},
+					// {
+					// 	Expression: clause.NamedExpr{
+					// 		SQL:  `LEFT JOIN filter_test_relations AS "Relation" ON id > ?`,
+					// 		Vars: []any{0},
+					// 	},
+					// },
 				},
 			},
 		},
@@ -529,7 +521,17 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Empty(t, db.Statement.Joins)
+
+	require.Len(t, db.Statement.Joins, 1)
+	j := db.Statement.Joins[0]
+	assert.Equal(t, `LEFT JOIN filter_test_relations AS "Relation" ON id > ?`, j.Name)
+	assert.Equal(t, clause.LeftJoin, j.JoinType)
+	assert.Empty(t, j.Omits)
+	assert.Empty(t, j.Selects)
+	if assert.Len(t, j.Conds, 1) {
+		assert.Equal(t, 0, j.Conds[0])
+	}
+	assert.Nil(t, j.On)
 }
 
 type FilterTestModelComputedRelation struct {

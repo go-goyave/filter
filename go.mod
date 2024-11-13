@@ -3,10 +3,10 @@ module goyave.dev/filter
 go 1.22
 
 require (
-	github.com/samber/lo v1.39.0
-	github.com/stretchr/testify v1.8.4
-	gorm.io/driver/sqlite v1.5.5
-	gorm.io/gorm v1.25.10
+	github.com/samber/lo v1.47.0
+	github.com/stretchr/testify v1.9.0
+	gorm.io/driver/sqlite v1.5.6
+	gorm.io/gorm v1.25.12
 	goyave.dev/goyave/v5 v5.0.0
 )
 
@@ -18,7 +18,7 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8 // indirect
+	golang.org/x/text v0.16.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	goyave.dev/copier v0.4.3 // indirect
 )

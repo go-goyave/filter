@@ -13,6 +13,20 @@ linters-settings:
   errcheck:
     exclude-functions:
       - (*gorm.io/gorm.DB).AddError
+  testifylint:
+    disable:
+      - require-error
+      - error-nil
+      - formatter
+      - encoded-compare
+  revive:
+    rules:
+      - name: var-naming
+        arguments:
+          - [] # AllowList
+          - ["DTO"] # DenyList
+      - name: unused-parameter
+        disabled: false
 
 linters:
   enable:
@@ -24,6 +38,14 @@ linters:
     - govet
     - unused
     - errcheck
+    - copyloopvar
+    - gosimple
+    - ineffassign
+    - staticcheck
+    - testifylint
+    - whitespace
+    - bodyclose
+    - inamedparam
   disable-all: false
   fast: false
 
@@ -36,3 +58,7 @@ issues:
   exclude:
     - should have a package comment
     - type name will be used as filter.FilterValidator by other packages, and that stutters; consider calling this Validator
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocyclo

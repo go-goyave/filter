@@ -2004,12 +2004,12 @@ func TestNewRequest(t *testing.T) {
 				"or": []*Filter{
 					{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
 				},
-				"sort":     []*Sort{{Field: "name", Order: SortDescending}},
-				"join":     []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
-				"page":     2,
-				"per_page": 15,
-				"fields":   []string{"id", "name", "email", "computed"},
-				"search":   "val",
+				"sort":            []*Sort{{Field: "name", Order: SortDescending}},
+				"join":            []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
+				QueryParamPage:    2,
+				QueryParamPerPage: 15,
+				"fields":          []string{"id", "name", "email", "computed"},
+				"search":          "val",
 			},
 			want: &Request{
 				Filter: typeutil.NewUndefined([]*Filter{
@@ -2034,8 +2034,8 @@ func TestNewRequest(t *testing.T) {
 					{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
 					{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
 				},
-				"sort":     []*Sort{{Field: "name", Order: SortDescending}},
-				"per_page": 15,
+				"sort":            []*Sort{{Field: "name", Order: SortDescending}},
+				QueryParamPerPage: 15,
 			},
 			want: &Request{
 				Filter: typeutil.NewUndefined([]*Filter{
@@ -2049,14 +2049,14 @@ func TestNewRequest(t *testing.T) {
 		{
 			desc: "incorrect_type",
 			query: map[string]any{
-				"filter":   "a",
-				"or":       "b",
-				"sort":     "c",
-				"join":     "d",
-				"page":     "e",
-				"per_page": "f",
-				"fields":   "g",
-				"search":   1,
+				"filter":          "a",
+				"or":              "b",
+				"sort":            "c",
+				"join":            "d",
+				QueryParamPage:    "e",
+				QueryParamPerPage: "f",
+				"fields":          "g",
+				"search":          1,
 			},
 			want: &Request{},
 		},

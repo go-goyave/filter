@@ -210,8 +210,8 @@ Internally, `goyave.dev/filter` uses [Goyave's `Paginator`](https://goyave.dev/b
 
 > ?page=**1**&per_page=**10**
 
-- If `page` isn't given, the first page will be returned.
-- If `per_page` isn't given, the default page size will be used. This default value can be overridden by changing `filter.DefaultPageSize`.
+- If `page`(can be changed via the `filter.filterQueryParamPage` variable) isn't given, the first page will be returned.
+- If `per_page`(can be changed via the `filter.QueryParamPerPage` variable) isn't given, the default page size will be used. This default value can be overridden by changing `filter.DefaultPageSize`.
 - Either way, the result is **always** paginated, even if those two parameters are missing.
 
 ## Computed columns

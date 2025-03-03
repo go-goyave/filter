@@ -12,7 +12,7 @@ import (
 func TestApplyValidation(t *testing.T) {
 	set := Validation(nil)
 
-	expectedFields := []string{"filter", "filter[]", "or", "or[]", "sort", "sort[]", "join", "join[]", "fields", "page", "per_page", "search"}
+	expectedFields := []string{"filter", "filter[]", "or", "or[]", "sort", "sort[]", "join", "join[]", "fields", QueryParamPage, QueryParamPerPage, "search"}
 	assert.True(t, lo.EveryBy(set, func(f *validation.FieldRules) bool {
 		return lo.Contains(expectedFields, f.Path)
 	}))

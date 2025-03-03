@@ -143,8 +143,8 @@ func Validation(_ *goyave.Request) v.RuleSet {
 		{Path: "sort[]", Rules: v.List{&SortValidator{}}},
 		{Path: "join", Rules: v.List{v.Array()}},
 		{Path: "join[]", Rules: v.List{&JoinValidator{}}},
-		{Path: "page", Rules: v.List{v.Int(), v.Min(1)}},
-		{Path: "per_page", Rules: v.List{v.Int(), v.Between(1, 500)}},
+		{Path: QueryParamPage, Rules: v.List{v.Int(), v.Min(1)}},
+		{Path: QueryParamPerPage, Rules: v.List{v.Int(), v.Between(1, 500)}},
 		{Path: "search", Rules: v.List{v.String(), v.Max(255)}},
 		{Path: "fields", Rules: v.List{v.String(), &FieldsValidator{}}},
 	}

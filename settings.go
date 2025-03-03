@@ -35,8 +35,8 @@ type Request struct {
 //   - sort
 //   - join
 //   - fields
-//   - page
-//   - per_page
+//   - page (current page index,can be changed via the QueryParamPage variable)
+//   - per_page (size of each page,can be changed via the QueryParamPerPage variable)
 //
 // If a field in the query doesn't match the expected type (non-validated) for the
 // filtering option, it will be ignored without an error.
@@ -60,10 +60,10 @@ func NewRequest(query map[string]any) *Request {
 	if fields, ok := query["fields"].([]string); ok {
 		r.Fields = typeutil.NewUndefined(fields)
 	}
-	if page, ok := query["page"].(int); ok {
+	if page, ok := query[QueryParamPage].(int); ok {
 		r.Page = typeutil.NewUndefined(page)
 	}
-	if perPage, ok := query["per_page"].(int); ok {
+	if perPage, ok := query[QueryParamPerPage].(int); ok {
 		r.PerPage = typeutil.NewUndefined(perPage)
 	}
 	return r
@@ -117,6 +117,10 @@ type Blacklist struct {
 }
 
 var (
+	// QueryParamPage the name of current page index in pagination
+	QueryParamPage = "page"
+	// QueryParamPerPage the name of the data size field for each page in pagination
+	QueryParamPerPage = "per_page"
 	// DefaultPageSize the default pagination page size if the "per_page" query param
 	// isn't provided.
 	DefaultPageSize = 10

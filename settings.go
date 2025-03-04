@@ -53,14 +53,6 @@ var (
 
 // NewRequest creates a filter request from an HTTP request's query.
 // Uses the entries defined by the "QueryParam*" global variables from the given query. All those entries are expected to be validated.
-//   - search
-//   - filter
-//   - or
-//   - sort
-//   - join
-//   - fields
-//   - page (current page index,can be changed via the QueryParamPage variable)
-//   - per_page (size of each page,can be changed via the QueryParamPerPage variable)
 //
 // If a field in the query doesn't match the expected type (non-validated) for the
 // filtering option, it will be ignored without an error.

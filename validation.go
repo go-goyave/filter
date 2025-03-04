@@ -135,18 +135,18 @@ func (v *JoinValidator) IsType() bool { return true }
 // Validation returns a new RuleSet for query validation.
 func Validation(_ *goyave.Request) v.RuleSet {
 	return v.RuleSet{
-		{Path: "filter", Rules: v.List{v.Array()}},
-		{Path: "filter[]", Rules: v.List{&FilterValidator{}}},
-		{Path: "or", Rules: v.List{v.Array()}},
-		{Path: "or[]", Rules: v.List{&FilterValidator{Or: true}}},
-		{Path: "sort", Rules: v.List{v.Array()}},
-		{Path: "sort[]", Rules: v.List{&SortValidator{}}},
-		{Path: "join", Rules: v.List{v.Array()}},
-		{Path: "join[]", Rules: v.List{&JoinValidator{}}},
+		{Path: QueryParamFilter, Rules: v.List{v.Array()}},
+		{Path: fmt.Sprintf("%s[]", QueryParamFilter), Rules: v.List{&FilterValidator{}}},
+		{Path: QueryParamOr, Rules: v.List{v.Array()}},
+		{Path: fmt.Sprintf("%s[]", QueryParamOr), Rules: v.List{&FilterValidator{Or: true}}},
+		{Path: QueryParamSort, Rules: v.List{v.Array()}},
+		{Path: fmt.Sprintf("%s[]", QueryParamSort), Rules: v.List{&SortValidator{}}},
+		{Path: QueryParamJoin, Rules: v.List{v.Array()}},
+		{Path: fmt.Sprintf("%s[]", QueryParamJoin), Rules: v.List{&JoinValidator{}}},
 		{Path: QueryParamPage, Rules: v.List{v.Int(), v.Min(1)}},
 		{Path: QueryParamPerPage, Rules: v.List{v.Int(), v.Between(1, 500)}},
-		{Path: "search", Rules: v.List{v.String(), v.Max(255)}},
-		{Path: "fields", Rules: v.List{v.String(), &FieldsValidator{}}},
+		{Path: QueryParamSearch, Rules: v.List{v.String(), v.Max(255)}},
+		{Path: QueryParamFields, Rules: v.List{v.String(), &FieldsValidator{}}},
 	}
 }
 

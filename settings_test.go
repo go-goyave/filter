@@ -1997,19 +1997,19 @@ func TestNewRequest(t *testing.T) {
 		{
 			desc: "all_fields",
 			query: map[string]any{
-				"filter": []*Filter{
+				QueryParamFilter: []*Filter{
 					{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
 					{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
 				},
-				"or": []*Filter{
+				QueryParamOr: []*Filter{
 					{Field: "name", Args: []string{"val3"}, Or: true, Operator: Operators["$eq"]},
 				},
-				"sort":            []*Sort{{Field: "name", Order: SortDescending}},
-				"join":            []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
+				QueryParamSort:    []*Sort{{Field: "name", Order: SortDescending}},
+				QueryParamJoin:    []*Join{{Relation: "Relation", Fields: []string{"a", "b"}}},
 				QueryParamPage:    2,
 				QueryParamPerPage: 15,
-				"fields":          []string{"id", "name", "email", "computed"},
-				"search":          "val",
+				QueryParamFields:  []string{"id", "name", "email", "computed"},
+				QueryParamSearch:  "val",
 			},
 			want: &Request{
 				Filter: typeutil.NewUndefined([]*Filter{
@@ -2030,11 +2030,11 @@ func TestNewRequest(t *testing.T) {
 		{
 			desc: "partial",
 			query: map[string]any{
-				"filter": []*Filter{
+				QueryParamFilter: []*Filter{
 					{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"]},
 					{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"]},
 				},
-				"sort":            []*Sort{{Field: "name", Order: SortDescending}},
+				QueryParamSort:    []*Sort{{Field: "name", Order: SortDescending}},
 				QueryParamPerPage: 15,
 			},
 			want: &Request{
@@ -2049,14 +2049,14 @@ func TestNewRequest(t *testing.T) {
 		{
 			desc: "incorrect_type",
 			query: map[string]any{
-				"filter":          "a",
-				"or":              "b",
-				"sort":            "c",
-				"join":            "d",
+				QueryParamFilter:  "a",
+				QueryParamOr:      "b",
+				QueryParamSort:    "c",
+				QueryParamJoin:    "d",
 				QueryParamPage:    "e",
 				QueryParamPerPage: "f",
-				"fields":          "g",
-				"search":          1,
+				QueryParamFields:  "g",
+				QueryParamSearch:  1,
 			},
 			want: &Request{},
 		},

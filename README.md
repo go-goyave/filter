@@ -106,6 +106,29 @@ results := []*model.User{}
 paginator, err := settings.Scope(session.DB(ctx, r.DB), request, &results)
 ```
 
+You can custom query field names via `filter.QueryParam*`, All customizable fields are as follows
+
+```go
+var (
+	// QueryParamSearch the name of search field in pagination
+	QueryParamSearch = "search"
+	// QueryParamFilter the name of filter field in pagination
+	QueryParamFilter = "filter"
+	// QueryParamOr the name of or field in pagination
+	QueryParamOr = "or"
+	// QueryParamSort the name of sort field in pagination
+	QueryParamSort = "sort"
+	// QueryParamJoin the name of join field in pagination
+	QueryParamJoin = "join"
+	// QueryParamFields the name of fields field in pagination
+	QueryParamFields = "fields"
+	// QueryParamPage the name of current page index in pagination
+	QueryParamPage = "page"
+	// QueryParamPerPage the name of the data size field for each page in pagination
+	QueryParamPerPage = "per_page"
+)
+```
+
 ### Filter
 
 > ?filter=**field**||**$operator**||**value**
@@ -210,8 +233,8 @@ Internally, `goyave.dev/filter` uses [Goyave's `Paginator`](https://goyave.dev/b
 
 > ?page=**1**&per_page=**10**
 
-- If `page`(can be changed via the `filter.filterQueryParamPage` variable) isn't given, the first page will be returned.
-- If `per_page`(can be changed via the `filter.QueryParamPerPage` variable) isn't given, the default page size will be used. This default value can be overridden by changing `filter.DefaultPageSize`.
+- If `page` isn't given, the first page will be returned.
+- If `per_page` isn't given, the default page size will be used. This default value can be overridden by changing `filter.DefaultPageSize`.
 - Either way, the result is **always** paginated, even if those two parameters are missing.
 
 ## Computed columns

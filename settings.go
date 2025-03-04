@@ -52,7 +52,7 @@ var (
 )
 
 // NewRequest creates a filter request from an HTTP request's query.
-// Uses the following entries in the query, expected to be validated:
+// Uses the entries defined by the "QueryParam*" global variables from the given query. All those entries are expected to be validated.
 //   - search
 //   - filter
 //   - or

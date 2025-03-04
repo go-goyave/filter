@@ -27,43 +27,59 @@ type Request struct {
 	PerPage typeutil.Undefined[int]
 }
 
+var (
+	// QueryParamSearch the name of the query parameter for the search feature
+	QueryParamSearch = "search"
+	// QueryParamFilter the name of the query parameter for the filter feature
+	QueryParamFilter = "filter"
+	// QueryParamOr the name of the query parameter for the "or" filter feature
+	QueryParamOr = "or"
+	// QueryParamSort the name of the query parameter for the sort feature
+	QueryParamSort = "sort"
+	// QueryParamJoin the name of the query parameter for the join feature
+	QueryParamJoin = "join"
+	// QueryParamFields the name of the query parameter for the fields feature
+	QueryParamFields = "fields"
+	// QueryParamPage the name of the query parameter indicating the current page
+	QueryParamPage = "page"
+	// QueryParamPerPage the name of the query parameter indicating the page size
+	QueryParamPerPage = "per_page"
+	// DefaultPageSize the default pagination page size if the "per_page" query param
+	// isn't provided.
+	DefaultPageSize = 10
+
+	modelCache = &sync.Map{}
+)
+
 // NewRequest creates a filter request from an HTTP request's query.
-// Uses the following entries in the query, expected to be validated:
-//   - search
-//   - filter
-//   - or
-//   - sort
-//   - join
-//   - fields
-//   - page
-//   - per_page
+// Uses the entries defined by the "QueryParam*" global variables from the given query. All those entries are expected to be validated.
 //
 // If a field in the query doesn't match the expected type (non-validated) for the
 // filtering option, it will be ignored without an error.
 func NewRequest(query map[string]any) *Request {
 	r := &Request{}
-	if search, ok := query["search"].(string); ok {
+	if search, ok := query[QueryParamSearch].(string); ok {
 		r.Search = typeutil.NewUndefined(search)
 	}
-	if filter, ok := query["filter"].([]*Filter); ok {
+	if filter, ok := query[QueryParamFilter].([]*Filter); ok {
 		r.Filter = typeutil.NewUndefined(filter)
 	}
-	if or, ok := query["or"].([]*Filter); ok {
+	if or, ok := query[QueryParamOr].([]*Filter); ok {
 		r.Or = typeutil.NewUndefined(or)
 	}
-	if sort, ok := query["sort"].([]*Sort); ok {
+	if sort, ok := query[QueryParamSort].([]*Sort); ok {
 		r.Sort = typeutil.NewUndefined(sort)
 	}
-	if join, ok := query["join"].([]*Join); ok {
+	if join, ok := query[QueryParamJoin].([]*Join); ok {
 		r.Join = typeutil.NewUndefined(join)
 	}
-	if fields, ok := query["fields"].([]string); ok {
+	if fields, ok := query[QueryParamFields].([]string); ok {
 		r.Fields = typeutil.NewUndefined(fields)
 	}
-	if page, ok := query["page"].(int); ok {
+	if page, ok := query[QueryParamPage].(int); ok {
 		r.Page = typeutil.NewUndefined(page)
 	}
-	if perPage, ok := query["per_page"].(int); ok {
+	if perPage, ok := query[QueryParamPerPage].(int); ok {
 		r.PerPage = typeutil.NewUndefined(perPage)
 	}
 	return r
@@ -115,14 +131,6 @@ type Blacklist struct {
 	// IsFinal if true, prevent joining any relation
 	IsFinal bool
 }
-
-var (
-	// DefaultPageSize the default pagination page size if the "per_page" query param
-	// isn't provided.
-	DefaultPageSize = 10
-
-	modelCache = &sync.Map{}
-)
 
 func parseModel(db *gorm.DB, model any) (*schema.Schema, error) {
 	return schema.Parse(model, modelCache, db.NamingStrategy)

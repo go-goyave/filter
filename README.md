@@ -106,6 +106,16 @@ results := []*model.User{}
 paginator, err := settings.Scope(session.DB(ctx, r.DB), request, &results)
 ```
 
+You can customize the names of the query parameters using the following global variables:
+- `QueryParamSearch`
+- `QueryParamFilter`
+- `QueryParamOr`
+- `QueryParamSort`
+- `QueryParamJoin`
+- `QueryParamFields`
+- `QueryParamPage`
+- `QueryParamPerPage`
+
 ### Filter
 
 > ?filter=**field**||**$operator**||**value**

@@ -106,28 +106,15 @@ results := []*model.User{}
 paginator, err := settings.Scope(session.DB(ctx, r.DB), request, &results)
 ```
 
-You can custom query field names via `filter.QueryParam*`, All customizable fields are as follows
-
-```go
-var (
-	// QueryParamSearch the name of search field in pagination
-	QueryParamSearch = "search"
-	// QueryParamFilter the name of filter field in pagination
-	QueryParamFilter = "filter"
-	// QueryParamOr the name of or field in pagination
-	QueryParamOr = "or"
-	// QueryParamSort the name of sort field in pagination
-	QueryParamSort = "sort"
-	// QueryParamJoin the name of join field in pagination
-	QueryParamJoin = "join"
-	// QueryParamFields the name of fields field in pagination
-	QueryParamFields = "fields"
-	// QueryParamPage the name of current page index in pagination
-	QueryParamPage = "page"
-	// QueryParamPerPage the name of the data size field for each page in pagination
-	QueryParamPerPage = "per_page"
-)
-```
+You can customize the names of the query parameters using the following global variables:
+- `QueryParamSearch`
+- `QueryParamFilter`
+- `QueryParamOr`
+- `QueryParamSort`
+- `QueryParamJoin`
+- `QueryParamFields`
+- `QueryParamPage`
+- `QueryParamPerPage`
 
 ### Filter
 

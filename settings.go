@@ -28,21 +28,21 @@ type Request struct {
 }
 
 var (
-	// QueryParamSearch the name of search field in pagination
+	// QueryParamSearch the name of the query parameter for the search feature
 	QueryParamSearch = "search"
-	// QueryParamFilter the name of filter field in pagination
+	// QueryParamFilter the name of the query parameter for the filter feature
 	QueryParamFilter = "filter"
-	// QueryParamOr the name of or field in pagination
+	// QueryParamOr the name of the query parameter for the "or" filter feature
 	QueryParamOr = "or"
-	// QueryParamSort the name of sort field in pagination
+	// QueryParamSort the name of the query parameter for the sort feature
 	QueryParamSort = "sort"
-	// QueryParamJoin the name of join field in pagination
+	// QueryParamJoin the name of the query parameter for the join feature
 	QueryParamJoin = "join"
-	// QueryParamFields the name of fields field in pagination
+	// QueryParamFields the name of the query parameter for the fields feature
 	QueryParamFields = "fields"
-	// QueryParamPage the name of current page index in pagination
+	// QueryParamPage the name of the query parameter indicating the current page
 	QueryParamPage = "page"
-	// QueryParamPerPage the name of the data size field for each page in pagination
+	// QueryParamPerPage the name of the query parameter indicating the page size
 	QueryParamPerPage = "per_page"
 	// DefaultPageSize the default pagination page size if the "per_page" query param
 	// isn't provided.

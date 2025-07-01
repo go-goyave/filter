@@ -213,7 +213,7 @@ func findStatementJoin(stmt *gorm.Statement, join *clause.Join) bool {
 
 func quoteString(stmt *gorm.Statement, str string) string {
 	writer := bytes.NewBufferString("")
-	stmt.DB.Dialector.QuoteTo(writer, str)
+	stmt.Dialector.QuoteTo(writer, str)
 	return writer.String()
 }
 

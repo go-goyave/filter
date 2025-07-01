@@ -1,64 +1,81 @@
-linters-settings:
-  gocyclo:
-    min-complexity: 25
-  gofmt:
-    simplify: true
-  misspell:
-    locale: US
-  govet:
-    disable:
-      - shadow
-      - nilness
-    enable-all: true
-  errcheck:
-    exclude-functions:
-      - (*gorm.io/gorm.DB).AddError
-  testifylint:
-    disable:
-      - require-error
-      - error-nil
-      - formatter
-      - encoded-compare
-  revive:
-    rules:
-      - name: var-naming
-        arguments:
-          - [] # AllowList
-          - ["DTO"] # DenyList
-      - name: unused-parameter
-        disabled: false
-
+version: "2"
 linters:
   enable:
-    - gofmt
-    - revive
-    - gocyclo
-    - misspell
     - bodyclose
+    - copyloopvar
+    - gocyclo
+    - inamedparam
+    - misspell
+    - revive
+    - testifylint
+    - whitespace
     - govet
     - unused
     - errcheck
-    - copyloopvar
-    - gosimple
     - ineffassign
     - staticcheck
-    - testifylint
-    - whitespace
-    - bodyclose
-    - inamedparam
-  disable-all: false
-  fast: false
-
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*gorm.io/gorm.DB).AddError
+    gocyclo:
+      min-complexity: 25
+    govet:
+      disable:
+        - shadow
+        - nilness
+      enable-all: true
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: var-naming
+          disabled: false
+          arguments:
+            - [] # AllowList
+            - ["DTO"] # DenyList
+        - name: unused-parameter
+          disabled: false
+    testifylint:
+      disable:
+        - require-error
+        - error-nil
+        - formatter
+        - encoded-compare
+    staticcheck:
+      checks:
+        [
+          "all",
+          "-ST1000",
+          "-ST1003",
+          "-ST1016",
+          "-ST1020",
+          "-ST1021",
+          "-ST1022",
+          "-QF1001",
+        ]
+  exclusions:
+    generated: strict
+    rules:
+      - linters:
+          - gocyclo
+        path: _test\.go
+      - path: (.+)\.go$
+        text: should have a package comment
+      - path: (.+)\.go$
+        text: type name will be used as filter.FilterValidator by other packages, and that stutters; consider calling this Validator
+    paths:
+      - .github
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-dirs:
-    - .github
-  exclude:
-    - should have a package comment
-    - type name will be used as filter.FilterValidator by other packages, and that stutters; consider calling this Validator
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gocyclo
+formatters:
+  enable:
+    - gofmt
+  settings:
+    gofmt:
+      simplify: true
+  exclusions:
+    generated: strict
+    paths:
+      - .github

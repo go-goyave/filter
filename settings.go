@@ -278,28 +278,38 @@ func (s *Settings[T]) applyFilters(db *gorm.DB, request *Request, schema *schema
 	orLen := len(request.Or.Default([]*Filter{}))
 	mixed := orLen > 1 && andLen > 0
 
+	// If the request was built programmatically, the Or filter might be false
+	// even in the request.Or. Patch them (with an acceptable side-effect since the
+	// input was "malformed").
+	if request.Or.Present {
+		for _, f := range request.Or.Val {
+			f.Or = true
+		}
+	}
+
 	for _, filters := range []typeutil.Undefined[[]*Filter]{request.Filter, request.Or} {
-		if filters.Present {
-			group := make([]func(*gorm.DB) *gorm.DB, 0, 4)
-			for _, f := range filters.Val {
-				if mixed {
-					f = &Filter{
-						Field:    f.Field,
-						Operator: f.Operator,
-						Args:     f.Args,
-						Or:       false,
-					}
-				}
-				joinScope, conditionScope := f.Scope(s.Blacklist, schema)
-				if conditionScope != nil {
-					group = append(group, conditionScope)
-				}
-				if joinScope != nil {
-					joinScopes = append(joinScopes, joinScope)
+		if !filters.Present {
+			continue
+		}
+		group := make([]func(*gorm.DB) *gorm.DB, 0, 4)
+		for _, f := range filters.Val {
+			if mixed {
+				f = &Filter{
+					Field:    f.Field,
+					Operator: f.Operator,
+					Args:     f.Args,
+					Or:       false,
 				}
 			}
-			filterScopes = append(filterScopes, groupFilters(group, false))
+			joinScope, conditionScope := f.Scope(s.Blacklist, schema)
+			if conditionScope != nil {
+				group = append(group, conditionScope)
+			}
+			if joinScope != nil {
+				joinScopes = append(joinScopes, joinScope)
+			}
 		}
+		filterScopes = append(filterScopes, groupFilters(group, false))
 	}
 	if len(joinScopes) > 0 {
 		db = db.Scopes(joinScopes...)

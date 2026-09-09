@@ -1155,19 +1155,6 @@ func TestApplyFiltersAnd(t *testing.T) {
 }
 
 func TestApplyFiltersOr(t *testing.T) {
-	request := &Request{
-		Or: typeutil.NewUndefined([]*Filter{
-			{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"], Or: true},
-			{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"], Or: true},
-		}),
-	}
-	db := openDryRunDB(t)
-	schema, err := parseModel(db, &TestFilterScopeModel{})
-	if !assert.Nil(t, err) {
-		return
-	}
-
-	db = (&Settings[*TestScopeModel]{}).applyFilters(db, request, schema).Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -1204,7 +1191,34 @@ func TestApplyFiltersOr(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, expected, db.Statement.Clauses)
+	cases := []struct {
+		desc string
+		or   bool
+	}{
+		{desc: "with_or_flag", or: true},
+		// If the request was built programmatically, the Filter.Flag flag may be false
+		// even if it's in the Request.Or slice. Make sure it is still builts as a OR filter. (see PR #13)
+		{desc: "without_or_flag", or: false},
+	}
+
+	for _, test := range cases {
+		t.Run(test.desc, func(t *testing.T) {
+			request := &Request{
+				Or: typeutil.NewUndefined([]*Filter{
+					{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"], Or: test.or},
+					{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"], Or: test.or},
+				}),
+			}
+			db := openDryRunDB(t)
+			schema, err := parseModel(db, &TestFilterScopeModel{})
+			if !assert.Nil(t, err) {
+				return
+			}
+
+			db = (&Settings[*TestScopeModel]{}).applyFilters(db, request, schema).Find(nil)
+			assert.Equal(t, expected, db.Statement.Clauses)
+		})
+	}
 }
 
 func TestApplyFiltersMixed(t *testing.T) {

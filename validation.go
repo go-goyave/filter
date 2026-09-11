@@ -208,13 +208,13 @@ func ParseFilter(filter string) (*Filter, error) {
 // The element after the comma (sort order) must have a value allowing it to be
 // converted to SortOrder, otherwise an error is returned.
 func ParseSort(sort string) (*Sort, error) {
-	commaIndex := strings.Index(sort, ",")
-	if commaIndex == -1 {
+	before, after, ok := strings.Cut(sort, ",")
+	if !ok {
 		return nil, fmt.Errorf("invalid sort syntax")
 	}
 
-	fieldName := strings.TrimSpace(sort[:commaIndex])
-	order := strings.TrimSpace(strings.ToUpper(sort[commaIndex+1:]))
+	fieldName := strings.TrimSpace(before)
+	order := strings.TrimSpace(strings.ToUpper(after))
 	if fieldName == "" || order == "" {
 		return nil, fmt.Errorf("invalid sort syntax")
 	}

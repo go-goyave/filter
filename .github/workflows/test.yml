@@ -14,16 +14,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: ["1.25"]
+        go: ["1.27"]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go }}
       - name: Run tests
         run: |
           go test -v -race -coverprofile=coverage.txt -covermode=atomic -coverpkg=./... ./...
-      - if: ${{ matrix.go == '1.25' }}
+      - if: ${{ matrix.go == '1.27' }}
         uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: coverage.txt
@@ -32,15 +32,15 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
+          go-version: "1.27"
           cache: false
       - name: Run lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.7
+          version: v2.13.2
           args: --timeout 5m
 
   govulncheck:
@@ -49,3 +49,5 @@ jobs:
     steps:
       - id: govulncheck
         uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: 1.27.1

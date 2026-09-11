@@ -124,7 +124,7 @@ func join(tx *gorm.DB, joinName string, sch *schema.Schema) *gorm.DB {
 	var lastTable string
 	var relation *schema.Relationship
 	joins := make([]clause.Join, 0, strings.Count(joinName, ".")+1)
-	for _, rel := range strings.Split(joinName, ".") {
+	for rel := range strings.SplitSeq(joinName, ".") {
 		lastTable = sch.Table
 		if relation != nil {
 			lastTable = relation.Name

@@ -421,7 +421,7 @@ func getField(field string, sch *schema.Schema, blacklist *Blacklist) (*schema.F
 	if i := strings.LastIndex(field, "."); i != -1 && i+1 < len(field) {
 		rel := field[:i]
 		field = field[i+1:]
-		for _, v := range strings.Split(rel, ".") {
+		for v := range strings.SplitSeq(rel, ".") {
 			if blacklist != nil && (lo.Contains(blacklist.RelationsBlacklist, v) || blacklist.IsFinal) {
 				return nil, nil, ""
 			}

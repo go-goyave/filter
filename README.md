@@ -469,4 +469,4 @@ settings := &filter.Settings[*model.User]{}
 
 ## License
 
-`goyave.dev/filter` is MIT Licensed. Copyright (c) 2024 Jérémy LAMBERT (SystemGlitch)
+`goyave.dev/filter` is MIT Licensed. Copyright (c) 2026 Jérémy LAMBERT (SystemGlitch)

@@ -277,29 +277,49 @@ func (s *Settings[T]) applyFilters(db *gorm.DB, request *Request, schema *schema
 	andLen := len(request.Filter.Default([]*Filter{}))
 	orLen := len(request.Or.Default([]*Filter{}))
 	mixed := orLen > 1 && andLen > 0
+	// Without any `filter` condition, standalone `or` conditions must be
+	// OR-ed together. Grouping them turns them into AND conditions
+	// (see groupFilters), so each one gets its own group.
+	standaloneOrs := orLen > 1 && andLen == 0
 
-	for _, filters := range []typeutil.Undefined[[]*Filter]{request.Filter, request.Or} {
-		if filters.Present {
-			group := make([]func(*gorm.DB) *gorm.DB, 0, 4)
+	for i, filters := range []typeutil.Undefined[[]*Filter]{request.Filter, request.Or} {
+		if !filters.Present {
+			continue
+		}
+
+		isOr := i == 1
+		if isOr && standaloneOrs {
 			for _, f := range filters.Val {
-				if mixed {
-					f = &Filter{
-						Field:    f.Field,
-						Operator: f.Operator,
-						Args:     f.Args,
-						Or:       false,
-					}
-				}
 				joinScope, conditionScope := f.Scope(s.Blacklist, schema)
-				if conditionScope != nil {
-					group = append(group, conditionScope)
-				}
 				if joinScope != nil {
 					joinScopes = append(joinScopes, joinScope)
 				}
+				if conditionScope != nil {
+					filterScopes = append(filterScopes, groupFilters([]func(*gorm.DB) *gorm.DB{conditionScope}, false))
+				}
 			}
-			filterScopes = append(filterScopes, groupFilters(group, false))
+			continue
 		}
+
+		group := make([]func(*gorm.DB) *gorm.DB, 0, 4)
+		for _, f := range filters.Val {
+			if mixed {
+				f = &Filter{
+					Field:    f.Field,
+					Operator: f.Operator,
+					Args:     f.Args,
+					Or:       false,
+				}
+			}
+			joinScope, conditionScope := f.Scope(s.Blacklist, schema)
+			if conditionScope != nil {
+				group = append(group, conditionScope)
+			}
+			if joinScope != nil {
+				joinScopes = append(joinScopes, joinScope)
+			}
+		}
+		filterScopes = append(filterScopes, groupFilters(group, false))
 	}
 	if len(joinScopes) > 0 {
 		db = db.Scopes(joinScopes...)

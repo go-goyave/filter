@@ -1175,14 +1175,18 @@ func TestApplyFiltersOr(t *testing.T) {
 				Exprs: []clause.Expression{
 					clause.AndConditions{
 						Exprs: []clause.Expression{
-							clause.AndConditions{
+							clause.OrConditions{
 								Exprs: []clause.Expression{
-									clause.OrConditions{
+									clause.AndConditions{
 										Exprs: []clause.Expression{
 											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val1%"}},
 										},
 									},
-									clause.OrConditions{
+								},
+							},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.AndConditions{
 										Exprs: []clause.Expression{
 											clause.Expr{SQL: "`test_scope_models`.`name` LIKE ?", Vars: []any{"%val2%"}},
 										},
@@ -2122,4 +2126,62 @@ func TestScopeWithCaseInsensitiveSort(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+}
+
+type TestScopeOrFilterModel struct {
+	Name  string
+	Email string
+	ID    uint
+}
+
+func TestScopeOrFilters(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:test_scope_or_filters?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&TestScopeOrFilterModel{}))
+	rows := []TestScopeOrFilterModel{
+		{Name: "Jack", Email: "jack@x.io"},
+		{Name: "John", Email: "john@x.io"},
+		{Name: "John", Email: "other@y.io"},
+	}
+	require.NoError(t, db.Create(&rows).Error)
+
+	cont := func(field, value string) *Filter {
+		return &Filter{Field: field, Operator: Operators["$cont"], Args: []string{value}}
+	}
+	eq := func(field, value string) *Filter {
+		return &Filter{Field: field, Operator: Operators["$eq"], Args: []string{value}}
+	}
+	query := func(req *Request) []TestScopeOrFilterModel {
+		results := []TestScopeOrFilterModel{}
+		tx := (&Settings[TestScopeOrFilterModel]{}).ScopeUnpaginated(db, req, &results)
+		require.NoError(t, tx.Error)
+		return results
+	}
+
+	t.Run("multiple or conditions", func(t *testing.T) {
+		results := query(&Request{Or: typeutil.NewUndefined([]*Filter{cont("email", "x.io"), cont("email", "y.io")})})
+		assert.Len(t, results, 3)
+	})
+	t.Run("single or condition", func(t *testing.T) {
+		results := query(&Request{Or: typeutil.NewUndefined([]*Filter{eq("name", "Jack")})})
+		assert.Len(t, results, 1)
+	})
+	t.Run("multiple filter conditions", func(t *testing.T) {
+		results := query(&Request{Filter: typeutil.NewUndefined([]*Filter{eq("name", "John"), cont("email", "x.io")})})
+		assert.Len(t, results, 1)
+	})
+	t.Run("filter and single or condition", func(t *testing.T) {
+		results := query(&Request{
+			Filter: typeutil.NewUndefined([]*Filter{cont("email", "x.io")}),
+			Or:     typeutil.NewUndefined([]*Filter{eq("name", "Jack")}),
+		})
+		assert.Len(t, results, 2)
+	})
+	t.Run("filter and multiple or conditions", func(t *testing.T) {
+		results := query(&Request{
+			Filter: typeutil.NewUndefined([]*Filter{cont("email", "x.io")}),
+			Or:     typeutil.NewUndefined([]*Filter{eq("name", "John"), cont("email", "y.io")}),
+		})
+		assert.Len(t, results, 3)
+	})
 }

@@ -128,7 +128,7 @@ You can add multiple filters. In that case, it is interpreted as an `AND` condit
 
 You can use `OR` conditions using `?or` instead, or in combination:
 
-> ?filter=**name**||**$cont**||**Jack**&or=**name**||**$cont**||**John**  (`WHERE (name LIKE %Jack% OR name LIKE "%John%")`)  
+> ?filter=**name**||**$cont**||**Jack**&or=**name**||**$cont**||**John**  (`WHERE (name LIKE "%Jack%" OR name LIKE "%John%")`)  
 > ?filter=**age**||**$eq**||**50**&filter=**name**||**$cont**||**Jack**&or=**name**||**$cont**||**John** (`WHERE ((age = 50 AND name LIKE "%Jack%") OR name LIKE "%John%")`)
 
 You can filter using columns from one-to-one relations ("has one" or "belongs to"):
@@ -138,6 +138,10 @@ You can filter using columns from one-to-one relations ("has one" or "belongs to
 If there is only one "or", it is considered as a regular filter:
 
 > ?or=**name**||**$cont**||**John**  (`WHERE name LIKE "%John%"`)  
+
+If there are multiple "or" and no "filter", it is interpreted as an `OR` condition:
+
+> ?or=**name**||**$cont**||**John**&or=**name**||**$cont**||**Doe**  (`WHERE (name LIKE "%John%" OR name LIKE "%Doe%")`)  
 
 If both "filter" and "or" are present, then they are interpreted as a combination of two `AND` groups compared with each other using `OR`:
 

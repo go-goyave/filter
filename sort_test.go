@@ -7,6 +7,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 )
@@ -30,12 +31,12 @@ func TestSortScope(t *testing.T) {
 		Table: "test_models",
 	}
 
-	assert.Nil(t, sort.Scope(Blacklist{}, schema, false))
+	assert.Nil(t, sort.Scope(Whitelist{Fields: AllowAllFields}, schema, false))
 
 	sort.Field = "name"
 
 	results := []map[string]any{}
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, false)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, false)).Table("table").Find(&results)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -67,7 +68,7 @@ func TestSortScope(t *testing.T) {
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, false)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, false)).Table("table").Find(&results)
 	assert.NoError(t, db.Error)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
@@ -81,7 +82,7 @@ func TestSortScope(t *testing.T) {
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, false)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, false)).Table("table").Find(&results)
 	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
@@ -94,7 +95,7 @@ func TestSortScopeBlacklisted(t *testing.T) {
 		},
 		Table: "test_models",
 	}
-	assert.Nil(t, sort.Scope(Blacklist{FieldsBlacklist: []string{"name"}}, schema, false))
+	assert.Nil(t, sort.Scope(Whitelist{Fields: []string{}}, schema, false))
 }
 
 type SortTestNestedRelation struct {
@@ -122,15 +123,20 @@ func TestSortScopeWithJoin(t *testing.T) {
 
 	results := []*SortTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "sort_test_models"."name","sort_test_models"."id" FROM "sort_test_models" LEFT JOIN "sort_test_relations" "Relation" ON "sort_test_models"."id" = "Relation"."parent_id" ORDER BY "Relation"."name"`)).
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
-	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: []string{"Name"}},
+		},
+		Fields: AllowAllFields,
+	}
+
+	db = db.Model(&results).Scopes(sort.Scope(whitelist, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": {
 			Name: "FROM",
@@ -193,11 +199,16 @@ func TestSortScopeWithJoinInvalidModel(t *testing.T) {
 
 	results := []*SortTestModel{}
 	sch, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
+	require.NoError(t, err)
+
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: AllowAllFields},
+		},
+		Fields: AllowAllFields,
 	}
 
-	db = db.Scopes(sort.Scope(Blacklist{}, sch, false)).Find(&results)
+	db = db.Scopes(sort.Scope(whitelist, sch, false)).Find(&results)
 	assert.Equal(t, "unsupported data type: <nil>", db.Error.Error())
 }
 
@@ -207,15 +218,27 @@ func TestSortScopeWithJoinNestedRelation(t *testing.T) {
 
 	results := []*SortTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "sort_test_models"."name","sort_test_models"."id" FROM "sort_test_models" LEFT JOIN "sort_test_relations" "Relation" ON "sort_test_models"."id" = "Relation"."parent_id" LEFT JOIN "sort_test_nested_relations" "NestedRelation" ON "Relation"."id" = "NestedRelation"."parent_id" ORDER BY "NestedRelation"."field"`)).
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
-	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {
+				Relations: map[string]Whitelist{
+					"NestedRelation": {
+						Fields: AllowAllFields,
+					},
+				},
+				Fields: AllowAllFields,
+			},
+		},
+		Fields: AllowAllFields,
+	}
+
+	db = db.Model(&results).Scopes(sort.Scope(whitelist, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": {
 			Name: "FROM",
@@ -313,15 +336,13 @@ func TestSortScopeComputed(t *testing.T) {
 
 	results := []*SortTestModelComputed{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "sort_test_model_computeds" ORDER BY ("sort_test_model_computeds".computedcolumn)`)).
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
-	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
+	db = db.Model(&results).Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -352,15 +373,20 @@ func TestSortScopeComputedWithJoin(t *testing.T) {
 
 	results := []*SortTestModelComputed{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "sort_test_model_computeds"."name","sort_test_model_computeds"."computed","sort_test_model_computeds"."id" FROM "sort_test_model_computeds" LEFT JOIN "sort_test_model_computed_relations" "Relation" ON "sort_test_model_computeds"."id" = "Relation"."parent_id" ORDER BY ("Relation".computedcolumnrelation)`)).
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
-	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: AllowAllFields},
+		},
+		Fields: AllowAllFields,
+	}
+
+	db = db.Model(&results).Scopes(sort.Scope(whitelist, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": {
 			Name: "FROM",
@@ -432,7 +458,7 @@ func TestSortScopeCaseInsensitive(t *testing.T) {
 		Table: "test_models",
 	}
 
-	assert.Nil(t, sort.Scope(Blacklist{}, schema, false))
+	assert.Nil(t, sort.Scope(Whitelist{Fields: AllowAllFields}, schema, false))
 
 	sort.Field = "name"
 
@@ -441,7 +467,7 @@ func TestSortScopeCaseInsensitive(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
 
 	results := []map[string]any{}
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, true)).Table("table").Find(&results)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -473,7 +499,7 @@ func TestSortScopeCaseInsensitive(t *testing.T) {
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
 
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, true)).Table("table").Find(&results)
 	assert.NoError(t, db.Error)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
@@ -487,7 +513,7 @@ func TestSortScopeCaseInsensitive(t *testing.T) {
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
 
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, true)).Table("table").Find(&results)
 	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
@@ -506,7 +532,7 @@ func TestSortScopeCaseInsensitiveNotString(t *testing.T) {
 		Table: "test_models",
 	}
 
-	assert.Nil(t, sort.Scope(Blacklist{}, schema, false))
+	assert.Nil(t, sort.Scope(Whitelist{Fields: AllowAllFields}, schema, false))
 
 	sort.Field = "id"
 
@@ -515,7 +541,7 @@ func TestSortScopeCaseInsensitiveNotString(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
 
 	results := []map[string]any{}
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, true)).Table("table").Find(&results)
 	assert.NoError(t, db.Error)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
@@ -547,7 +573,7 @@ func TestSortScopeCaseInsensitiveNotString(t *testing.T) {
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
 
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, true)).Table("table").Find(&results)
 	assert.NoError(t, db.Error)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
@@ -561,7 +587,7 @@ func TestSortScopeCaseInsensitiveNotString(t *testing.T) {
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
 
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, true)).Table("table").Find(&results)
 	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
@@ -580,7 +606,7 @@ func TestSortScopeCaseInsensitiveComputed(t *testing.T) {
 		Table: "test_models",
 	}
 
-	assert.Nil(t, sort.Scope(Blacklist{}, schema, false))
+	assert.Nil(t, sort.Scope(Whitelist{Fields: AllowAllFields}, schema, false))
 
 	sort.Field = "name"
 
@@ -589,7 +615,7 @@ func TestSortScopeCaseInsensitiveComputed(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
 
 	results := []map[string]any{}
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, true)).Table("table").Find(&results)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -621,7 +647,7 @@ func TestSortScopeCaseInsensitiveComputed(t *testing.T) {
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
 
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, true)).Table("table").Find(&results)
 	assert.NoError(t, db.Error)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
@@ -635,7 +661,7 @@ func TestSortScopeCaseInsensitiveComputed(t *testing.T) {
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
 
-	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	db = db.Scopes(sort.Scope(Whitelist{Fields: AllowAllFields}, schema, true)).Table("table").Find(&results)
 	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }

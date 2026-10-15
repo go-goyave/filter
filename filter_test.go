@@ -65,7 +65,7 @@ func TestFilterScope(t *testing.T) {
 		Table: "test_scope_models",
 	}
 
-	joinScope, conditionScope := filter.Scope(Blacklist{}, schema)
+	joinScope, conditionScope := filter.Scope(Whitelist{Fields: AllowAllFields}, schema)
 	assert.Nil(t, joinScope)
 	assert.Nil(t, conditionScope)
 
@@ -76,7 +76,7 @@ func TestFilterScope(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
 	results := []map[string]any{}
-	db = db.Table("filter_test_models").Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	db = db.Table("filter_test_models").Scopes(filter.Scope(Whitelist{Fields: AllowAllFields}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -105,7 +105,7 @@ func TestFilterScope(t *testing.T) {
 		WithArgs("val1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
-	db = db.Table("filter_test_models").Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	db = db.Table("filter_test_models").Scopes(filter.Scope(Whitelist{Fields: AllowAllFields}, schema)).Find(&results)
 	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
@@ -119,7 +119,7 @@ func TestFilterScopeBlacklisted(t *testing.T) {
 		},
 	}
 
-	joinScope, conditionScope := filter.Scope(Blacklist{FieldsBlacklist: []string{"name"}}, schema)
+	joinScope, conditionScope := filter.Scope(Whitelist{Fields: []string{}}, schema)
 	assert.Nil(t, joinScope)
 	assert.Nil(t, conditionScope)
 }
@@ -161,15 +161,20 @@ func TestFilterScopeWithJoin(t *testing.T) {
 
 	results := []*FilterTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_models"."name","filter_test_models"."id" FROM "filter_test_models" LEFT JOIN "filter_test_relations" "Relation" ON "filter_test_models"."id" = "Relation"."parent_id" WHERE "Relation"."name" = $1`)).
 		WithArgs("val1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
-	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: []string{"name"}},
+		},
+		Fields: AllowAllFields,
+	}
+
+	db = db.Model(&results).Scopes(filter.Scope(whitelist, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -227,15 +232,14 @@ func TestFilterScopeWithJoinBlacklistedRelation(t *testing.T) {
 
 	results := []*FilterTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
+	require.NoError(t, err)
+
+	whitelist := Whitelist{
+		// No relation whitelisted
+		Fields: AllowAllFields,
 	}
 
-	blacklist := Blacklist{
-		RelationsBlacklist: []string{"Relation"},
-	}
-
-	joinScope, conditionScope := filter.Scope(blacklist, schema)
+	joinScope, conditionScope := filter.Scope(whitelist, schema)
 	assert.Nil(t, joinScope)
 	assert.Nil(t, conditionScope)
 }
@@ -244,13 +248,18 @@ func TestFilterScopeWithJoinHasMany(t *testing.T) {
 	db, _ := openMockDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: AllowAllFields},
+		},
+		Fields: AllowAllFields,
+	}
+
 	results := []*FilterTestModel{}
 	sch, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	assert.NoError(t, err)
 	sch.Relationships.Relations["Relation"].Type = schema.HasMany
-	joinScope, conditionScope := filter.Scope(Blacklist{}, sch)
+	joinScope, conditionScope := filter.Scope(whitelist, sch)
 	assert.Nil(t, joinScope)
 	assert.Nil(t, conditionScope)
 	sch.Relationships.Relations["Relation"].Type = schema.HasOne
@@ -262,11 +271,15 @@ func TestFilterScopeWithJoinInvalidModel(t *testing.T) {
 
 	results := []*FilterTestModel{}
 	sch, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
-	db = db.Scopes(filter.Scope(Blacklist{}, sch)).Find(&results)
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: AllowAllFields},
+		},
+		Fields: AllowAllFields,
+	}
+	db = db.Scopes(filter.Scope(whitelist, sch)).Find(&results)
 	assert.Equal(t, "unsupported data type: <nil>", db.Error.Error())
 }
 
@@ -284,11 +297,21 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 
 	results := []*FilterTestModel{}
 	sch, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
+	require.NoError(t, err)
+
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {
+				Relations: map[string]Whitelist{
+					"NestedRelation": {Fields: AllowAllFields},
+				},
+				Fields: AllowAllFields,
+			},
+		},
+		Fields: AllowAllFields,
 	}
 
-	joinScope, conditionScope := filter.Scope(Blacklist{}, sch)
+	joinScope, conditionScope := filter.Scope(whitelist, sch)
 	assert.NotNil(t, joinScope)
 	assert.NotNil(t, conditionScope)
 	conditionTx := db.Session(&gorm.Session{NewDB: true}).Model(&results).Scopes(conditionScope).Find(&results)
@@ -382,17 +405,22 @@ func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
 
 	results := []*FilterTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_models"."name","filter_test_models"."id" FROM "filter_test_models" LEFT JOIN "filter_test_relations" "Relation" ON "filter_test_models"."id" = "Relation"."parent_id" WHERE "Relation"."name" = $1 AND "Relation"."id" > $2`)).
 		WithArgs("val1", 0).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: AllowAllFields},
+		},
+		Fields: AllowAllFields,
+	}
+
 	db = db.Model(&results).
-		Scopes(filter.Scope(Blacklist{}, schema)).
-		Scopes(filter2.Scope(Blacklist{}, schema)).
+		Scopes(filter.Scope(whitelist, schema)).
+		Scopes(filter2.Scope(whitelist, schema)).
 		Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
@@ -452,9 +480,7 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 
 	results := []*FilterTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_models"."name","filter_test_models"."id","Relation"."name" AS "Relation__name","Relation"."id" AS "Relation__id","Relation"."parent_id" AS "Relation__parent_id" FROM "filter_test_models" LEFT JOIN "filter_test_relations" "Relation" ON "filter_test_models"."id" = "Relation"."parent_id" AND id > $1 WHERE "Relation"."name" = $2`)).
 		WithArgs(0, "val1").
@@ -464,7 +490,14 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 	// We expect this join to not be removed nor duplicated, with the condition kept.
 	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Where("id > ?", 0))
 
-	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: AllowAllFields},
+		},
+		Fields: AllowAllFields,
+	}
+
+	db = db.Model(&results).Scopes(filter.Scope(whitelist, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -507,9 +540,7 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 
 	results := []*FilterTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_models"."name","filter_test_models"."id" FROM "filter_test_models" LEFT JOIN filter_test_relations AS "Relation" ON id > $1 WHERE "Relation"."name" = $2`)).
 		WithArgs(0, "val1").
@@ -519,7 +550,14 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 	// We expect this join to not be removed nor duplicated, with the condition kept.
 	db = db.Joins(`LEFT JOIN filter_test_relations AS "Relation" ON id > ?`, 0)
 
-	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: AllowAllFields},
+		},
+		Fields: AllowAllFields,
+	}
+
+	db = db.Model(&results).Scopes(filter.Scope(whitelist, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -587,15 +625,13 @@ func TestFilterScopeComputed(t *testing.T) {
 
 	results := []*FilterTestModelComputed{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "filter_test_model_computeds" WHERE ("filter_test_model_computeds".computedcolumn) = $1`)).
 		WithArgs("val1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
-	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	db = db.Model(&results).Scopes(filter.Scope(Whitelist{Fields: AllowAllFields}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -621,15 +657,20 @@ func TestFilterScopeComputedRelation(t *testing.T) {
 
 	results := []*FilterTestModelComputed{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_model_computeds"."name","filter_test_model_computeds"."computed","filter_test_model_computeds"."id" FROM "filter_test_model_computeds" LEFT JOIN "filter_test_model_computed_relations" "Relation" ON "filter_test_model_computeds"."id" = "Relation"."parent_id" WHERE ("Relation".computedcolumnrelation) = $1`)).
 		WithArgs("val1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
-	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: []string{"computed"}},
+		},
+		Fields: AllowAllFields,
+	}
+
+	db = db.Model(&results).Scopes(filter.Scope(whitelist, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -698,7 +739,7 @@ func TestFilterScopeWithUnsupportedDataType(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
 	results := []map[string]any{}
-	db = db.Table("filter_test_models").Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	db = db.Table("filter_test_models").Scopes(filter.Scope(Whitelist{Fields: AllowAllFields}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": expectFromClause,
 		"SELECT": {
@@ -716,15 +757,20 @@ func TestFilterScopeWithJoinedUnsupportedDataType(t *testing.T) {
 
 	results := []*FilterTestModelUnsupported{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "filter_test_model_unsupporteds"`)).
 		WithoutArgs().
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
-	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	whitelist := Whitelist{
+		Relations: map[string]Whitelist{
+			"Relation": {Fields: []string{"name"}},
+		},
+		Fields: AllowAllFields,
+	}
+
+	db = db.Model(&results).Scopes(filter.Scope(whitelist, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"FROM": expectFromClause,
 		"SELECT": {

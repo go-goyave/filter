@@ -10,9 +10,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v5/database"
-	"goyave.dev/goyave/v5/util/errors"
-	"goyave.dev/goyave/v5/util/typeutil"
+	"goyave.dev/goyave/v6/database"
+	"goyave.dev/goyave/v6/util/errwrap"
+	"goyave.dev/goyave/v6/util/typeutil"
 )
 
 // Request DTO for a filter query. Any non-present option will be ignored.
@@ -160,13 +160,13 @@ func (s *Settings[T]) Scope(db *gorm.DB, request *Request, dest *[]T) (*database
 		paginator = database.NewPaginator(tx, page, pageSize, dest)
 		err := paginator.UpdatePageInfo()
 		if err != nil {
-			return errors.New(err)
+			return errwrap.New(err)
 		}
 		paginator.DB = s.scopeSort(paginator.DB, request, schema)
 		if fieldsDB := s.scopeFields(paginator.DB, request, schema, hasJoins); fieldsDB != nil {
 			paginator.DB = fieldsDB
 		} else {
-			return errors.New(paginator.DB.Error)
+			return errwrap.New(paginator.DB.Error)
 		}
 
 		return paginator.Find()
@@ -196,7 +196,7 @@ func (s *Settings[T]) ScopeUnpaginated(db *gorm.DB, request *Request, dest *[]T)
 func (s *Settings[T]) scopeCommon(db *gorm.DB, request *Request, dest any) (*gorm.DB, *schema.Schema, bool) {
 	schema, err := parseModel(db, dest)
 	if err != nil {
-		panic(errors.New(err))
+		panic(errwrap.New(err))
 	}
 
 	db = db.Model(dest)
@@ -238,7 +238,7 @@ func (s *Settings[T]) scopeFields(db *gorm.DB, request *Request, schema *schema.
 		fields := slices.Clone(request.Fields.Val)
 		if hasJoins {
 			if len(schema.PrimaryFieldDBNames) == 0 {
-				db.AddError(errors.New("could not find primary key. Add `gorm:\"primaryKey\"` to your model"))
+				db.AddError(errwrap.New("could not find primary key. Add `gorm:\"primaryKey\"` to your model"))
 				return nil
 			}
 			fields = addPrimaryKeys(schema, fields)
@@ -438,9 +438,9 @@ func getField(field string, sch *schema.Schema, blacklist *Blacklist) (*schema.F
 
 func tableFromJoinName(table string, joinName string) string {
 	if joinName != "" {
-		i := strings.LastIndex(joinName, ".")
-		if i != -1 {
-			table = joinName[i+1:]
+		_, after, ok := strings.CutLast(joinName, ".")
+		if ok {
+			table = after
 		} else {
 			table = joinName
 		}

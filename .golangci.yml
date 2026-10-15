@@ -16,6 +16,7 @@ linters:
     - staticcheck
     - modernize
     - sqlclosecheck
+    - godoclint
   settings:
     errcheck:
       exclude-functions:
@@ -48,6 +49,13 @@ linters:
         - encoded-compare
     staticcheck:
       checks: ["all", "-QF1001"]
+    godoclint:
+      enable:
+        #- require-doc
+        - deprecated
+      options:
+        require-doc:
+          ignore-exported: false
   exclusions:
     generated: strict
     rules:

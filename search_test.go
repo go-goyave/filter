@@ -7,6 +7,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
@@ -155,9 +156,7 @@ func TestSeachScopeWithJoin(t *testing.T) {
 
 	results := []*SearchTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "search_test_models"."name","search_test_models"."id" FROM "search_test_models" LEFT JOIN "search_test_relations" "Relation" ON "search_test_models"."id" = "Relation"."parent_id" WHERE "search_test_models"."name" LIKE ($1) OR "Relation"."name" LIKE ($2)`)).
 		WithArgs("My Query", "My Query").
@@ -246,9 +245,7 @@ func TestSeachScopeWithJoinInvalidModel(t *testing.T) {
 
 	results := []*SearchTestModel{}
 	sch, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	db = db.Scopes(search.Scope(sch)).Find(&results)
 	assert.Equal(t, "unsupported data type: <nil>", db.Error.Error())
@@ -269,9 +266,7 @@ func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
 
 	results := []*SearchTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "search_test_models"."name","search_test_models"."id" FROM "search_test_models" LEFT JOIN "search_test_relations" "Relation" ON "search_test_models"."id" = "Relation"."parent_id" LEFT JOIN "search_test_nested_relations" "NestedRelation" ON "Relation"."id" = "NestedRelation"."parent_id" WHERE "search_test_models"."name" LIKE ($1) OR "NestedRelation"."field" LIKE ($2)`)).
 		WithArgs("My Query", "My Query").
@@ -395,9 +390,7 @@ func TestSearchScopeComputed(t *testing.T) {
 
 	results := []*SearchTestModelComputed{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "search_test_model_computeds"."name","search_test_model_computeds"."computed","search_test_model_computeds"."id" FROM "search_test_model_computeds" LEFT JOIN "search_test_model_computed_relations" "Relation" ON "search_test_model_computeds"."id" = "Relation"."parent_id" WHERE ("search_test_model_computeds".computedcolumn) = $1 OR ("Relation".computedcolumnrelation) = $2`)).
 		WithArgs("My Query", "My Query").

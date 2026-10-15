@@ -9,7 +9,7 @@ import (
 	"goyave.dev/goyave/v6/validation"
 )
 
-func TestApplyValidation(t *testing.T) {
+func TestValidation(t *testing.T) {
 	set := Validation(nil)
 
 	expectedFields := []string{

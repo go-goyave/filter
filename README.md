@@ -69,7 +69,7 @@ tx := filter.ScopeUnpaginated(session.DB(ctx, r.DB), request, &users)
 
 ### Settings
 
-You can disable certain features, or blacklist certain fields using `filter.Settings`:
+You can disable certain features, and whitelist fields and relations using `filter.Settings`:
 
 ```go
 settings := &filter.Settings[*model.User]{
@@ -77,6 +77,7 @@ settings := &filter.Settings[*model.User]{
 	DisableFilter: true, // Prevent usage of "filter"
 	DisableSort:   true, // Prevent usage of "sort"
 	DisableJoin:   true, // Prevent usage of "join"
+	DisableSearch: true, // Prevent usage of "search"
 
 	// If not nil and not empty, and if the request is not providing any
 	// sort, the request will be sorted according to the `*Sort` defined in this slice.
@@ -89,20 +90,18 @@ settings := &filter.Settings[*model.User]{
 	FieldsSearch:   []string{"a", "b"},      // Optional, the fields used for the search feature
 	SearchOperator: filter.Operators["$eq"], // Optional, operator used for the search feature, defaults to "$cont"
 
-	Blacklist: filter.Blacklist{
-		// Prevent selecting, sorting and filtering on these fields
-		FieldsBlacklist: []string{"a", "b"},
+	Whitelist: filter.Whitelist{
+		// Allow only the "a" and "b" fields to be selected
+		// Both DB name (typically snake case) and struct field name (Pascal case) are accepted.
+		Fields: []string{"a", "b"},
+		// Or Fields: filter.AllowAllFields
 
-		// Prevent joining these relations
-		RelationsBlacklist: []string{"Relation"},
-
-		Relations: map[string]*filter.Blacklist{
-			// Blacklist settings to apply to this relation
-			"Relation": &filter.Blacklist{
-				FieldsBlacklist:    []string{"c", "d"},
-				RelationsBlacklist: []string{"Parent"},
-				Relations:          map[string]*filter.Blacklist{ /*...*/ },
-				IsFinal:            true, // Prevent joining any child relation if true
+		// Only the relations in this map are allowed to be used / loaded.
+		Relations: map[string]filter.Whitelist{
+			// Whitelist settings to apply to this relation
+			"Relation": filter.Whitelist{
+				Fields:    []string{"c", "d"},
+				Relations:          map[string]filter.Whitelist{ /*...*/ },
 			},
 		},
 	},
@@ -190,13 +189,15 @@ settings := &filter.Settings{
 
 > ?search=John (`WHERE (a LIKE "%John%" OR b LIKE "%John%")`)
 
-If you don't specify `FieldsSearch`, the query will search in all selectable fields.
+If you don't specify `FieldsSearch`, the query will search in all selectable fields, taking the whitelist into account. It is highly recommended to restrict the number of fields to use for search for better performance.
+
+The search feature is disabled in the default settings if you use `Scope()` or `ScopeUnpaginated()` directly.
 
 ### Fields / Select
 
 > ?fields=**field1**,**field2**
 
-A comma-separated list of fields to select. If this field isn't provided, uses `SELECT *`.
+A comma-separated list of fields to select. If this field isn't provided, all whitelisted fields are selected.
 
 ### Sort
 
@@ -281,8 +282,8 @@ It is important to make sure your JSON expression returns a value that has a typ
 - Inputs are escaped to prevent SQL injections.
 - Fields are pre-processed and clients cannot request fields that don't exist. This prevents database errors. If a non-existing field is required, it is simply ignored. The same goes for sorts and joins. It is not possible to request a relation that doesn't exist.
 - Type-safety: in the same field pre-processing, the broad type of the field is checked against the database type (based on the model definition). This prevents database errors if the input cannot be converted to the column's type.
-- Foreign keys are always selected in joins to ensure associations can be assigned to parent model.
-- **Be careful** with bidirectional relations (for example an article is written by a user, and a user can have many articles). If you enabled both your models to preload these relations, the client can request them with an infinite depth (`Articles.User.Articles.User...`). To prevent this, it is advised to use **the relation blacklist** or **IsFinal** on the deepest requestable models. See the settings section for more details.
+- Fields and relations are **blocked by default**. Only **whitelist** the fields and relations that the client is supposed to have access to.
+- Provided they are whitelisted, foreign keys are always selected in joins to ensure associations can be assigned to parent model. If you whitelist a relation, make sure to also whitelist the foreign key fields.
 
 ## Tips
 
@@ -446,7 +447,17 @@ Manual joins are supported and won't clash with joins that are automatically gen
 func (r *User) Paginate(ctx context.Context, request *filter.Request) (*database.Paginator[*model.User], error) {
 	var users []*model.User
 	db := session.DB(ctx, r.DB).Joins("Relation")
-	paginator, err := filter.Scope(db, request, &users)
+
+	settings := &filter.Settings[*model.User]{
+		Whitelist: filter.Whitelist{
+			Fields: filter.AllowAllFields,
+			Relations: map[string]filter.Whitelist{
+				"Relation": {Fields: filter.AllowAllFields}, // Don't forget to whitelist the relation if you want filters to work on the manual join.
+			},
+		},
+	}
+
+	paginator, err := settings.Scope(db, request, &users)
 	return paginator, errwrap.New(err)
 }
 ```
@@ -474,17 +485,18 @@ settings := &filter.Settings[*model.User]{}
 
 ### Upgrading from Goyave v5 to v6
 
+- The **blacklist** system has been replaced with a **whitelist** system, with everything blocked by default. Make sure to check all usage of the library and build whitelists according to your models.
+  - With this new system, relation management and security is much easier. `IsFinal` doesn't need to exist anymore: just don't add the relation to the whitelist.
+  - When using `Scope()` and `ScopeUnpaginated()` directly, the default settings' whitelist allow all fields but **no relation**. The search feature is also disabled. Use "manual" settings to preserve functionality.
+
 If your route has custom query parameters, your function will need to be updated like so:
 ```go
 func IndexRequest(r *goyave.Request) v.Ruler {
 	return append(v.RuleSet{
 		{Path: "foo", Rules: v.List{v.Int(), v.Min(1)}},
-	}, filter.RuleSet...)
+	}, filter.RuleSet()...)
 }
 ```
-
-Planned changes:
-- Settings rework: whitelist instead of blacklist
 
 ## License
 

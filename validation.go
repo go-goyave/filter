@@ -19,7 +19,7 @@ func init() {
 	lang.SetDefaultValidationRule("goyave-filter-sort.element", "The sort format is invalid.")
 }
 
-// FilterValidator checks the `filter` format and converts it to `*Filter` struct.
+// FilterValidator checks the `filter` format and converts it to [*Filter] struct.
 type FilterValidator struct {
 	v.BaseValidator
 	Or bool
@@ -49,7 +49,7 @@ func (v *FilterValidator) Name() string { return "goyave-filter-filter" }
 // IsType returns true
 func (v *FilterValidator) IsType() bool { return true }
 
-// SortValidator checks the `sort` format and converts it to `*Sort` struct.
+// SortValidator checks the `sort` format and converts it to [*Sort] struct.
 type SortValidator struct {
 	v.BaseValidator
 }
@@ -77,7 +77,7 @@ func (v *SortValidator) Name() string { return "goyave-filter-sort" }
 // IsType returns true
 func (v *SortValidator) IsType() bool { return true }
 
-// JoinValidator checks the `sort` format and converts it to `*Join` struct.
+// JoinValidator checks the `sort` format and converts it to [*Join] struct.
 type JoinValidator struct {
 	v.BaseValidator
 }
@@ -132,8 +132,10 @@ func (v *JoinValidator) Name() string { return "goyave-filter-join" }
 // IsType returns true
 func (v *JoinValidator) IsType() bool { return true }
 
-var (
-	RuleSet = v.RuleSet{
+// RuleSet returns a new [validation.RuleSet]. Use this method if you need to
+// compose with additional custom query parameters. Otherwise use [Validation] directly.
+func RuleSet() v.RuleSet { // Keep it a function so users can use custom query param names
+	return v.RuleSet{
 		{Path: QueryParamFilter, Rules: v.List{v.Array()}},
 		{Path: fmt.Sprintf("%s[]", QueryParamFilter), Rules: v.List{&FilterValidator{}}},
 		{Path: QueryParamOr, Rules: v.List{v.Array()}},
@@ -147,12 +149,11 @@ var (
 		{Path: QueryParamSearch, Rules: v.List{v.String(), v.Max(255)}},
 		{Path: QueryParamFields, Rules: v.List{v.String(), &FieldsValidator{}}},
 	}
-	Rules = RuleSet.AsRules()
-)
+}
 
-// Validation returns [Rules].
+// Validation returns [RuleSet].
 func Validation(_ *goyave.Request) v.Ruler {
-	return Rules
+	return RuleSet().AsRules()
 }
 
 // ParseFilter parse a string in format "field||$operator||value" and return

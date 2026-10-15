@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
@@ -60,6 +59,12 @@ var (
 
 	testSettings = &Settings[*TestScopeModel]{
 		FieldsSearch: []string{"email"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
 		SearchOperator: &Operator{
 			Function: func(tx *gorm.DB, filter *Filter, column string, _ DataType) *gorm.DB {
 				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
@@ -124,10 +129,10 @@ var (
 		Name: "SELECT",
 		Expression: clause.Select{
 			Columns: []clause.Column{
-				{Raw: true, Name: `"test_scope_models"."id"`},
 				{Raw: true, Name: `"test_scope_models"."name"`},
 				{Raw: true, Name: `"test_scope_models"."email"`},
 				{Raw: true, Name: `(UPPER("test_scope_models".name)) "computed"`},
+				{Raw: true, Name: `"test_scope_models"."id"`},
 				{Raw: true, Name: `"test_scope_models"."relation_id"`},
 			},
 		},
@@ -136,7 +141,7 @@ var (
 		Name:       "FROM",
 		Expression: clause.From{},
 	}
-	expectSelects = []string{`"test_scope_models"."id"`, `"test_scope_models"."name"`, `"test_scope_models"."email"`, `(UPPER("test_scope_models".name)) "computed"`, `"test_scope_models"."relation_id"`}
+	expectSelects = []string{`"test_scope_models"."name"`, `"test_scope_models"."email"`, `(UPPER("test_scope_models".name)) "computed"`, `"test_scope_models"."id"`, `"test_scope_models"."relation_id"`}
 )
 
 func openMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
@@ -197,7 +202,7 @@ func TestScope(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(19))
 		mock.ExpectExec(`SAVEPOINT .+`).WithoutArgs().WillReturnResult(sqlmock.NewResult(0, 0))
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."relation_id" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE ($4) ORDER BY "test_scope_models"."name" LIMIT $5 OFFSET $6`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id","test_scope_models"."relation_id" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE ($4) ORDER BY "test_scope_models"."name" LIMIT $5 OFFSET $6`)).
 			WithArgs("%val1%", "%val2%", "val3", "val", 15, 15).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
 		// Preload relation
@@ -272,7 +277,7 @@ func TestScopeUnpaginated(t *testing.T) {
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		// No Count query, no transaction
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."relation_id" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE ($4) ORDER BY "test_scope_models"."name"`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id","test_scope_models"."relation_id" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE ($4) ORDER BY "test_scope_models"."name"`)).
 			WithArgs("%val1%", "%val2%", "val3", "val").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
 		// Preload relation
@@ -335,7 +340,16 @@ func TestScopeUnpaginated(t *testing.T) {
 }
 
 func TestScopeDisableFields(t *testing.T) {
-	settings := &Settings[*TestScopeModel]{DisableFields: true, FieldsSearch: []string{"email"}} // With "fields" disabled, all columns are expected to be selected
+	settings := &Settings[*TestScopeModel]{
+		DisableFields: true, // With "fields" disabled, all whitelisted columns are expected to be selected
+		FieldsSearch:  []string{"email"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
+	}
 
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		mock.ExpectBegin()
@@ -388,7 +402,16 @@ func TestScopeDisableFields(t *testing.T) {
 }
 
 func TestScopeUnpaginatedDisableFields(t *testing.T) {
-	settings := &Settings[*TestScopeModel]{DisableFields: true, FieldsSearch: []string{"email"}} // With "fields" disabled, all columns are expected to be selected
+	settings := &Settings[*TestScopeModel]{
+		DisableFields: true, // With "fields" disabled, all whitelisted columns are expected to be selected
+		FieldsSearch:  []string{"email"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
+	}
 
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		// No Count query, no transaction
@@ -430,7 +453,16 @@ func TestScopeUnpaginatedDisableFields(t *testing.T) {
 }
 
 func TestScopeDisableFilter(t *testing.T) {
-	settings := &Settings[*TestScopeModel]{DisableFilter: true, FieldsSearch: []string{"email"}}
+	settings := &Settings[*TestScopeModel]{
+		DisableFilter: true,
+		FieldsSearch:  []string{"email"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
+	}
 
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		mock.ExpectBegin()
@@ -439,7 +471,7 @@ func TestScopeDisableFilter(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(19))
 		mock.ExpectExec(`SAVEPOINT .+`).WithoutArgs().WillReturnResult(sqlmock.NewResult(0, 0))
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."relation_id" FROM "test_scope_models" WHERE "test_scope_models"."email" LIKE $1 ORDER BY "test_scope_models"."name" LIMIT $2 OFFSET $3`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id","test_scope_models"."relation_id" FROM "test_scope_models" WHERE "test_scope_models"."email" LIKE $1 ORDER BY "test_scope_models"."name" LIMIT $2 OFFSET $3`)).
 			WithArgs("%val%", 15, 15).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
 		// Preload relation
@@ -486,12 +518,21 @@ func TestScopeDisableFilter(t *testing.T) {
 }
 
 func TestScopeUnpaginatedDisableFilter(t *testing.T) {
-	settings := &Settings[*TestScopeModel]{DisableFilter: true, FieldsSearch: []string{"email"}}
+	settings := &Settings[*TestScopeModel]{
+		DisableFilter: true,
+		FieldsSearch:  []string{"email"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
+	}
 
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		// No Count query, not transaction
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."relation_id" FROM "test_scope_models" WHERE "test_scope_models"."email" LIKE $1 ORDER BY "test_scope_models"."name"`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id","test_scope_models"."relation_id" FROM "test_scope_models" WHERE "test_scope_models"."email" LIKE $1 ORDER BY "test_scope_models"."name"`)).
 			WithArgs("%val%").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
 		// Preload relation
@@ -531,7 +572,16 @@ func TestScopeUnpaginatedDisableFilter(t *testing.T) {
 }
 
 func TestScopeDisableSort(t *testing.T) {
-	settings := &Settings[*TestScopeModel]{DisableSort: true, FieldsSearch: []string{"email"}}
+	settings := &Settings[*TestScopeModel]{
+		DisableSort:  true,
+		FieldsSearch: []string{"email"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
+	}
 
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		mock.ExpectBegin()
@@ -540,7 +590,7 @@ func TestScopeDisableSort(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(19))
 		mock.ExpectExec(`SAVEPOINT .+`).WithoutArgs().WillReturnResult(sqlmock.NewResult(0, 0))
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."relation_id" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE $4 LIMIT $5 OFFSET $6`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id","test_scope_models"."relation_id" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE $4 LIMIT $5 OFFSET $6`)).
 			WithArgs("%val1%", "%val2%", "val3", "%val%", 15, 15).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
 		// Preload relation
@@ -571,12 +621,21 @@ func TestScopeDisableSort(t *testing.T) {
 }
 
 func TestScopeUnpaginatedDisableSort(t *testing.T) {
-	settings := &Settings[*TestScopeModel]{DisableSort: true, FieldsSearch: []string{"email"}}
+	settings := &Settings[*TestScopeModel]{
+		DisableSort:  true,
+		FieldsSearch: []string{"email"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
+	}
 
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		// No Count query, no transaction
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."relation_id" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE $4`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id","test_scope_models"."relation_id" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE $4`)).
 			WithArgs("%val1%", "%val2%", "val3", "%val%").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
 		// Preload relation
@@ -600,7 +659,16 @@ func TestScopeUnpaginatedDisableSort(t *testing.T) {
 }
 
 func TestScopeDisableJoin(t *testing.T) {
-	settings := &Settings[*TestScopeModel]{DisableJoin: true, FieldsSearch: []string{"email"}}
+	settings := &Settings[*TestScopeModel]{
+		DisableJoin:  true,
+		FieldsSearch: []string{"email"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
+	}
 
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		mock.ExpectBegin()
@@ -609,7 +677,7 @@ func TestScopeDisableJoin(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(19))
 		mock.ExpectExec(`SAVEPOINT .+`).WithoutArgs().WillReturnResult(sqlmock.NewResult(0, 0))
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE $4 ORDER BY "test_scope_models"."name" LIMIT $5 OFFSET $6`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE $4 ORDER BY "test_scope_models"."name" LIMIT $5 OFFSET $6`)).
 			WithArgs("%val1%", "%val2%", "val3", "%val%", 15, 15).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed"}).AddRow(123, "name", "email@example.org", "NAME"))
 		// No preload
@@ -634,26 +702,35 @@ func TestScopeDisableJoin(t *testing.T) {
 			Name: "SELECT",
 			Expression: clause.Select{
 				Columns: []clause.Column{
-					{Raw: true, Name: `"test_scope_models"."id"`},
 					{Raw: true, Name: `"test_scope_models"."name"`},
 					{Raw: true, Name: `"test_scope_models"."email"`},
 					{Raw: true, Name: `(UPPER("test_scope_models".name)) "computed"`},
+					{Raw: true, Name: `"test_scope_models"."id"`},
 				},
 			},
 		},
 	}
 	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
 	assert.NotContains(t, paginator.DB.Statement.Preloads, "Relation")
-	assert.Equal(t, []string{`"test_scope_models"."id"`, `"test_scope_models"."name"`, `"test_scope_models"."email"`, `(UPPER("test_scope_models".name)) "computed"`}, paginator.DB.Statement.Selects)
+	assert.Equal(t, []string{`"test_scope_models"."name"`, `"test_scope_models"."email"`, `(UPPER("test_scope_models".name)) "computed"`, `"test_scope_models"."id"`}, paginator.DB.Statement.Selects)
 }
 
 func TestScopeUnpaginatedDisableJoin(t *testing.T) {
-	settings := &Settings[*TestScopeModel]{DisableJoin: true, FieldsSearch: []string{"email"}}
+	settings := &Settings[*TestScopeModel]{
+		DisableJoin:  true,
+		FieldsSearch: []string{"email"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
+	}
 
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		// No Count query, no transaction
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE $4 ORDER BY "test_scope_models"."name"`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id" FROM "test_scope_models" WHERE (("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3) AND "test_scope_models"."email" LIKE $4 ORDER BY "test_scope_models"."name"`)).
 			WithArgs("%val1%", "%val2%", "val3", "%val%").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
 		// No preload
@@ -671,21 +748,30 @@ func TestScopeUnpaginatedDisableJoin(t *testing.T) {
 			Name: "SELECT",
 			Expression: clause.Select{
 				Columns: []clause.Column{
-					{Raw: true, Name: `"test_scope_models"."id"`},
 					{Raw: true, Name: `"test_scope_models"."name"`},
 					{Raw: true, Name: `"test_scope_models"."email"`},
 					{Raw: true, Name: `(UPPER("test_scope_models".name)) "computed"`},
+					{Raw: true, Name: `"test_scope_models"."id"`},
 				},
 			},
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
 	assert.NotContains(t, db.Statement.Preloads, "Relation")
-	assert.Equal(t, []string{`"test_scope_models"."id"`, `"test_scope_models"."name"`, `"test_scope_models"."email"`, `(UPPER("test_scope_models".name)) "computed"`}, db.Statement.Selects)
+	assert.Equal(t, []string{`"test_scope_models"."name"`, `"test_scope_models"."email"`, `(UPPER("test_scope_models".name)) "computed"`, `"test_scope_models"."id"`}, db.Statement.Selects)
 }
 
 func TestScopeDisableSearch(t *testing.T) {
-	settings := &Settings[*TestScopeModel]{DisableSearch: true, FieldsSearch: []string{"name"}}
+	settings := &Settings[*TestScopeModel]{
+		DisableSearch: true,
+		FieldsSearch:  []string{"name"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
+	}
 
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		mock.ExpectBegin()
@@ -694,7 +780,7 @@ func TestScopeDisableSearch(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(19))
 		mock.ExpectExec(`SAVEPOINT .+`).WithoutArgs().WillReturnResult(sqlmock.NewResult(0, 0))
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."relation_id" FROM "test_scope_models" WHERE ("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3 ORDER BY "test_scope_models"."name" LIMIT $4 OFFSET $5`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id","test_scope_models"."relation_id" FROM "test_scope_models" WHERE ("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3 ORDER BY "test_scope_models"."name" LIMIT $4 OFFSET $5`)).
 			WithArgs("%val1%", "%val2%", "val3", 15, 15).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
 		// Preload relation
@@ -755,12 +841,21 @@ func TestScopeDisableSearch(t *testing.T) {
 }
 
 func TestScopeUnpaginatedDisableSearch(t *testing.T) {
-	settings := &Settings[*TestScopeModel]{DisableSearch: true, FieldsSearch: []string{"name"}}
+	settings := &Settings[*TestScopeModel]{
+		DisableSearch: true,
+		FieldsSearch:  []string{"name"},
+		Whitelist: Whitelist{
+			Fields: AllowAllFields,
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+		},
+	}
 
 	sqlExpect := func(mock sqlmock.Sqlmock) {
 		// No Count query, no transaction
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."relation_id" FROM "test_scope_models" WHERE ("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3 ORDER BY "test_scope_models"."name"`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id","test_scope_models"."relation_id" FROM "test_scope_models" WHERE ("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3 ORDER BY "test_scope_models"."name"`)).
 			WithArgs("%val1%", "%val2%", "val3").
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
 		// Preload relation
@@ -866,9 +961,11 @@ func TestScopeUnpaginatedInvalidModel(t *testing.T) {
 	})
 }
 
-func TestScopeWithFieldsBlacklist(t *testing.T) {
+func TestScopeWithFieldsWhitelist(t *testing.T) {
 	settings := &Settings[*TestScopeModel]{
-		FieldsBlacklist: []string{"name", "extra"},
+		Whitelist: Whitelist{
+			Fields: []string{"email", "computed", "id", "relation_id"},
+		},
 	}
 
 	db, mock := openMockDB(t)
@@ -890,9 +987,11 @@ func TestScopeWithFieldsBlacklist(t *testing.T) {
 	assert.ElementsMatch(t, []string{`"test_scope_models"."id"`, `"test_scope_models"."relation_id"`, `"test_scope_models"."email"`, `(UPPER("test_scope_models".name)) "computed"`}, paginator.DB.Statement.Selects)
 }
 
-func TestScopeUnpaginatedWithFieldsBlacklist(t *testing.T) {
+func TestScopeUnpaginatedWithFieldsWhitelist(t *testing.T) {
 	settings := &Settings[*TestScopeModel]{
-		FieldsBlacklist: []string{"name", "extra"},
+		Whitelist: Whitelist{
+			Fields: []string{"email", "computed", "id", "relation_id"},
+		},
 	}
 
 	db, mock := openMockDB(t)
@@ -908,23 +1007,31 @@ func TestScopeUnpaginatedWithFieldsBlacklist(t *testing.T) {
 	assert.ElementsMatch(t, []string{`"test_scope_models"."id"`, `"test_scope_models"."relation_id"`, `"test_scope_models"."email"`, `(UPPER("test_scope_models".name)) "computed"`}, tx.Statement.Selects)
 }
 
-func TestBlacklistGetSelectableFields(t *testing.T) {
-	blacklist := &Blacklist{
-		FieldsBlacklist: []string{"name"},
-	}
-	fields := map[string]*schema.Field{
-		"id":    {},
-		"name":  {},
-		"email": {},
-	}
-
-	sch := &schema.Schema{
-		DBNames:        []string{"id", "name", "email"},
-		FieldsByDBName: fields,
+func TestWhitelistGetSelectableFields(t *testing.T) {
+	type selectableModel struct {
+		Relation   *TestScopeRelation
+		Ignored    string `gorm:"-"`
+		Email      string
+		ID         uint
+		RelationID uint
 	}
 
-	assert.ElementsMatch(t, []*schema.Field{fields["id"], fields["email"]}, getSelectableFields(blacklist, sch))
-	assert.ElementsMatch(t, []*schema.Field{fields["id"], fields["email"], fields["name"]}, getSelectableFields(nil, sch))
+	db, _ := openMockDB(t)
+	sch, err := parseModel(db, &selectableModel{})
+	require.NoError(t, err)
+
+	whitelist := Whitelist{
+		Fields: []string{
+			"id",
+			"email",
+			"Email",    // deduplication
+			"ignored",  // Struct tag ignore
+			"Relation", // Relation are fields that don't have a DBName
+		},
+	}
+
+	assert.ElementsMatch(t, []*schema.Field{sch.FieldsByDBName["id"], sch.FieldsByDBName["email"]}, getSelectableFields(whitelist, sch))
+	assert.ElementsMatch(t, []*schema.Field{sch.FieldsByDBName["id"], sch.FieldsByDBName["email"], sch.FieldsByDBName["relation_id"]}, getSelectableFields(Whitelist{Fields: AllowAllFields}, sch))
 }
 
 type TestFilterScopeModel struct {
@@ -950,11 +1057,13 @@ func TestApplyFiltersAnd(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
 	schema, err := parseModel(db, &TestFilterScopeModel{})
-	if !assert.Nil(t, err) {
-		return
+	require.NoError(t, err)
+
+	settings := &Settings[*TestFilterScopeModel]{
+		Whitelist: Whitelist{Fields: AllowAllFields},
 	}
 
-	db = (&Settings[*TestFilterScopeModel]{}).applyFilters(db, request, schema).Find(&[]*TestFilterScopeModel{})
+	db = settings.applyFilters(db, request, schema).Find(&[]*TestFilterScopeModel{})
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -1002,11 +1111,13 @@ func TestApplyFiltersMixed(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
 	schema, err := parseModel(db, &TestFilterScopeModel{})
-	if !assert.Nil(t, err) {
-		return
+	require.NoError(t, err)
+
+	settings := &Settings[*TestFilterScopeModel]{
+		Whitelist: Whitelist{Fields: AllowAllFields},
 	}
 
-	db = (&Settings[*TestFilterScopeModel]{}).applyFilters(db, request, schema).Find(&[]*TestFilterScopeModel{})
+	db = settings.applyFilters(db, request, schema).Find(&[]*TestFilterScopeModel{})
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -1076,11 +1187,13 @@ func TestApplyFiltersOr(t *testing.T) {
 				WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
 			schema, err := parseModel(db, &TestFilterScopeModel{})
-			if !assert.Nil(t, err) {
-				return
+			require.NoError(t, err)
+
+			settings := &Settings[*TestFilterScopeModel]{
+				Whitelist: Whitelist{Fields: AllowAllFields},
 			}
 
-			db = (&Settings[*TestFilterScopeModel]{}).applyFilters(db, request, schema).Find(&[]*TestFilterScopeModel{})
+			db = settings.applyFilters(db, request, schema).Find(&[]*TestFilterScopeModel{})
 			expected := map[string]clause.Clause{
 				"WHERE": {
 					Name: "WHERE",
@@ -1133,13 +1246,20 @@ func TestApplyFiltersWithJoin(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
 	schema, err := parseModel(db, &FilterTestModel{})
-	if !assert.Nil(t, err) {
-		return
+	require.NoError(t, err)
+
+	settings := &Settings[*TestFilterScopeModel]{
+		Whitelist: Whitelist{
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+			Fields: AllowAllFields,
+		},
 	}
 
 	results := []*FilterTestModel{}
 	db = db.Model(&results)
-	db = (&Settings[*FilterTestModel]{}).applyFilters(db, request, schema).Find(&results)
+	db = settings.applyFilters(db, request, schema).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -1199,11 +1319,13 @@ func TestApplyFiltersWithJoin(t *testing.T) {
 func TestApplySearch(t *testing.T) {
 	db, _ := openMockDB(t)
 	schema, err := parseModel(db, &TestFilterScopeModel{})
-	if !assert.Nil(t, err) {
-		return
+	require.NoError(t, err)
+
+	settings := &Settings[*TestFilterScopeModel]{
+		Whitelist: Whitelist{Fields: AllowAllFields},
 	}
 
-	search := (&Settings[*TestScopeModel]{}).applySearch("val", schema)
+	search := settings.applySearch("val", schema)
 	assert.NotNil(t, search)
 	assert.ElementsMatch(t, []string{"id", "name"}, search.Fields)
 	assert.Equal(t, "val", search.Query)
@@ -1296,21 +1418,32 @@ func TestSelectScope(t *testing.T) {
 func TestGetFieldFinalRelation(t *testing.T) {
 	db, _ := openMockDB(t)
 	schema, err := parseModel(db, &FilterTestModel{})
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
-	settings := &Settings[*FilterTestModel]{IsFinal: true}
-	field, sch, joinName := getField("Relation.name", schema, &settings.Blacklist)
+	settings := &Settings[*FilterTestModel]{
+		Whitelist: Whitelist{Fields: AllowAllFields},
+	}
+	field, sch, joinName := getField("Relation.name", schema, &settings.Whitelist)
 	assert.Nil(t, field)
 	assert.Nil(t, sch)
 	assert.Empty(t, joinName)
 
 	settings = &Settings[*FilterTestModel]{
-		Relations: map[string]*Blacklist{
-			"Relation": {IsFinal: true},
-		}}
-	field, sch, joinName = getField("Relation.NestedRelation.field", schema, &settings.Blacklist)
+		Whitelist: Whitelist{
+			Relations: map[string]Whitelist{
+				"Relation": {
+					Fields:    []string{"id", "name", "relation_id"},
+					Relations: map[string]Whitelist{},
+				},
+			},
+		},
+	}
+	field, sch, joinName = getField("Relation.NestedRelation.field", schema, &settings.Whitelist)
+	assert.Nil(t, field)
+	assert.Nil(t, sch)
+	assert.Empty(t, joinName)
+
+	field, sch, joinName = getField("Relation.field", schema, &settings.Whitelist)
 	assert.Nil(t, field)
 	assert.Nil(t, sch)
 	assert.Empty(t, joinName)
@@ -1335,8 +1468,17 @@ func TestSettingsComputedFieldWithAutoFields(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"name", "email", "computed", "extra", "id", "relation_id"}).AddRow("name", "email@example.org", "NAME", "extra", 123, 456))
 	mock.ExpectCommit()
 
+	settings := &Settings[*TestScopeModel]{
+		Whitelist: Whitelist{
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+			Fields: AllowAllFields,
+		},
+	}
+
 	results := []*TestScopeModel{}
-	paginator, err := Scope(db, request, &results)
+	paginator, err := settings.Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
 	assert.NoError(t, err)
@@ -1432,8 +1574,17 @@ func TestSettingsSelectWithExistingJoin(t *testing.T) {
 	// We expect this join to not be removed nor duplicated, with the condition kept and the fields selected.
 	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Where("Relation.id > ?", 0))
 
+	settings := &Settings[*TestScopeModel]{
+		Whitelist: Whitelist{
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+			Fields: AllowAllFields,
+		},
+	}
+
 	results := []*TestScopeModel{}
-	paginator, err := Scope(db, request, &results)
+	paginator, err := settings.Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
 	assert.NoError(t, err)
@@ -1537,8 +1688,17 @@ func TestSettingsSelectWithExistingJoinAndComputed(t *testing.T) {
 
 	db = db.Joins("Relation")
 
+	settings := &Settings[*TestScopeModelWithComputed]{
+		Whitelist: Whitelist{
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+			Fields: AllowAllFields,
+		},
+	}
+
 	results := []*TestScopeModelWithComputed{}
-	paginator, err := Scope(db, request, &results)
+	paginator, err := settings.Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
 	assert.NoError(t, err)
@@ -1633,8 +1793,17 @@ func TestSettingsSelectWithExistingJoinAndComputedOmit(t *testing.T) {
 	// We use Omit on Relation to avoid Gorm auto-selecting it
 	db = db.Joins("Relation", db.Session(&gorm.Session{NewDB: true}).Omit("c"))
 
+	settings := &Settings[*TestScopeModelWithComputed]{
+		Whitelist: Whitelist{
+			Relations: map[string]Whitelist{
+				"Relation": {Fields: AllowAllFields},
+			},
+			Fields: AllowAllFields,
+		},
+	}
+
 	results := []*TestScopeModelWithComputed{}
-	paginator, err := Scope(db, request, &results)
+	paginator, err := settings.Scope(db, request, &results)
 
 	assert.NotNil(t, paginator)
 	assert.NoError(t, err)
@@ -1799,6 +1968,7 @@ func TestSettingsDefaultSort(t *testing.T) {
 			{Field: "name", Order: SortAscending},
 			{Field: "email", Order: SortDescending},
 		},
+		Whitelist: Whitelist{Fields: AllowAllFields},
 	}
 
 	t.Run("sort_not_provided", func(t *testing.T) {
@@ -1818,7 +1988,7 @@ func TestSettingsDefaultSort(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(19))
 		mock.ExpectExec(`SAVEPOINT .+`).WithoutArgs().WillReturnResult(sqlmock.NewResult(0, 0))
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email" FROM "test_scope_models" WHERE "test_scope_models"."name" LIKE $1 ORDER BY "test_scope_models"."name","test_scope_models"."email" DESC LIMIT $2 OFFSET $3`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email","test_scope_models"."id" FROM "test_scope_models" WHERE "test_scope_models"."name" LIKE $1 ORDER BY "test_scope_models"."name","test_scope_models"."email" DESC LIMIT $2 OFFSET $3`)).
 			WithArgs("%val1%", 15, 30).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email"}).AddRow(123, "name", "email@example.org"))
 		mock.ExpectCommit()
@@ -1873,9 +2043,9 @@ func TestSettingsDefaultSort(t *testing.T) {
 				Name: "SELECT",
 				Expression: clause.Select{
 					Columns: []clause.Column{
-						{Raw: true, Name: `"test_scope_models"."id"`},
 						{Raw: true, Name: `"test_scope_models"."name"`},
 						{Raw: true, Name: `"test_scope_models"."email"`},
+						{Raw: true, Name: `"test_scope_models"."id"`},
 					},
 				},
 			},
@@ -1902,7 +2072,7 @@ func TestSettingsDefaultSort(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(19))
 		mock.ExpectExec(`SAVEPOINT .+`).WithoutArgs().WillReturnResult(sqlmock.NewResult(0, 0))
 		// Actual models
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."id","test_scope_models"."name","test_scope_models"."email" FROM "test_scope_models" WHERE "test_scope_models"."name" LIKE $1 ORDER BY "test_scope_models"."name" DESC LIMIT $2 OFFSET $3`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email","test_scope_models"."id" FROM "test_scope_models" WHERE "test_scope_models"."name" LIKE $1 ORDER BY "test_scope_models"."name" DESC LIMIT $2 OFFSET $3`)).
 			WithArgs("%val1%", 15, 30).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email"}).AddRow(123, "name", "email@example.org"))
 		mock.ExpectCommit()
@@ -1951,9 +2121,9 @@ func TestSettingsDefaultSort(t *testing.T) {
 				Name: "SELECT",
 				Expression: clause.Select{
 					Columns: []clause.Column{
-						{Raw: true, Name: `"test_scope_models"."id"`},
 						{Raw: true, Name: `"test_scope_models"."name"`},
 						{Raw: true, Name: `"test_scope_models"."email"`},
+						{Raw: true, Name: `"test_scope_models"."id"`},
 					},
 				},
 			},
@@ -1982,6 +2152,7 @@ func TestScopeWithCaseInsensitiveSort(t *testing.T) {
 	results := []*TestScopeModel{}
 	settings := &Settings[*TestScopeModel]{
 		CaseInsensitiveSort: true,
+		Whitelist:           Whitelist{Fields: AllowAllFields},
 	}
 	paginator, err := settings.Scope(db, request, &results)
 	assert.NotNil(t, paginator)
@@ -2023,6 +2194,124 @@ func TestScopeWithCaseInsensitiveSort(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+}
+
+func TestSettingsGlobalScope(t *testing.T) {
+	sqlExpect := func(mock sqlmock.Sqlmock) {
+		mock.ExpectBegin()
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "test_scope_models" WHERE ("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3`)).
+			WithArgs("%val1%", "%val2%", "val3").
+			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(19))
+		// Actual models
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id","test_scope_models"."relation_id" FROM "test_scope_models" WHERE ("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3 ORDER BY "test_scope_models"."name" LIMIT $4 OFFSET $5`)).
+			WithArgs("%val1%", "%val2%", "val3", 15, 15).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
+		// Don't preload relation, the default whitelist doesn't allow it
+		mock.ExpectCommit()
+	}
+
+	paginator, err := runScope(t, nil, testRequest, sqlExpect)
+	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.AndConditions{
+										Exprs: []clause.Expression{
+											clause.Expr{SQL: `"test_scope_models"."name" LIKE ?`, Vars: []any{"%val1%"}},
+											clause.Expr{SQL: `"test_scope_models"."name" LIKE ?`, Vars: []any{"%val2%"}},
+										},
+									},
+								},
+							},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.AndConditions{
+										Exprs: []clause.Expression{
+											clause.Expr{SQL: `"test_scope_models"."name" = ?`, Vars: []any{"val3"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"ORDER BY": expectOrderByClause,
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  new(15),
+				Offset: 15,
+			},
+		},
+		"FROM":   expectFromClause,
+		"SELECT": expectSelectClause,
+	}
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.Empty(t, paginator.DB.Statement.Preloads)
+	assert.Equal(t, expectSelects, paginator.DB.Statement.Selects)
+}
+
+func TestSettingsGlobalScopeUnpaginated(t *testing.T) {
+	sqlExpect := func(mock sqlmock.Sqlmock) {
+		// No Count query, no transaction
+		// Actual models
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "test_scope_models"."name","test_scope_models"."email",(UPPER("test_scope_models".name)) "computed","test_scope_models"."id","test_scope_models"."relation_id" FROM "test_scope_models" WHERE ("test_scope_models"."name" LIKE $1 AND "test_scope_models"."name" LIKE $2) OR "test_scope_models"."name" = $3 ORDER BY "test_scope_models"."name"`)).
+			WithArgs("%val1%", "%val2%", "val3").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email", "computed", "relation_id"}).AddRow(123, "name", "email@example.org", "NAME", 456))
+		// Do not preload relation, the default whitelist doesn't allow it
+	}
+
+	results, db := runScopeUnpaginated(t, nil, testRequest, sqlExpect)
+	assert.NotNil(t, results)
+	assert.NoError(t, db.Error)
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.AndConditions{
+										Exprs: []clause.Expression{
+											clause.Expr{SQL: `"test_scope_models"."name" LIKE ?`, Vars: []any{"%val1%"}},
+											clause.Expr{SQL: `"test_scope_models"."name" LIKE ?`, Vars: []any{"%val2%"}},
+										},
+									},
+								},
+							},
+							clause.OrConditions{
+								Exprs: []clause.Expression{
+									clause.AndConditions{
+										Exprs: []clause.Expression{
+											clause.Expr{SQL: `"test_scope_models"."name" = ?`, Vars: []any{"val3"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"ORDER BY": expectOrderByClause,
+		"FROM":     expectFromClause,
+		"SELECT":   expectSelectClause,
+	}
+	assert.Equal(t, expected, db.Statement.Clauses)
+	assert.Empty(t, db.Statement.Preloads)
+	assert.Equal(t, expectSelects, db.Statement.Selects)
 }
 
 func TestNewRequest(t *testing.T) {
@@ -2107,21 +2396,109 @@ func TestNewRequest(t *testing.T) {
 	}
 }
 
-//--------------------------
-// OLD
-
-func openDryRunDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:?mode=memory"))
-	if err != nil {
-		assert.FailNow(t, "could not open dry run DB", err)
+func TestWhitelistAllowed(t *testing.T) {
+	cases := []struct {
+		desc      string
+		field     *schema.Field
+		whitelist Whitelist
+		want      bool
+	}{
+		{
+			desc:      "all",
+			whitelist: Whitelist{Fields: AllowAllFields},
+			field:     &schema.Field{DBName: "column", Name: "Column"},
+			want:      true,
+		},
+		{
+			desc:      "using_dbname",
+			whitelist: Whitelist{Fields: []string{"column"}},
+			field:     &schema.Field{DBName: "column", Name: "Column"},
+			want:      true,
+		},
+		{
+			desc:      "using_name",
+			whitelist: Whitelist{Fields: []string{"Column"}},
+			field:     &schema.Field{DBName: "column", Name: "Column"},
+			want:      true,
+		},
+		{
+			desc:      "not_allowed",
+			whitelist: Whitelist{Fields: []string{"FieldName"}},
+			field:     &schema.Field{DBName: "column", Name: "Column"},
+			want:      false,
+		},
 	}
-	// Uncomment this for debugging
-	// db.Logger = logger.New(log.New(t.Output(), "\n", log.LstdFlags), logger.Config{
-	// 	SlowThreshold:             200 * time.Millisecond,
-	// 	LogLevel:                  logger.Info,
-	// 	IgnoreRecordNotFoundError: false,
-	// 	Colorful:                  true,
-	// })
-	db.DryRun = true
-	return db
+
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			assert.Equal(t, c.want, c.whitelist.allowed(c.field))
+		})
+	}
+}
+
+func TestWhitelistNothing(t *testing.T) {
+	settings := &Settings[*TestScopeModel]{
+		FieldsSearch: []string{"email"},
+		Whitelist:    Whitelist{},
+		SearchOperator: &Operator{
+			Function: func(tx *gorm.DB, filter *Filter, column string, _ DataType) *gorm.DB {
+				return tx.Or(fmt.Sprintf("%s LIKE (?)", column), filter.Args[0])
+			},
+			RequiredArguments: 1,
+		},
+	}
+
+	sqlExpect := func(mock sqlmock.Sqlmock) {
+		mock.ExpectBegin()
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "test_scope_models" WHERE "test_scope_models"."email" LIKE ($1)`)).
+			WithArgs("val").
+			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(19))
+		mock.ExpectExec(`SAVEPOINT .+`).WithoutArgs().WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT 1,2 FROM "test_scope_models" WHERE "test_scope_models"."email" LIKE ($1) LIMIT $2 OFFSET $3`)).
+			WithArgs("val", 15, 15).
+			WillReturnRows(sqlmock.NewRows([]string{"1", "2"}).AddRow(1, 2))
+		mock.ExpectCommit()
+	}
+
+	paginator, err := runScope(t, settings, testRequest, sqlExpect)
+	assert.NotNil(t, paginator)
+	assert.NoError(t, err)
+
+	expected := map[string]clause.Clause{
+		"WHERE": {
+			Name: "WHERE",
+			Expression: clause.Where{
+				Exprs: []clause.Expression{
+					clause.AndConditions{
+						Exprs: []clause.Expression{
+							clause.Expr{
+								SQL:                `"test_scope_models"."email" LIKE (?)`, // Search operator override
+								Vars:               []any{"val"},
+								WithoutParentheses: false,
+							},
+						},
+					},
+				},
+			},
+		},
+		"LIMIT": {
+			Expression: clause.Limit{
+				Limit:  new(15),
+				Offset: 15,
+			},
+		},
+		"FROM": expectFromClause,
+		"SELECT": {
+			Name: "SELECT",
+			Expression: clause.Select{
+				Columns: []clause.Column{
+					{Raw: true, Name: `1`},
+					{Raw: true, Name: `2`},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expected, paginator.DB.Statement.Clauses)
+	assert.Empty(t, paginator.DB.Statement.Preloads)
+	assert.Equal(t, []string{"1", "2"}, paginator.DB.Statement.Selects)
 }

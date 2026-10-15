@@ -5,11 +5,15 @@
 [![Coverage Status](https://coveralls.io/repos/github/go-goyave/filter/badge.svg)](https://coveralls.io/github/go-goyave/filter)
 [![Go Reference](https://pkg.go.dev/badge/goyave.dev/filter.svg)](https://pkg.go.dev/goyave.dev/filter)
 
-**Compatible with Goyave `v5` only**. If you want to use the library for v4, use `v0.6.0`.
-
 `goyave.dev/filter` allows powerful filtering using query parameters. Inspired by [nestjsx/crud](https://github.com/nestjsx/crud/wiki/Requests).
 
 ## Usage
+
+| Goyave version | Filter version |
+|----------------|----------------|
+| v6             | v0.9.0+        |
+| v5             | v0.8.0         |
+| v4             | v0.6.0         |
 
 ```sh
 go get goyave.dev/filter
@@ -17,7 +21,7 @@ go get goyave.dev/filter
 
 First, add the necessary query validation to your index route:
 ```go
-router.GlobalMiddleware(&parse.Middleware{}) // Don't forget the parse middleware!
+router.GlobalMiddleware(parse.NewMiddleware(cfg.Server.MaxUploadSize)) // Don't forget the parse middleware!
 router.Get("/users", user.Index).ValidateQuery(filter.Validation)
 ```
 
@@ -31,14 +35,14 @@ import "goyave.dev/filter"
 func (r *User) Paginate(ctx context.Context, request *filter.Request) (*database.Paginator[*model.User], error) {
 	users := []*model.User{}
 	paginator, err := filter.Scope(session.DB(ctx, r.DB), request, &users)
-	return paginator, errors.New(err)
+	return paginator, errwrap.New(err)
 }
 ```
 ```go
 // service/user/user.go
 func (s *Service) Paginate(ctx context.Context, request *filter.Request) (*database.PaginatorDTO[*dto.User], error) {
 	paginator, err := s.repository.Paginate(ctx, request)
-	return typeutil.MustConvert[*database.PaginatorDTO[*dto.User]](paginator), errors.New(err)
+	return typeutil.MustConvert[*database.PaginatorDTO[*dto.User]](paginator), errwrap.New(err)
 }
 ```
 From your controller, use `filter.NewRequest()` with the request's query to generate the filter request DTO:
@@ -46,7 +50,8 @@ From your controller, use `filter.NewRequest()` with the request's query to gene
 // http/controller/user/user.go
 func (ctrl *Controller) Index(response *goyave.Response, request *goyave.Request) {
 	paginator, err := ctrl.userService.Paginate(request.Context(), filter.NewRequest(request.Query))
-	if response.WriteDBError(err) {
+	if err != nil {
+		response.Error(err)
 		return
 	}
 	response.JSON(http.StatusOK, paginator)
@@ -331,7 +336,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"goyave.dev/filter"
-	"goyave.dev/goyave/v5/util/sqlutil"
+	"goyave.dev/goyave/v6/util/sqlutil"
 )
 
 // ...
@@ -438,7 +443,7 @@ func (r *User) Paginate(ctx context.Context, request *filter.Request) (*database
 	var users []*model.User
 	db := session.DB(ctx, r.DB).Joins("Relation")
 	paginator, err := filter.Scope(db, request, &users)
-	return paginator, errors.New(err)
+	return paginator, errwrap.New(err)
 }
 ```
 
@@ -462,6 +467,20 @@ func IndexRequest(r *goyave.Request) v.RuleSet {
 ```go
 settings := &filter.Settings[*model.User]{}
 ```
+
+### Upgrading from Goyave v5 to v6
+
+If your route has custom query parameters, your function will need to be updated like so:
+```go
+func IndexRequest(r *goyave.Request) v.Ruler {
+	return append(v.RuleSet{
+		{Path: "foo", Rules: v.List{v.Int(), v.Min(1)}},
+	}, filter.RuleSet...)
+}
+```
+
+Planned changes:
+- Settings rework: whitelist instead of blacklist
 
 ## License
 

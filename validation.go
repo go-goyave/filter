@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
-	"goyave.dev/goyave/v5"
-	"goyave.dev/goyave/v5/lang"
-	v "goyave.dev/goyave/v5/validation"
+	"goyave.dev/goyave/v6"
+	"goyave.dev/goyave/v6/lang"
+	v "goyave.dev/goyave/v6/validation"
 )
 
 // Separator the separator used when parsing the query
@@ -132,9 +132,8 @@ func (v *JoinValidator) Name() string { return "goyave-filter-join" }
 // IsType returns true
 func (v *JoinValidator) IsType() bool { return true }
 
-// Validation returns a new RuleSet for query validation.
-func Validation(_ *goyave.Request) v.RuleSet {
-	return v.RuleSet{
+var (
+	RuleSet = v.RuleSet{
 		{Path: QueryParamFilter, Rules: v.List{v.Array()}},
 		{Path: fmt.Sprintf("%s[]", QueryParamFilter), Rules: v.List{&FilterValidator{}}},
 		{Path: QueryParamOr, Rules: v.List{v.Array()}},
@@ -148,6 +147,12 @@ func Validation(_ *goyave.Request) v.RuleSet {
 		{Path: QueryParamSearch, Rules: v.List{v.String(), v.Max(255)}},
 		{Path: QueryParamFields, Rules: v.List{v.String(), &FieldsValidator{}}},
 	}
+	Rules = RuleSet.AsRules()
+)
+
+// Validation returns [Rules].
+func Validation(_ *goyave.Request) v.Ruler {
+	return Rules
 }
 
 // ParseFilter parse a string in format "field||$operator||value" and return

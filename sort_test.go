@@ -2,15 +2,22 @@ package filter
 
 import (
 	"reflect"
+	"regexp"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 )
 
 func TestSortScope(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY "test_models"."name"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
+
 	sort := &Sort{Field: "notacolumn", Order: SortAscending}
 	field := &schema.Field{Name: "Name", DBName: "name", GORMDataType: schema.String}
 	schema := &schema.Schema{
@@ -43,29 +50,39 @@ func TestSortScope(t *testing.T) {
 				},
 			},
 		},
-		"FROM": {
-			Name:       "FROM",
-			Expression: clause.From{},
-		},
+		"FROM": expectFromClause,
 		"SELECT": {
 			Name:       "SELECT",
 			Expression: clause.Select{},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	sort.Order = SortDescending
 	results = []map[string]any{}
-	db = openDryRunDB(t)
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY "test_models"."name" DESC`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
+
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, false)).Table("table").Find(&results)
+	assert.NoError(t, db.Error)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	// Using struct field name
 	sort.Field = "Name"
 	results = []map[string]any{}
-	db = openDryRunDB(t)
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY "test_models"."name" DESC`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
+
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, false)).Table("table").Find(&results)
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
@@ -100,7 +117,7 @@ type SortTestModel struct {
 }
 
 func TestSortScopeWithJoin(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	sort := &Sort{Field: "Relation.name", Order: SortAscending}
 
 	results := []*SortTestModel{}
@@ -108,6 +125,10 @@ func TestSortScopeWithJoin(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "sort_test_models"."name","sort_test_models"."id" FROM "sort_test_models" LEFT JOIN "sort_test_relations" "Relation" ON "sort_test_models"."id" = "Relation"."parent_id" ORDER BY "Relation"."name"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
 	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
@@ -162,11 +183,12 @@ func TestSortScopeWithJoin(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestSortScopeWithJoinInvalidModel(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	sort := &Sort{Field: "Relation.name", Order: SortDescending}
 
 	results := []*SortTestModel{}
@@ -180,7 +202,7 @@ func TestSortScopeWithJoinInvalidModel(t *testing.T) {
 }
 
 func TestSortScopeWithJoinNestedRelation(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	sort := &Sort{Field: "Relation.NestedRelation.field", Order: SortAscending}
 
 	results := []*SortTestModel{}
@@ -188,6 +210,10 @@ func TestSortScopeWithJoinNestedRelation(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "sort_test_models"."name","sort_test_models"."id" FROM "sort_test_models" LEFT JOIN "sort_test_relations" "Relation" ON "sort_test_models"."id" = "Relation"."parent_id" LEFT JOIN "sort_test_nested_relations" "NestedRelation" ON "Relation"."id" = "NestedRelation"."parent_id" ORDER BY "NestedRelation"."field"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
 	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
@@ -263,6 +289,7 @@ func TestSortScopeWithJoinNestedRelation(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
@@ -281,7 +308,7 @@ type SortTestModelComputed struct {
 }
 
 func TestSortScopeComputed(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	sort := &Sort{Field: "computed", Order: SortAscending}
 
 	results := []*SortTestModelComputed{}
@@ -289,6 +316,10 @@ func TestSortScopeComputed(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "sort_test_model_computeds" ORDER BY ("sort_test_model_computeds".computedcolumn)`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
 	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
@@ -299,26 +330,24 @@ func TestSortScopeComputed(t *testing.T) {
 					{
 						Column: clause.Column{
 							Raw:  true,
-							Name: "(`sort_test_model_computeds`.computedcolumn)",
+							Name: `("sort_test_model_computeds".computedcolumn)`,
 						},
 					},
 				},
 			},
 		},
-		"FROM": {
-			Name:       "FROM",
-			Expression: clause.From{},
-		},
+		"FROM": expectFromClause,
 		"SELECT": {
 			Name:       "SELECT",
 			Expression: clause.Select{},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestSortScopeComputedWithJoin(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	sort := &Sort{Field: "Relation.computed", Order: SortAscending}
 
 	results := []*SortTestModelComputed{}
@@ -326,6 +355,10 @@ func TestSortScopeComputedWithJoin(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "sort_test_model_computeds"."name","sort_test_model_computeds"."computed","sort_test_model_computeds"."id" FROM "sort_test_model_computeds" LEFT JOIN "sort_test_model_computed_relations" "Relation" ON "sort_test_model_computeds"."id" = "Relation"."parent_id" ORDER BY ("Relation".computedcolumnrelation)`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
 	db = db.Model(&results).Scopes(sort.Scope(Blacklist{}, schema, false)).Find(&results)
 	expected := map[string]clause.Clause{
@@ -364,7 +397,7 @@ func TestSortScopeComputedWithJoin(t *testing.T) {
 					{
 						Column: clause.Column{
 							Raw:  true,
-							Name: "(`Relation`.computedcolumnrelation)",
+							Name: `("Relation".computedcolumnrelation)`,
 						},
 					},
 				},
@@ -381,11 +414,12 @@ func TestSortScopeComputedWithJoin(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestSortScopeCaseInsensitive(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	sort := &Sort{Field: "notacolumn", Order: SortAscending}
 	field := &schema.Field{Name: "Name", DBName: "name", GORMDataType: schema.String}
 	schema := &schema.Schema{
@@ -402,6 +436,10 @@ func TestSortScopeCaseInsensitive(t *testing.T) {
 
 	sort.Field = "name"
 
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY LOWER("test_models"."name")`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
+
 	results := []map[string]any{}
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
 	expected := map[string]clause.Clause{
@@ -412,40 +450,50 @@ func TestSortScopeCaseInsensitive(t *testing.T) {
 					{
 						Column: clause.Column{
 							Raw:  true,
-							Name: "LOWER(`test_models`.`name`)",
+							Name: `LOWER("test_models"."name")`,
 						},
 					},
 				},
 			},
 		},
-		"FROM": {
-			Name:       "FROM",
-			Expression: clause.From{},
-		},
+		"FROM": expectFromClause,
 		"SELECT": {
 			Name:       "SELECT",
 			Expression: clause.Select{},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	sort.Order = SortDescending
 	results = []map[string]any{}
-	db = openDryRunDB(t)
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY LOWER("test_models"."name") DESC`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
+
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	assert.NoError(t, db.Error)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	// Using struct field name
 	sort.Field = "Name"
 	results = []map[string]any{}
-	db = openDryRunDB(t)
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY LOWER("test_models"."name") DESC`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
+
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestSortScopeCaseInsensitiveNotString(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	sort := &Sort{Field: "notacolumn", Order: SortAscending}
 	field := &schema.Field{Name: "ID", DBName: "id", GORMDataType: schema.Int}
 	schema := &schema.Schema{
@@ -462,8 +510,13 @@ func TestSortScopeCaseInsensitiveNotString(t *testing.T) {
 
 	sort.Field = "id"
 
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY "test_models"."id"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
+
 	results := []map[string]any{}
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	assert.NoError(t, db.Error)
 	expected := map[string]clause.Clause{
 		"ORDER BY": {
 			Name: "ORDER BY",
@@ -478,10 +531,7 @@ func TestSortScopeCaseInsensitiveNotString(t *testing.T) {
 				},
 			},
 		},
-		"FROM": {
-			Name:       "FROM",
-			Expression: clause.From{},
-		},
+		"FROM": expectFromClause,
 		"SELECT": {
 			Name:       "SELECT",
 			Expression: clause.Select{},
@@ -491,21 +541,33 @@ func TestSortScopeCaseInsensitiveNotString(t *testing.T) {
 
 	sort.Order = SortDescending
 	results = []map[string]any{}
-	db = openDryRunDB(t)
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY "test_models"."id" DESC`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
+
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	assert.NoError(t, db.Error)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	// Using struct field name
 	sort.Field = "ID"
 	results = []map[string]any{}
-	db = openDryRunDB(t)
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY "test_models"."id" DESC`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
+
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestSortScopeCaseInsensitiveComputed(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	sort := &Sort{Field: "notacolumn", Order: SortAscending}
 	field := &schema.Field{Name: "Name", DBName: "name", GORMDataType: schema.String, StructField: reflect.StructField{Tag: `computed:"UPPER(name)"`}}
 	schema := &schema.Schema{
@@ -521,6 +583,10 @@ func TestSortScopeCaseInsensitiveComputed(t *testing.T) {
 	assert.Nil(t, sort.Scope(Blacklist{}, schema, false))
 
 	sort.Field = "name"
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY (UPPER(name))`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
 
 	results := []map[string]any{}
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
@@ -538,28 +604,38 @@ func TestSortScopeCaseInsensitiveComputed(t *testing.T) {
 				},
 			},
 		},
-		"FROM": {
-			Name:       "FROM",
-			Expression: clause.From{},
-		},
+		"FROM": expectFromClause,
 		"SELECT": {
 			Name:       "SELECT",
 			Expression: clause.Select{},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	sort.Order = SortDescending
 	results = []map[string]any{}
-	db = openDryRunDB(t)
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY (UPPER(name)) DESC`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
+
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	assert.NoError(t, db.Error)
 	expected["ORDER BY"].Expression.(clause.OrderBy).Columns[0].Desc = true
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	// Using struct field name
 	sort.Field = "Name"
 	results = []map[string]any{}
-	db = openDryRunDB(t)
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" ORDER BY (UPPER(name)) DESC`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("name"))
+
 	db = db.Scopes(sort.Scope(Blacklist{}, schema, true)).Table("table").Find(&results)
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }

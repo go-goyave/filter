@@ -1,8 +1,10 @@
 package filter
 
 import (
+	"regexp"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
@@ -29,7 +31,16 @@ func (m *JoinRelationModel) TableName() string {
 }
 
 func TestJoinScope(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "relation"."a","relation"."b" FROM "table"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"relation.a", "relation.b"}).AddRow("a", "b"))
+
 	join := &Join{Relation: "notarelation", Fields: []string{"a", "b", "notacolumn"}}
 	join.selectCache = map[string][]string{}
 
@@ -40,16 +51,27 @@ func TestJoinScope(t *testing.T) {
 	assert.Nil(t, join.Scopes(Blacklist{}, schema))
 	join.Relation = "Relation"
 
-	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(&map[string]any{})
+	assert.NoError(t, db.Error)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
-		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`"}, tx.Statement.Selects)
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`"relation"."a"`, `"relation"."b"`}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"a", "b", "notacolumn"}, join.selectCache["Relation"])
 }
 
 func TestJoinScopeAutoSelectFieldsNoBlacklist(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT (UPPER("relation".b)) "c","relation"."b","relation"."a" FROM "table"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"c", "relation.a", "relation.b"}).AddRow("B", "a", "b"))
+
 	join := &Join{Relation: "Relation", Fields: nil}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinTestModel{})
@@ -57,16 +79,27 @@ func TestJoinScopeAutoSelectFieldsNoBlacklist(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(&map[string]any{})
+	assert.NoError(t, db.Error)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
-		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"(UPPER(`relation`.b)) `c`", "`relation`.`b`", "`relation`.`a`"}, tx.Statement.Selects)
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`(UPPER("relation".b)) "c"`, `"relation"."b"`, `"relation"."a"`}, tx.Statement.Selects)
 	}
 	assert.Nil(t, join.selectCache["Relation"])
 }
 
 func TestJoinScopeAutoSelectFieldsWithBlacklist(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT (UPPER("relation".b)) "c","relation"."a" FROM "table"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"c", "relation.b"}).AddRow("B", "b"))
+
 	join := &Join{Relation: "Relation", Fields: nil}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinTestModel{})
@@ -82,16 +115,18 @@ func TestJoinScopeAutoSelectFieldsWithBlacklist(t *testing.T) {
 		},
 	}
 
-	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(nil)
+	db = db.Model(&JoinTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(&map[string]any{})
+	assert.NoError(t, db.Error)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
-		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"(UPPER(`relation`.b)) `c`", "`relation`.`a`"}, tx.Statement.Selects)
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`(UPPER("relation".b)) "c"`, `"relation"."a"`}, tx.Statement.Selects)
 	}
 	assert.Nil(t, join.selectCache["Relation"])
 }
 
 func TestJoinScopeAnonymousRelation(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	join := &Join{Relation: "notarelation", Fields: []string{"a", "b", "notacolumn"}}
 	join.selectCache = map[string][]string{}
 
@@ -120,7 +155,7 @@ func TestJoinScopeAnonymousRelation(t *testing.T) {
 }
 
 func TestJoinScopeBlacklisted(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"a", "b", "notacolumn"}}
 
 	schema, err := parseModel(db, &JoinTestModel{})
@@ -166,7 +201,7 @@ func (m *JoinHopManyTestChildModel) TableName() string {
 }
 
 func TestJoinScopeBlacklistedRelationHop(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	join := &Join{Relation: "Relation.Parent.Relation", Fields: []string{"name", "id"}}
 	join.selectCache = map[string][]string{}
 
@@ -187,7 +222,7 @@ func TestJoinScopeBlacklistedRelationHop(t *testing.T) {
 }
 
 func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"b"}}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopTestModel{})
@@ -195,10 +230,20 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&JoinHopTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_hop_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "relation"."b","relation"."a","relation"."parent_id" FROM "join_hop_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"relation.b", "relation.a", "relation.parent_id"}).AddRow("b", "a", 456))
+
+	db = db.Model(&JoinHopTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(&map[string]any{})
+	assert.NoError(t, db.Error)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
-		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`a`", "`relation`.`parent_id`"}, tx.Statement.Selects)
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`"relation"."b"`, `"relation"."a"`, `"relation"."parent_id"`}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"b"}, join.selectCache["Relation"])
 
@@ -210,16 +255,28 @@ func TestJoinScopePrimaryKeyNotSelected(t *testing.T) {
 			},
 		},
 	}
-	db = openDryRunDB(t)
-	db = db.Model(&JoinHopTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(nil)
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_hop_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "relation"."b","relation"."parent_id" FROM "join_hop_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"relation.b", "relation.parent_id"}).AddRow("b", 456))
+
+	db = db.Model(&JoinHopTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(&map[string]any{})
+	assert.NoError(t, db.Error)
+
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
-		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`parent_id`"}, tx.Statement.Selects)
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`"relation"."b"`, `"relation"."parent_id"`}, tx.Statement.Selects)
 	}
 }
 
 func TestJoinScopeHasMany(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"a", "b"}}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopManyTestModel{})
@@ -227,10 +284,20 @@ func TestJoinScopeHasMany(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_hop_many_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "relation"."a","relation"."b","relation"."parent_id" FROM "join_hop_many_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"relation.a", "relation.b", "relation.parent_id"}).AddRow("a", "b", 123))
+
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(&map[string]any{})
+	assert.NoError(t, db.Error)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
-		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`", "`relation`.`parent_id`"}, tx.Statement.Selects)
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`"relation"."a"`, `"relation"."b"`, `"relation"."parent_id"`}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"a", "b"}, join.selectCache["Relation"])
 
@@ -242,22 +309,44 @@ func TestJoinScopeHasMany(t *testing.T) {
 			},
 		},
 	}
-	db = openDryRunDB(t)
-	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(nil)
+	db, mock = openMockDB(t)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_hop_many_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "relation"."a","relation"."b" FROM "join_hop_many_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"relation.a", "relation.b"}).AddRow("a", "b"))
+
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(&map[string]any{})
+	assert.NoError(t, db.Error)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
-		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`b`"}, tx.Statement.Selects)
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`"relation"."a"`, `"relation"."b"`}, tx.Statement.Selects)
 	}
 }
 
 func TestJoinScopeNestedRelations(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	join := &Join{Relation: "Relation.Parent", Fields: []string{"id", "relation_id"}}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopManyTestModel{})
 	if !assert.Nil(t, err) {
 		return
 	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_hop_many_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "join_hop_many_test_models"."id" FROM "join_hop_many_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"join_hop_many_test_models.id"}).AddRow(456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "relation"."a","relation"."parent_id" FROM "join_hop_many_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"relation.a", "relation.parent_id"}).AddRow("a", 456))
 
 	blacklist := Blacklist{
 		FieldsBlacklist: []string{"name"},
@@ -274,21 +363,24 @@ func TestJoinScopeNestedRelations(t *testing.T) {
 		},
 	}
 
-	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(nil)
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Find(&map[string]any{})
+	assert.NoError(t, db.Error)
 	if assert.Contains(t, db.Statement.Preloads, "Relation.Parent") {
-		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation.Parent"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`join_hop_many_test_models`.`id`"}, tx.Statement.Selects)
+		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation.Parent"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`"join_hop_many_test_models"."id"`}, tx.Statement.Selects)
 	}
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
-		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`relation`.`a`", "`relation`.`parent_id`"}, tx.Statement.Selects)
+		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`"relation"."a"`, `"relation"."parent_id"`}, tx.Statement.Selects)
 	}
 	assert.NotContains(t, join.selectCache, "Relation")
 	assert.Equal(t, []string{"id", "relation_id"}, join.selectCache["Relation.Parent"])
 }
 
 func TestJoinScopeFinal(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"a", "b"}}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopManyTestModel{})
@@ -299,7 +391,7 @@ func TestJoinScopeFinal(t *testing.T) {
 }
 
 func TestJoinNestedRelationsWithSelect(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"b"}}
 	join.selectCache = map[string][]string{}
 	join2 := &Join{Relation: "Relation.Parent", Fields: []string{"id", "relation_id"}}
@@ -308,6 +400,19 @@ func TestJoinNestedRelationsWithSelect(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_hop_many_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "join_hop_many_test_models"."id" FROM "join_hop_many_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"join_hop_many_test_models.id"}).AddRow(456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "relation"."b","relation"."a","relation"."parent_id" FROM "join_hop_many_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"relation.b", "relation.a", "relation.parent_id"}).AddRow("b", "a", 456))
+
 	blacklist := Blacklist{
 		FieldsBlacklist: []string{"name"},
 		Relations: map[string]*Blacklist{
@@ -322,21 +427,24 @@ func TestJoinNestedRelationsWithSelect(t *testing.T) {
 		},
 	}
 
-	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Scopes(join2.Scopes(blacklist, schema)...).Find(nil)
+	db = db.Model(&JoinHopManyTestModel{}).Scopes(join.Scopes(blacklist, schema)...).Scopes(join2.Scopes(blacklist, schema)...).Find(&map[string]any{})
+	assert.NoError(t, db.Error)
 	if assert.Contains(t, db.Statement.Preloads, "Relation.Parent") {
-		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation.Parent"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`join_hop_many_test_models`.`id`"}, tx.Statement.Selects)
+		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation.Parent"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`"join_hop_many_test_models"."id"`}, tx.Statement.Selects)
 	}
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
-		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`relation`.`b`", "`relation`.`a`", "`relation`.`parent_id`"}, tx.Statement.Selects)
+		tx := db.Session(&gorm.Session{}).Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`"relation"."b"`, `"relation"."a"`, `"relation"."parent_id"`}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"b"}, join.selectCache["Relation"])
 	assert.Equal(t, []string{"id", "relation_id"}, join.selectCache["Relation.Parent"])
 }
 
 func TestJoinScopeInvalidSyntax(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	join := &Join{Relation: "Relation.", Fields: []string{"a", "b"}} // A dot at the end of the relation name is invalid
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopManyTestModel{})
@@ -347,7 +455,7 @@ func TestJoinScopeInvalidSyntax(t *testing.T) {
 }
 
 func TestJoinScopeNonExistingRelation(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	join := &Join{Relation: "Relation.NotARelation.Parent", Fields: []string{"a", "b"}}
 	join.selectCache = map[string][]string{}
 	schema, err := parseModel(db, &JoinHopManyTestModel{})
@@ -371,7 +479,7 @@ type JoinRelationModelComputed struct {
 }
 
 func TestJoinScopeComputedField(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	join := &Join{Relation: "Relation", Fields: []string{"a", "b", "c"}}
 	join.selectCache = map[string][]string{}
 
@@ -380,10 +488,20 @@ func TestJoinScopeComputedField(t *testing.T) {
 		return
 	}
 
-	db = db.Model(&JoinTestModelComputed{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(nil)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_test_model_computeds"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "join_relation_model_computeds"."a","join_relation_model_computeds"."b",(UPPER("join_relation_model_computeds".b)) "c" FROM "join_test_model_computeds"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"join_relation_model_computeds.a", "join_relation_model_computeds.b", "c"}).AddRow("a", "b", "B"))
+
+	db = db.Model(&JoinTestModelComputed{}).Scopes(join.Scopes(Blacklist{}, schema)...).Find(&map[string]any{})
+	assert.NoError(t, db.Error)
 	if assert.Contains(t, db.Statement.Preloads, "Relation") {
-		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(nil)
-		assert.Equal(t, []string{"`join_relation_model_computeds`.`a`", "`join_relation_model_computeds`.`b`", "(UPPER(`join_relation_model_computeds`.b)) `c`"}, tx.Statement.Selects)
+		tx := db.Scopes(db.Statement.Preloads["Relation"][0].(func(*gorm.DB) *gorm.DB)).Find(&map[string]any{})
+		assert.NoError(t, tx.Error)
+		assert.Equal(t, []string{`"join_relation_model_computeds"."a"`, `"join_relation_model_computeds"."b"`, `(UPPER("join_relation_model_computeds".b)) "c"`}, tx.Statement.Selects)
 	}
 	assert.Equal(t, []string{"a", "b", "c"}, join.selectCache["Relation"])
 }

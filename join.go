@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v5/util/errors"
+	"goyave.dev/goyave/v6/util/errwrap"
 )
 
 var (
@@ -96,7 +96,7 @@ func joinScope(relationName string, rel *schema.Relationship, fields []string, b
 
 	return func(tx *gorm.DB) *gorm.DB {
 		if rel.FieldSchema.Table == "" {
-			tx.AddError(errors.Errorf("relation %q is anonymous, could not get table name", relationName))
+			tx.AddError(errwrap.Errorf("relation %q is anonymous, could not get table name", relationName))
 			return tx
 		}
 		if columns != nil {

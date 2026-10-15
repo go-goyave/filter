@@ -1,8 +1,10 @@
 package filter
 
 import (
+	"regexp"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -11,7 +13,7 @@ import (
 )
 
 func TestFilterWhere(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	filter := &Filter{Field: "name", Args: []string{"val1"}}
 	db = filter.Where(db, "name = ?", "val1")
 	expected := map[string]clause.Clause{
@@ -28,7 +30,7 @@ func TestFilterWhere(t *testing.T) {
 }
 
 func TestFilterWhereOr(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	filter := &Filter{Field: "name", Args: []string{"val1"}, Or: true}
 	db = filter.Where(db, "name = ?", "val1")
 	expected := map[string]clause.Clause{
@@ -49,7 +51,7 @@ func TestFilterWhereOr(t *testing.T) {
 }
 
 func TestFilterScope(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	filter := &Filter{Field: "notacolumn", Args: []string{"val1"}, Operator: Operators["$eq"]}
 	field := &schema.Field{Name: "Name", DBName: "name", GORMDataType: schema.String}
 	schema := &schema.Schema{
@@ -69,36 +71,42 @@ func TestFilterScope(t *testing.T) {
 
 	filter.Field = "name"
 
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "filter_test_models" WHERE "test_scope_models"."name" = $1`)).
+		WithArgs("val1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
+
 	results := []map[string]any{}
-	db = db.Scopes(filter.Scope(Blacklist{}, schema)).Find(results)
+	db = db.Table("filter_test_models").Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val1"}},
+					clause.Expr{SQL: `"test_scope_models"."name" = ?`, Vars: []any{"val1"}},
 				},
 			},
 		},
+		"FROM": expectFromClause,
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	// Using struct field name
 	filter.Field = "Name"
 
 	results = []map[string]any{}
-	db = openDryRunDB(t)
-	db = db.Scopes(filter.Scope(Blacklist{}, schema)).Find(results)
-	expected = map[string]clause.Clause{
-		"WHERE": {
-			Name: "WHERE",
-			Expression: clause.Where{
-				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`test_scope_models`.`name` = ?", Vars: []any{"val1"}},
-				},
-			},
-		},
-	}
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "filter_test_models" WHERE "test_scope_models"."name" = $1`)).
+		WithArgs("val1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
+
+	db = db.Table("filter_test_models").Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
@@ -148,7 +156,7 @@ type FilterTestModelUnsupported struct {
 }
 
 func TestFilterScopeWithJoin(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -157,14 +165,17 @@ func TestFilterScopeWithJoin(t *testing.T) {
 		return
 	}
 
-	db.DryRun = true
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_models"."name","filter_test_models"."id" FROM "filter_test_models" LEFT JOIN "filter_test_relations" "Relation" ON "filter_test_models"."id" = "Relation"."parent_id" WHERE "Relation"."name" = $1`)).
+		WithArgs("val1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
+
 	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []any{"val1"}},
+					clause.Expr{SQL: `"Relation"."name" = ?`, Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -207,11 +218,11 @@ func TestFilterScopeWithJoin(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Nil(t, db.Error)
+	assert.NoError(t, db.Error)
 }
 
 func TestFilterScopeWithJoinBlacklistedRelation(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -230,7 +241,7 @@ func TestFilterScopeWithJoinBlacklistedRelation(t *testing.T) {
 }
 
 func TestFilterScopeWithJoinHasMany(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -246,7 +257,7 @@ func TestFilterScopeWithJoinHasMany(t *testing.T) {
 }
 
 func TestFilterScopeWithJoinInvalidModel(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -260,8 +271,16 @@ func TestFilterScopeWithJoinInvalidModel(t *testing.T) {
 }
 
 func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	filter := &Filter{Field: "Relation.NestedRelation.field", Args: []string{"val1"}, Operator: Operators["$eq"]}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "filter_test_models" WHERE "NestedRelation"."field" = $1`)).
+		WithArgs("val1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_models"."name","filter_test_models"."id" FROM "filter_test_models" LEFT JOIN "filter_test_relations" "Relation" ON "filter_test_models"."id" = "Relation"."parent_id" LEFT JOIN "filter_test_nested_relations" "NestedRelation" ON "Relation"."id" = "NestedRelation"."parent_id"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
 	results := []*FilterTestModel{}
 	sch, err := parseModel(db, &results)
@@ -278,19 +297,17 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`NestedRelation`.`field` = ?", Vars: []any{"val1"}},
+					clause.Expr{SQL: `"NestedRelation"."field" = ?`, Vars: []any{"val1"}},
 				},
 			},
 		},
-		"FROM": {
-			Name:       "FROM",
-			Expression: clause.From{},
-		},
+		"FROM": expectFromClause,
 		"SELECT": {
 			Name:       "SELECT",
 			Expression: clause.Select{},
 		},
 	}
+	assert.NoError(t, conditionTx.Error)
 	assert.Equal(t, expected, conditionTx.Statement.Clauses)
 
 	joinTx := db.Session(&gorm.Session{NewDB: true}).Model(&results).Scopes(joinScope).Find(&results)
@@ -354,11 +371,12 @@ func TestFilterScopeWithJoinNestedRelation(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, joinTx.Error)
 	assert.Equal(t, expected, joinTx.Statement.Clauses)
 }
 
 func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 	filter2 := &Filter{Field: "Relation.id", Args: []string{"0"}, Operator: Operators["$gt"]}
 
@@ -367,6 +385,10 @@ func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_models"."name","filter_test_models"."id" FROM "filter_test_models" LEFT JOIN "filter_test_relations" "Relation" ON "filter_test_models"."id" = "Relation"."parent_id" WHERE "Relation"."name" = $1 AND "Relation"."id" > $2`)).
+		WithArgs("val1", 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
 	db = db.Model(&results).
 		Scopes(filter.Scope(Blacklist{}, schema)).
@@ -377,8 +399,8 @@ func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []any{"val1"}},
-					clause.Expr{SQL: "`Relation`.`id` > ?", Vars: []any{uint64(0)}},
+					clause.Expr{SQL: `"Relation"."name" = ?`, Vars: []any{"val1"}},
+					clause.Expr{SQL: `"Relation"."id" > ?`, Vars: []any{uint64(0)}},
 				},
 			},
 		},
@@ -420,11 +442,12 @@ func TestFilterScopeWithJoinDontDuplicate(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -432,6 +455,10 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_models"."name","filter_test_models"."id","Relation"."name" AS "Relation__name","Relation"."id" AS "Relation__id","Relation"."parent_id" AS "Relation__parent_id" FROM "filter_test_models" LEFT JOIN "filter_test_relations" "Relation" ON "filter_test_models"."id" = "Relation"."parent_id" AND id > $1 WHERE "Relation"."name" = $2`)).
+		WithArgs(0, "val1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
 	// We manually join a relation with a condition.
 	// We expect this join to not be removed nor duplicated, with the condition kept.
@@ -443,7 +470,7 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []any{"val1"}},
+					clause.Expr{SQL: `"Relation"."name" = ?`, Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -454,6 +481,7 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected["FROM"], db.Statement.Clauses["FROM"])
 	assert.Equal(t, expected["WHERE"], db.Statement.Clauses["WHERE"])
 	require.Len(t, db.Statement.Joins, 1)
@@ -474,7 +502,7 @@ func TestFilterScopeWithAlreadyExistingJoin(t *testing.T) {
 }
 
 func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModel{}
@@ -482,6 +510,10 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_models"."name","filter_test_models"."id" FROM "filter_test_models" LEFT JOIN filter_test_relations AS "Relation" ON id > $1 WHERE "Relation"."name" = $2`)).
+		WithArgs(0, "val1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
 
 	// We manually join a relation with a condition.
 	// We expect this join to not be removed nor duplicated, with the condition kept.
@@ -493,7 +525,7 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "`Relation`.`name` = ?", Vars: []any{"val1"}},
+					clause.Expr{SQL: `"Relation"."name" = ?`, Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -520,6 +552,7 @@ func TestFilterScopeWithAlreadyExistingRawJoin(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	require.Len(t, db.Statement.Joins, 1)
@@ -549,7 +582,7 @@ type FilterTestModelComputed struct {
 }
 
 func TestFilterScopeComputed(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	filter := &Filter{Field: "computed", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModelComputed{}
@@ -558,30 +591,32 @@ func TestFilterScopeComputed(t *testing.T) {
 		return
 	}
 
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "filter_test_model_computeds" WHERE ("filter_test_model_computeds".computedcolumn) = $1`)).
+		WithArgs("val1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
+
 	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "(`filter_test_model_computeds`.computedcolumn) = ?", Vars: []any{"val1"}},
+					clause.Expr{SQL: `("filter_test_model_computeds".computedcolumn) = ?`, Vars: []any{"val1"}},
 				},
 			},
 		},
-		"FROM": {
-			Name:       "FROM",
-			Expression: clause.From{},
-		},
+		"FROM": expectFromClause,
 		"SELECT": {
 			Name:       "SELECT",
 			Expression: clause.Select{},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestFilterScopeComputedRelation(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	filter := &Filter{Field: "Relation.computed", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModelComputed{}
@@ -590,13 +625,17 @@ func TestFilterScopeComputedRelation(t *testing.T) {
 		return
 	}
 
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "filter_test_model_computeds"."name","filter_test_model_computeds"."computed","filter_test_model_computeds"."id" FROM "filter_test_model_computeds" LEFT JOIN "filter_test_model_computed_relations" "Relation" ON "filter_test_model_computeds"."id" = "Relation"."parent_id" WHERE ("Relation".computedcolumnrelation) = $1`)).
+		WithArgs("val1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
+
 	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
 			Expression: clause.Where{
 				Exprs: []clause.Expression{
-					clause.Expr{SQL: "(`Relation`.computedcolumnrelation) = ?", Vars: []any{"val1"}},
+					clause.Expr{SQL: `("Relation".computedcolumnrelation) = ?`, Vars: []any{"val1"}},
 				},
 			},
 		},
@@ -639,11 +678,12 @@ func TestFilterScopeComputedRelation(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestFilterScopeWithUnsupportedDataType(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	filter := &Filter{Field: "name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 	schema := &schema.Schema{
 		DBNames: []string{"name"},
@@ -653,14 +693,25 @@ func TestFilterScopeWithUnsupportedDataType(t *testing.T) {
 		Table: "test_scope_models",
 	}
 
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "filter_test_models"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
+
 	results := []map[string]any{}
-	db = db.Scopes(filter.Scope(Blacklist{}, schema)).Find(results)
-	expected := map[string]clause.Clause{}
+	db = db.Table("filter_test_models").Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
+	expected := map[string]clause.Clause{
+		"FROM": expectFromClause,
+		"SELECT": {
+			Name:       "SELECT",
+			Expression: clause.Select{},
+		},
+	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestFilterScopeWithJoinedUnsupportedDataType(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	filter := &Filter{Field: "Relation.name", Args: []string{"val1"}, Operator: Operators["$eq"]}
 
 	results := []*FilterTestModelUnsupported{}
@@ -669,18 +720,18 @@ func TestFilterScopeWithJoinedUnsupportedDataType(t *testing.T) {
 		return
 	}
 
-	db.DryRun = true
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "filter_test_model_unsupporteds"`)).
+		WithoutArgs().
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(123, "name"))
+
 	db = db.Model(&results).Scopes(filter.Scope(Blacklist{}, schema)).Find(&results)
 	expected := map[string]clause.Clause{
-		"FROM": {
-			Name:       "FROM",
-			Expression: clause.From{},
-		},
+		"FROM": expectFromClause,
 		"SELECT": {
 			Name:       "SELECT",
 			Expression: clause.Select{},
 		},
 	}
 	assert.Equal(t, expected, db.Statement.Clauses)
-	assert.Nil(t, db.Error)
+	assert.NoError(t, db.Error)
 }

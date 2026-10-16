@@ -6,10 +6,10 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"goyave.dev/goyave/v5/validation"
+	"goyave.dev/goyave/v6/validation"
 )
 
-func TestApplyValidation(t *testing.T) {
+func TestValidation(t *testing.T) {
 	set := Validation(nil)
 
 	expectedFields := []string{
@@ -25,8 +25,8 @@ func TestApplyValidation(t *testing.T) {
 		QueryParamPage,
 		QueryParamPerPage,
 		QueryParamSearch}
-	assert.True(t, lo.EveryBy(set, func(f *validation.FieldRules) bool {
-		return lo.Contains(expectedFields, f.Path)
+	assert.True(t, lo.EveryBy(set.(validation.Rules), func(f *validation.Field) bool {
+		return lo.Contains(expectedFields, f.Path.String())
 	}))
 }
 

@@ -5,11 +5,15 @@
 [![Coverage Status](https://coveralls.io/repos/github/go-goyave/filter/badge.svg)](https://coveralls.io/github/go-goyave/filter)
 [![Go Reference](https://pkg.go.dev/badge/goyave.dev/filter.svg)](https://pkg.go.dev/goyave.dev/filter)
 
-**Compatible with Goyave `v5` only**. If you want to use the library for v4, use `v0.6.0`.
-
 `goyave.dev/filter` allows powerful filtering using query parameters. Inspired by [nestjsx/crud](https://github.com/nestjsx/crud/wiki/Requests).
 
 ## Usage
+
+| Goyave version | Filter version |
+|----------------|----------------|
+| v6             | v0.9.0+        |
+| v5             | v0.8.0         |
+| v4             | v0.6.0         |
 
 ```sh
 go get goyave.dev/filter
@@ -17,7 +21,7 @@ go get goyave.dev/filter
 
 First, add the necessary query validation to your index route:
 ```go
-router.GlobalMiddleware(&parse.Middleware{}) // Don't forget the parse middleware!
+router.GlobalMiddleware(parse.NewMiddleware(cfg.Server.MaxUploadSize)) // Don't forget the parse middleware!
 router.Get("/users", user.Index).ValidateQuery(filter.Validation)
 ```
 
@@ -31,14 +35,14 @@ import "goyave.dev/filter"
 func (r *User) Paginate(ctx context.Context, request *filter.Request) (*database.Paginator[*model.User], error) {
 	users := []*model.User{}
 	paginator, err := filter.Scope(session.DB(ctx, r.DB), request, &users)
-	return paginator, errors.New(err)
+	return paginator, errwrap.New(err)
 }
 ```
 ```go
 // service/user/user.go
 func (s *Service) Paginate(ctx context.Context, request *filter.Request) (*database.PaginatorDTO[*dto.User], error) {
 	paginator, err := s.repository.Paginate(ctx, request)
-	return typeutil.MustConvert[*database.PaginatorDTO[*dto.User]](paginator), errors.New(err)
+	return typeutil.MustConvert[*database.PaginatorDTO[*dto.User]](paginator), errwrap.New(err)
 }
 ```
 From your controller, use `filter.NewRequest()` with the request's query to generate the filter request DTO:
@@ -46,7 +50,8 @@ From your controller, use `filter.NewRequest()` with the request's query to gene
 // http/controller/user/user.go
 func (ctrl *Controller) Index(response *goyave.Response, request *goyave.Request) {
 	paginator, err := ctrl.userService.Paginate(request.Context(), filter.NewRequest(request.Query))
-	if response.WriteDBError(err) {
+	if err != nil {
+		response.Error(err)
 		return
 	}
 	response.JSON(http.StatusOK, paginator)
@@ -64,7 +69,7 @@ tx := filter.ScopeUnpaginated(session.DB(ctx, r.DB), request, &users)
 
 ### Settings
 
-You can disable certain features, or blacklist certain fields using `filter.Settings`:
+You can disable certain features, and whitelist fields and relations using `filter.Settings`:
 
 ```go
 settings := &filter.Settings[*model.User]{
@@ -72,6 +77,7 @@ settings := &filter.Settings[*model.User]{
 	DisableFilter: true, // Prevent usage of "filter"
 	DisableSort:   true, // Prevent usage of "sort"
 	DisableJoin:   true, // Prevent usage of "join"
+	DisableSearch: true, // Prevent usage of "search"
 
 	// If not nil and not empty, and if the request is not providing any
 	// sort, the request will be sorted according to the `*Sort` defined in this slice.
@@ -84,20 +90,18 @@ settings := &filter.Settings[*model.User]{
 	FieldsSearch:   []string{"a", "b"},      // Optional, the fields used for the search feature
 	SearchOperator: filter.Operators["$eq"], // Optional, operator used for the search feature, defaults to "$cont"
 
-	Blacklist: filter.Blacklist{
-		// Prevent selecting, sorting and filtering on these fields
-		FieldsBlacklist: []string{"a", "b"},
+	Whitelist: filter.Whitelist{
+		// Allow only the "a" and "b" fields to be selected
+		// Both DB name (typically snake case) and struct field name (Pascal case) are accepted.
+		Fields: []string{"a", "b"},
+		// Or Fields: filter.AllowAllFields
 
-		// Prevent joining these relations
-		RelationsBlacklist: []string{"Relation"},
-
-		Relations: map[string]*filter.Blacklist{
-			// Blacklist settings to apply to this relation
-			"Relation": &filter.Blacklist{
-				FieldsBlacklist:    []string{"c", "d"},
-				RelationsBlacklist: []string{"Parent"},
-				Relations:          map[string]*filter.Blacklist{ /*...*/ },
-				IsFinal:            true, // Prevent joining any child relation if true
+		// Only the relations in this map are allowed to be used / loaded.
+		Relations: map[string]filter.Whitelist{
+			// Whitelist settings to apply to this relation
+			"Relation": filter.Whitelist{
+				Fields:    []string{"c", "d"},
+				Relations:          map[string]filter.Whitelist{ /*...*/ },
 			},
 		},
 	},
@@ -181,13 +185,15 @@ settings := &filter.Settings{
 
 > ?search=John (`WHERE (a LIKE "%John%" OR b LIKE "%John%")`)
 
-If you don't specify `FieldsSearch`, the query will search in all selectable fields.
+If you don't specify `FieldsSearch`, the query will search in all selectable fields, taking the whitelist into account. It is highly recommended to restrict the number of fields to use for search for better performance.
+
+The search feature is disabled in the default settings if you use `Scope()` or `ScopeUnpaginated()` directly.
 
 ### Fields / Select
 
 > ?fields=**field1**,**field2**
 
-A comma-separated list of fields to select. If this field isn't provided, uses `SELECT *`.
+A comma-separated list of fields to select. If this field isn't provided, all whitelisted fields are selected.
 
 ### Sort
 
@@ -272,8 +278,8 @@ It is important to make sure your JSON expression returns a value that has a typ
 - Inputs are escaped to prevent SQL injections.
 - Fields are pre-processed and clients cannot request fields that don't exist. This prevents database errors. If a non-existing field is required, it is simply ignored. The same goes for sorts and joins. It is not possible to request a relation that doesn't exist.
 - Type-safety: in the same field pre-processing, the broad type of the field is checked against the database type (based on the model definition). This prevents database errors if the input cannot be converted to the column's type.
-- Foreign keys are always selected in joins to ensure associations can be assigned to parent model.
-- **Be careful** with bidirectional relations (for example an article is written by a user, and a user can have many articles). If you enabled both your models to preload these relations, the client can request them with an infinite depth (`Articles.User.Articles.User...`). To prevent this, it is advised to use **the relation blacklist** or **IsFinal** on the deepest requestable models. See the settings section for more details.
+- Fields and relations are **blocked by default**. Only **whitelist** the fields and relations that the client is supposed to have access to.
+- Provided they are whitelisted, foreign keys are always selected in joins to ensure associations can be assigned to parent model. If you whitelist a relation, make sure to also whitelist the foreign key fields.
 
 ## Tips
 
@@ -331,7 +337,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"goyave.dev/filter"
-	"goyave.dev/goyave/v5/util/sqlutil"
+	"goyave.dev/goyave/v6/util/sqlutil"
 )
 
 // ...
@@ -437,8 +443,18 @@ Manual joins are supported and won't clash with joins that are automatically gen
 func (r *User) Paginate(ctx context.Context, request *filter.Request) (*database.Paginator[*model.User], error) {
 	var users []*model.User
 	db := session.DB(ctx, r.DB).Joins("Relation")
-	paginator, err := filter.Scope(db, request, &users)
-	return paginator, errors.New(err)
+
+	settings := &filter.Settings[*model.User]{
+		Whitelist: filter.Whitelist{
+			Fields: filter.AllowAllFields,
+			Relations: map[string]filter.Whitelist{
+				"Relation": {Fields: filter.AllowAllFields}, // Don't forget to whitelist the relation if you want filters to work on the manual join.
+			},
+		},
+	}
+
+	paginator, err := settings.Scope(db, request, &users)
+	return paginator, errwrap.New(err)
 }
 ```
 
@@ -461,6 +477,21 @@ func IndexRequest(r *goyave.Request) v.RuleSet {
 `*filter.Settings` now takes a generic parameter: a pointer to the target model. The slice given to the `Scope` method is expected to be a pointer to a slice of the same type. 
 ```go
 settings := &filter.Settings[*model.User]{}
+```
+
+### Upgrading from Goyave v5 to v6
+
+- The **blacklist** system has been replaced with a **whitelist** system, with everything blocked by default. Make sure to check all usage of the library and build whitelists according to your models.
+  - With this new system, relation management and security is much easier. `IsFinal` doesn't need to exist anymore: just don't add the relation to the whitelist.
+  - When using `Scope()` and `ScopeUnpaginated()` directly, the default settings' whitelist allow all fields but **no relation**. The search feature is also disabled. Use "manual" settings to preserve functionality.
+
+If your route has custom query parameters, your function will need to be updated like so:
+```go
+func IndexRequest(r *goyave.Request) v.Ruler {
+	return append(v.RuleSet{
+		{Path: "foo", Rules: v.List{v.Int(), v.Min(1)}},
+	}, filter.RuleSet()...)
+}
 ```
 
 ## License

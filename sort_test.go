@@ -665,3 +665,15 @@ func TestSortScopeCaseInsensitiveComputed(t *testing.T) {
 	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
+
+func TestSortScopeUsingRelation(t *testing.T) {
+	// When giving a relation name, no sort should be generated
+	sort := &Sort{Field: "Relation", Order: SortAscending}
+	schema := &schema.Schema{
+		FieldsByName: map[string]*schema.Field{
+			"Relation": {Name: "Relation"}, // leave DBName empty to simulate a relation
+		},
+		Table: "test_models",
+	}
+	assert.Nil(t, sort.Scope(Whitelist{Fields: AllowAllFields}, schema, false))
+}

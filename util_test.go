@@ -12,11 +12,12 @@ import (
 func TestCleanColumns(t *testing.T) {
 	sch := &schema.Schema{
 		FieldsByDBName: map[string]*schema.Field{
-			"id":   {},
-			"name": {},
+			"id":   {Name: "ID", DBName: "id"},
+			"name": {Name: "Name", DBName: "name"},
 		},
 	}
-	assert.Equal(t, []*schema.Field{sch.FieldsByDBName["name"]}, cleanColumns(sch, []string{"id", "test", "name", "notacolumn"}, []string{"name"}))
+	cleaned := cleanColumns(Whitelist{Fields: []string{"name"}}, sch, []string{"id", "test", "name", "notacolumn"})
+	assert.Equal(t, []*schema.Field{sch.FieldsByDBName["name"]}, cleaned)
 }
 
 func TestAddPrimaryKeys(t *testing.T) {
@@ -382,7 +383,8 @@ func TestGetDataType(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			model, err := parseModel(openDryRunDB(t), c.model)
+			db, _ := openMockDB(t)
+			model, err := parseModel(db, c.model)
 			if !assert.NoError(t, err) {
 				return
 			}

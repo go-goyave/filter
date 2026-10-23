@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-// DataType is determined by the `filterType` struct tag (see `DataType` for available options).
+// DataType is determined by the `filterType` struct tag (see [DataType] for available options).
 // If not given, uses GORM's general DataType. Raw database data types are not supported so it is
 // recommended to always specify a `filterType` in this scenario.
 type DataType string
@@ -60,11 +60,14 @@ const (
 	DataTypeUnsupported DataType = "-"
 )
 
-func cleanColumns(sch *schema.Schema, columns []string, blacklist []string) []*schema.Field {
-	fields := make([]*schema.Field, 0, len(columns))
-	for _, c := range columns {
-		f, ok := sch.FieldsByDBName[c]
-		if ok && !lo.Contains(blacklist, c) {
+func cleanColumns(whitelist Whitelist, sch *schema.Schema, columns []string) []*schema.Field {
+	selectableFields := getSelectableFields(whitelist, sch)
+	fields := make([]*schema.Field, 0, len(whitelist.Fields))
+	for _, f := range selectableFields {
+		selected := lo.ContainsBy(columns, func(c string) bool {
+			return f.DBName == c || f.Name == c
+		})
+		if selected {
 			fields = append(fields, f)
 		}
 	}
@@ -239,7 +242,7 @@ func validateTime(timeStr string) bool {
 }
 
 // ConvertArgsToSafeType converts a slice of string arguments to safe type
-// that matches the column's data type in the same way as `ConvertToSafeType`.
+// that matches the column's data type in the same way as [ConvertToSafeType].
 // If any of the values in the given slice could not be converted, returns false.
 func ConvertArgsToSafeType(args []string, dataType DataType) ([]any, bool) {
 	result := make([]any, 0, len(args))

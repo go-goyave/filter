@@ -2,16 +2,24 @@ package filter
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 )
 
 func TestSearchScope(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" WHERE "test_models"."name" LIKE ($1) OR "test_models"."email" LIKE ($2)`)).
+		WithArgs("My Query", "My Query").
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
 	search := &Search{
 		Fields: []string{"name", "email"},
 		Query:  "My Query",
@@ -37,7 +45,7 @@ func TestSearchScope(t *testing.T) {
 		Table: "test_models",
 	}
 
-	db = db.Scopes(search.Scope(schema)).Table("table").Find(nil)
+	db = db.Scopes(search.Scope(schema)).Table("table").Find(&map[string]any{})
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -48,7 +56,7 @@ func TestSearchScope(t *testing.T) {
 							clause.OrConditions{
 								Exprs: []clause.Expression{
 									clause.Expr{
-										SQL:                "`test_models`.`name` LIKE (?)",
+										SQL:                `"test_models"."name" LIKE (?)`,
 										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
@@ -57,7 +65,7 @@ func TestSearchScope(t *testing.T) {
 							clause.OrConditions{
 								Exprs: []clause.Expression{
 									clause.Expr{
-										SQL:                "`test_models`.`email` LIKE (?)",
+										SQL:                `"test_models"."email" LIKE (?)`,
 										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
@@ -68,22 +76,26 @@ func TestSearchScope(t *testing.T) {
 				},
 			},
 		},
-		"FROM": {
-			Name:       "FROM",
-			Expression: clause.From{},
-		},
+		"FROM": expectFromClause,
 		"SELECT": {
 			Name:       "SELECT",
 			Expression: clause.Select{},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 
 	// Using struct field names
 	search.Fields = []string{"Name", "Email"}
 
-	db = openDryRunDB(t)
-	db = db.Scopes(search.Scope(schema)).Table("table").Find(nil)
+	db, mock = openMockDB(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" WHERE "test_models"."name" LIKE ($1) OR "test_models"."email" LIKE ($2)`)).
+		WithArgs("My Query", "My Query").
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
+
+	db = db.Scopes(search.Scope(schema)).Table("table").Find(&map[string]any{})
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
@@ -130,7 +142,7 @@ type SearchTestModel struct {
 }
 
 func TestSeachScopeWithJoin(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	search := &Search{
 		Fields: []string{"name", "Relation.name"},
 		Query:  "My Query",
@@ -144,9 +156,11 @@ func TestSeachScopeWithJoin(t *testing.T) {
 
 	results := []*SearchTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "search_test_models"."name","search_test_models"."id" FROM "search_test_models" LEFT JOIN "search_test_relations" "Relation" ON "search_test_models"."id" = "Relation"."parent_id" WHERE "search_test_models"."name" LIKE ($1) OR "Relation"."name" LIKE ($2)`)).
+		WithArgs("My Query", "My Query").
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
 	db = db.Model(&results).Scopes(search.Scope(schema)).Find(&results)
 	expected := map[string]clause.Clause{
@@ -187,7 +201,7 @@ func TestSeachScopeWithJoin(t *testing.T) {
 							clause.OrConditions{
 								Exprs: []clause.Expression{
 									clause.Expr{
-										SQL:                "`search_test_models`.`name` LIKE (?)",
+										SQL:                `"search_test_models"."name" LIKE (?)`,
 										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
@@ -196,7 +210,7 @@ func TestSeachScopeWithJoin(t *testing.T) {
 							clause.OrConditions{
 								Exprs: []clause.Expression{
 									clause.Expr{
-										SQL:                "`Relation`.`name` LIKE (?)",
+										SQL:                `"Relation"."name" LIKE (?)`,
 										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
@@ -217,11 +231,12 @@ func TestSeachScopeWithJoin(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestSeachScopeWithJoinInvalidModel(t *testing.T) {
-	db := openDryRunDB(t)
+	db, _ := openMockDB(t)
 	search := &Search{
 		Fields:   []string{"name", "Relation.name"},
 		Query:    "My Query",
@@ -230,16 +245,14 @@ func TestSeachScopeWithJoinInvalidModel(t *testing.T) {
 
 	results := []*SearchTestModel{}
 	sch, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	db = db.Scopes(search.Scope(sch)).Find(&results)
 	assert.Equal(t, "unsupported data type: <nil>", db.Error.Error())
 }
 
 func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	search := &Search{
 		Fields: []string{"name", "Relation.NestedRelation.field"},
 		Query:  "My Query",
@@ -253,9 +266,11 @@ func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
 
 	results := []*SearchTestModel{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "search_test_models"."name","search_test_models"."id" FROM "search_test_models" LEFT JOIN "search_test_relations" "Relation" ON "search_test_models"."id" = "Relation"."parent_id" LEFT JOIN "search_test_nested_relations" "NestedRelation" ON "Relation"."id" = "NestedRelation"."parent_id" WHERE "search_test_models"."name" LIKE ($1) OR "NestedRelation"."field" LIKE ($2)`)).
+		WithArgs("My Query", "My Query").
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id", "relation_id"}).AddRow("name", 123, 456))
 
 	db = db.Model(&results).Scopes(search.Scope(schema)).Find(&results)
 	expected := map[string]clause.Clause{
@@ -317,7 +332,7 @@ func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
 							clause.OrConditions{
 								Exprs: []clause.Expression{
 									clause.Expr{
-										SQL:                "`search_test_models`.`name` LIKE (?)",
+										SQL:                `"search_test_models"."name" LIKE (?)`,
 										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
@@ -326,7 +341,7 @@ func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
 							clause.OrConditions{
 								Exprs: []clause.Expression{
 									clause.Expr{
-										SQL:                "`NestedRelation`.`field` LIKE (?)",
+										SQL:                `"NestedRelation"."field" LIKE (?)`,
 										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
@@ -347,6 +362,7 @@ func TestSeachScopeWithJoinNestedRelation(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
@@ -365,7 +381,7 @@ type SearchTestModelComputed struct {
 }
 
 func TestSearchScopeComputed(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	search := &Search{
 		Fields:   []string{"computed", "Relation.computed"},
 		Query:    "My Query",
@@ -374,9 +390,11 @@ func TestSearchScopeComputed(t *testing.T) {
 
 	results := []*SearchTestModelComputed{}
 	schema, err := parseModel(db, &results)
-	if !assert.Nil(t, err) {
-		return
-	}
+	require.NoError(t, err)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "search_test_model_computeds"."name","search_test_model_computeds"."computed","search_test_model_computeds"."id" FROM "search_test_model_computeds" LEFT JOIN "search_test_model_computed_relations" "Relation" ON "search_test_model_computeds"."id" = "Relation"."parent_id" WHERE ("search_test_model_computeds".computedcolumn) = $1 OR ("Relation".computedcolumnrelation) = $2`)).
+		WithArgs("My Query", "My Query").
+		WillReturnRows(sqlmock.NewRows([]string{"name", "id"}).AddRow("name", 123))
 
 	db = db.Model(&results).Scopes(search.Scope(schema)).Find(&results)
 	expected := map[string]clause.Clause{
@@ -389,7 +407,7 @@ func TestSearchScopeComputed(t *testing.T) {
 							clause.OrConditions{
 								Exprs: []clause.Expression{
 									clause.Expr{
-										SQL:                "(`search_test_model_computeds`.computedcolumn) = ?",
+										SQL:                `("search_test_model_computeds".computedcolumn) = ?`,
 										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
@@ -398,7 +416,7 @@ func TestSearchScopeComputed(t *testing.T) {
 							clause.OrConditions{
 								Exprs: []clause.Expression{
 									clause.Expr{
-										SQL:                "(`Relation`.computedcolumnrelation) = ?",
+										SQL:                `("Relation".computedcolumnrelation) = ?`,
 										Vars:               []any{"My Query"},
 										WithoutParentheses: false,
 									},
@@ -448,11 +466,12 @@ func TestSearchScopeComputed(t *testing.T) {
 			},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }
 
 func TestSearchScopeWithUnsupportedDataType(t *testing.T) {
-	db := openDryRunDB(t)
+	db, mock := openMockDB(t)
 	search := &Search{
 		Fields: []string{"name", "email"},
 		Query:  "My Query",
@@ -473,7 +492,11 @@ func TestSearchScopeWithUnsupportedDataType(t *testing.T) {
 		Table: "test_models",
 	}
 
-	db = db.Scopes(search.Scope(schema)).Table("table").Find(nil)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "table" WHERE "test_models"."name" LIKE ($1)`)).
+		WithArgs("My Query").
+		WillReturnRows(sqlmock.NewRows([]string{"name", "email"}).AddRow("name", "email@example.org"))
+
+	db = db.Scopes(search.Scope(schema)).Table("table").Find(&map[string]any{})
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -482,7 +505,7 @@ func TestSearchScopeWithUnsupportedDataType(t *testing.T) {
 					clause.AndConditions{
 						Exprs: []clause.Expression{
 							clause.Expr{
-								SQL:                "`test_models`.`name` LIKE (?)",
+								SQL:                `"test_models"."name" LIKE (?)`,
 								Vars:               []any{"My Query"},
 								WithoutParentheses: false,
 							},
@@ -491,14 +514,12 @@ func TestSearchScopeWithUnsupportedDataType(t *testing.T) {
 				},
 			},
 		},
-		"FROM": {
-			Name:       "FROM",
-			Expression: clause.From{},
-		},
+		"FROM": expectFromClause,
 		"SELECT": {
 			Name:       "SELECT",
 			Expression: clause.Select{},
 		},
 	}
+	assert.NoError(t, db.Error)
 	assert.Equal(t, expected, db.Statement.Clauses)
 }

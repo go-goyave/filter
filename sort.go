@@ -28,8 +28,8 @@ const (
 
 // Scope returns the GORM scope to use in order to apply sorting.
 // If caseInsensitive is true, the column is wrapped in a `LOWER()` function.
-func (s *Sort) Scope(blacklist Blacklist, schema *schema.Schema, caseInsensitive bool) func(*gorm.DB) *gorm.DB {
-	field, sch, joinName := getField(s.Field, schema, &blacklist)
+func (s *Sort) Scope(whitelist Whitelist, schema *schema.Schema, caseInsensitive bool) func(*gorm.DB) *gorm.DB {
+	field, sch, joinName := getField(s.Field, schema, &whitelist)
 	if field == nil {
 		return nil
 	}

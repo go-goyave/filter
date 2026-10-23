@@ -99,7 +99,7 @@ settings := &filter.Settings[*model.User]{
 		// Only the relations in this map are allowed to be used / loaded.
 		Relations: map[string]filter.Whitelist{
 			// Whitelist settings to apply to this relation
-			"Relation": filter.Whitelist{
+			"Relation": {
 				Fields:    []string{"c", "d"},
 				Relations:          map[string]filter.Whitelist{ /*...*/ },
 			},

@@ -454,7 +454,7 @@ func getField(field string, sch *schema.Schema, whitelist *Whitelist) (*schema.F
 		joinName = rel
 	}
 	col := s.LookUpField(field)
-	if col == nil {
+	if col == nil || col.DBName == "" {
 		return nil, nil, ""
 	}
 	if whitelist != nil && !whitelist.allowed(col) {

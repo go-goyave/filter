@@ -277,38 +277,30 @@ func (s *Settings[T]) applyFilters(db *gorm.DB, request *Request, schema *schema
 	andLen := len(request.Filter.Default([]*Filter{}))
 	orLen := len(request.Or.Default([]*Filter{}))
 	mixed := orLen > 1 && andLen > 0
-	// Without any `filter` condition, standalone `or` conditions must be
-	// OR-ed together. Grouping them turns them into AND conditions
-	// (see groupFilters), so each one gets its own group.
-	standaloneOrs := orLen > 1 && andLen == 0
 
-	for i, filters := range []typeutil.Undefined[[]*Filter]{request.Filter, request.Or} {
-		if !filters.Present {
+	filterGroups := []struct {
+		filters typeutil.Undefined[[]*Filter]
+		or      bool
+	}{
+		{filters: request.Filter},
+		{filters: request.Or, or: true},
+	}
+
+	for _, filterGroup := range filterGroups {
+		if !filterGroup.filters.Present {
 			continue
 		}
-
-		isOr := i == 1
-		if isOr && standaloneOrs {
-			for _, f := range filters.Val {
-				joinScope, conditionScope := f.Scope(s.Blacklist, schema)
-				if joinScope != nil {
-					joinScopes = append(joinScopes, joinScope)
-				}
-				if conditionScope != nil {
-					filterScopes = append(filterScopes, groupFilters([]func(*gorm.DB) *gorm.DB{conditionScope}, false))
-				}
-			}
-			continue
-		}
-
 		group := make([]func(*gorm.DB) *gorm.DB, 0, 4)
-		for _, f := range filters.Val {
-			if mixed {
+		for _, f := range filterGroup.filters.Val {
+			if filterGroup.or || mixed {
+				// "or" filters are combined with OR. If they are mixed with
+				// "filter" filters, they form an AND group which is compared
+				// with the "filter" group using OR.
 				f = &Filter{
 					Field:    f.Field,
 					Operator: f.Operator,
 					Args:     f.Args,
-					Or:       false,
+					Or:       filterGroup.or && !mixed,
 				}
 			}
 			joinScope, conditionScope := f.Scope(s.Blacklist, schema)

@@ -1155,19 +1155,6 @@ func TestApplyFiltersAnd(t *testing.T) {
 }
 
 func TestApplyFiltersOr(t *testing.T) {
-	request := &Request{
-		Or: typeutil.NewUndefined([]*Filter{
-			{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"], Or: true},
-			{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"], Or: true},
-		}),
-	}
-	db := openDryRunDB(t)
-	schema, err := parseModel(db, &TestFilterScopeModel{})
-	if !assert.Nil(t, err) {
-		return
-	}
-
-	db = (&Settings[*TestScopeModel]{}).applyFilters(db, request, schema).Find(nil)
 	expected := map[string]clause.Clause{
 		"WHERE": {
 			Name: "WHERE",
@@ -1204,7 +1191,30 @@ func TestApplyFiltersOr(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, expected, db.Statement.Clauses)
+	for _, test := range []struct {
+		name string
+		or   bool
+	}{
+		{name: "with or flag", or: true},
+		{name: "without or flag", or: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := &Request{
+				Or: typeutil.NewUndefined([]*Filter{
+					{Field: "name", Args: []string{"val1"}, Operator: Operators["$cont"], Or: test.or},
+					{Field: "name", Args: []string{"val2"}, Operator: Operators["$cont"], Or: test.or},
+				}),
+			}
+			db := openDryRunDB(t)
+			schema, err := parseModel(db, &TestFilterScopeModel{})
+			if !assert.Nil(t, err) {
+				return
+			}
+
+			db = (&Settings[*TestScopeModel]{}).applyFilters(db, request, schema).Find(nil)
+			assert.Equal(t, expected, db.Statement.Clauses)
+		})
+	}
 }
 
 func TestApplyFiltersMixed(t *testing.T) {

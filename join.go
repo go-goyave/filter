@@ -6,11 +6,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v5/util/errors"
+	"goyave.dev/goyave/v6/util/errwrap"
 )
 
 var (
@@ -25,27 +24,26 @@ type Join struct {
 }
 
 // Scopes returns the GORM scopes to use in order to apply this joint.
-func (j *Join) Scopes(blacklist Blacklist, schema *schema.Schema) []func(*gorm.DB) *gorm.DB {
-	scopes := j.applyRelation(schema, &blacklist, j.Relation, 0, make([]func(*gorm.DB) *gorm.DB, 0, strings.Count(j.Relation, ".")+1))
+func (j *Join) Scopes(whitelist Whitelist, schema *schema.Schema) []func(*gorm.DB) *gorm.DB {
+	scopes := j.applyRelation(schema, whitelist, j.Relation, 0, make([]func(*gorm.DB) *gorm.DB, 0, strings.Count(j.Relation, ".")+1))
 	if scopes != nil {
 		return scopes
 	}
 	return nil
 }
 
-func (j *Join) applyRelation(schema *schema.Schema, blacklist *Blacklist, relationName string, startIndex int, scopes []func(*gorm.DB) *gorm.DB) []func(*gorm.DB) *gorm.DB {
-	if blacklist != nil && blacklist.IsFinal {
+func (j *Join) applyRelation(schema *schema.Schema, whitelist Whitelist, relationName string, startIndex int, scopes []func(*gorm.DB) *gorm.DB) []func(*gorm.DB) *gorm.DB {
+	if whitelist.Relations == nil {
 		return nil
 	}
 	trimmedRelationName := relationName[startIndex:]
 	i := strings.Index(trimmedRelationName, ".")
 	if i == -1 {
-		if blacklist != nil {
-			if lo.Contains(blacklist.RelationsBlacklist, trimmedRelationName) {
-				return nil
-			}
-			blacklist = blacklist.Relations[trimmedRelationName]
+		relationWhitelist, whitelisted := whitelist.Relations[trimmedRelationName]
+		if !whitelisted {
+			return nil
 		}
+		whitelist = relationWhitelist
 
 		r, ok := schema.Relationships.Relations[trimmedRelationName]
 		if !ok {
@@ -53,7 +51,7 @@ func (j *Join) applyRelation(schema *schema.Schema, blacklist *Blacklist, relati
 		}
 
 		j.selectCache[relationName] = j.Fields
-		return append(scopes, joinScope(relationName, r, j.Fields, blacklist))
+		return append(scopes, joinScope(relationName, r, j.Fields, whitelist))
 	}
 
 	if startIndex+i+1 >= len(relationName) {
@@ -61,12 +59,9 @@ func (j *Join) applyRelation(schema *schema.Schema, blacklist *Blacklist, relati
 	}
 
 	name := trimmedRelationName[:i]
-	var b *Blacklist
-	if blacklist != nil {
-		if lo.Contains(blacklist.RelationsBlacklist, name) {
-			return nil
-		}
-		b = blacklist.Relations[name]
+	relationWhitelist, whitelisted := whitelist.Relations[name]
+	if !whitelisted {
+		return nil
 	}
 	r, ok := schema.Relationships.Relations[name]
 	if !ok {
@@ -77,38 +72,34 @@ func (j *Join) applyRelation(schema *schema.Schema, blacklist *Blacklist, relati
 	if f, ok := j.selectCache[n]; ok {
 		fields = f
 	}
-	scopes = append(scopes, joinScope(n, r, fields, b))
+	scopes = append(scopes, joinScope(n, r, fields, relationWhitelist))
 
-	return j.applyRelation(r.FieldSchema, b, relationName, startIndex+i+1, scopes)
+	return j.applyRelation(r.FieldSchema, relationWhitelist, relationName, startIndex+i+1, scopes)
 }
 
-func joinScope(relationName string, rel *schema.Relationship, fields []string, blacklist *Blacklist) func(*gorm.DB) *gorm.DB {
+func joinScope(relationName string, rel *schema.Relationship, fields []string, whitelist Whitelist) func(*gorm.DB) *gorm.DB {
 	var columns []*schema.Field
 	if fields == nil {
-		columns = getSelectableFields(blacklist, rel.FieldSchema)
+		columns = getSelectableFields(whitelist, rel.FieldSchema)
 	} else {
-		var b []string
-		if blacklist != nil {
-			b = blacklist.FieldsBlacklist
-		}
-		columns = cleanColumns(rel.FieldSchema, fields, b)
+		columns = cleanColumns(whitelist, rel.FieldSchema, fields)
 	}
 
 	return func(tx *gorm.DB) *gorm.DB {
 		if rel.FieldSchema.Table == "" {
-			tx.AddError(errors.Errorf("relation %q is anonymous, could not get table name", relationName))
+			tx.AddError(errwrap.Errorf("relation %q is anonymous, could not get table name", relationName))
 			return tx
 		}
 		if columns != nil {
 			for _, primaryField := range rel.FieldSchema.PrimaryFields {
-				if !columnsContain(columns, primaryField) && (blacklist == nil || !lo.Contains(blacklist.FieldsBlacklist, primaryField.DBName)) {
+				if !columnsContain(columns, primaryField) && whitelist.allowed(primaryField) {
 					columns = append(columns, primaryField)
 				}
 			}
 			for _, backwardsRelation := range rel.FieldSchema.Relationships.Relations {
 				if backwardsRelation.FieldSchema == rel.Schema && backwardsRelation.Type == schema.BelongsTo {
 					for _, ref := range backwardsRelation.References {
-						if !columnsContain(columns, ref.ForeignKey) && (blacklist == nil || !lo.Contains(blacklist.FieldsBlacklist, ref.ForeignKey.DBName)) {
+						if !columnsContain(columns, ref.ForeignKey) && whitelist.allowed(ref.ForeignKey) {
 							columns = append(columns, ref.ForeignKey)
 						}
 					}

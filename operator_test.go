@@ -90,7 +90,7 @@ func TestEquals(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -171,7 +171,7 @@ func TestNotEquals(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -252,7 +252,7 @@ func TestGreaterThan(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -333,7 +333,7 @@ func TestLowerThan(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -414,7 +414,7 @@ func TestGreaterThanEqual(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -495,7 +495,7 @@ func TestLowerThanEqual(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -576,7 +576,7 @@ func TestStarts(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -657,7 +657,7 @@ func TestEnds(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -738,7 +738,7 @@ func TestContains(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -819,7 +819,7 @@ func TestNotContains(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -900,7 +900,7 @@ func TestIn(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -981,7 +981,7 @@ func TestNotIn(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -1011,7 +1011,7 @@ func TestIsNull(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -1041,7 +1041,7 @@ func TestNotNull(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -1139,7 +1139,7 @@ func TestBetween(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -1186,7 +1186,7 @@ func TestIsTrue(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})
@@ -1233,7 +1233,7 @@ func TestIsFalse(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			db := openDryRunDB(t)
+			db, _ := openMockDB(t)
 			db = Operators[c.op].Function(db, c.filter, c.column, c.dataType)
 			assert.Equal(t, c.want, db.Statement.Clauses)
 		})

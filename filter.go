@@ -19,8 +19,8 @@ type Filter struct {
 }
 
 // Scope returns the GORM scope to use in order to apply this filter.
-func (f *Filter) Scope(blacklist Blacklist, sch *schema.Schema) (func(*gorm.DB) *gorm.DB, func(*gorm.DB) *gorm.DB) {
-	field, s, joinName := getField(f.Field, sch, &blacklist)
+func (f *Filter) Scope(whitelist Whitelist, sch *schema.Schema) (func(*gorm.DB) *gorm.DB, func(*gorm.DB) *gorm.DB) {
+	field, s, joinName := getField(f.Field, sch, &whitelist)
 	if field == nil {
 		return nil, nil
 	}

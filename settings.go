@@ -10,9 +10,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
-	"goyave.dev/goyave/v5/database"
-	"goyave.dev/goyave/v5/util/errors"
-	"goyave.dev/goyave/v5/util/typeutil"
+	"goyave.dev/goyave/v6/database"
+	"goyave.dev/goyave/v6/util/errwrap"
+	"goyave.dev/goyave/v6/util/typeutil"
 )
 
 // Request DTO for a filter query. Any non-present option will be ignored.
@@ -85,22 +85,23 @@ func NewRequest(query map[string]any) *Request {
 	return r
 }
 
-// Settings settings to disable certain features and/or blacklist fields
-// and relations.
+// Settings settings to disable certain features and/or manage field and relation whitelisting.
 // The generic type is the pointer type of the model.
 type Settings[T any] struct {
-
 	// DefaultSort if not nil and not empty, and if the request is not providing any
-	// sort, the request will be sorted according to the `*Sort` defined in this slice.
-	// If `DisableSort` is enabled, this has no effect.
+	// sort, the request will be sorted according to the [*Sort] defined in this slice.
+	// If [Settings.DisableSort] is enabled, this has no effect.
 	DefaultSort []*Sort
 
-	// FieldsSearch allows search for these fields
+	// FieldsSearch allows search for these fields. You can use fields that are not whitelisted.
 	FieldsSearch []string
 	// SearchOperator is used by the search scope, by default it use the $cont operator
 	SearchOperator *Operator
 
-	Blacklist
+	// Whitelist only fields and relations in the whitelist can be selected, joined,
+	// used in filters and sorts, ...
+	// If no whitelist is provided, nothing is allowed to be queried.
+	Whitelist Whitelist
 
 	// DisableFields ignore the "fields" query if true.
 	DisableFields bool
@@ -118,37 +119,54 @@ type Settings[T any] struct {
 	CaseInsensitiveSort bool
 }
 
-// Blacklist definition of blacklisted relations and fields.
-type Blacklist struct {
-	Relations map[string]*Blacklist
+// Whitelist definition of whitelisted fields and relations.
+type Whitelist struct {
+	// Relations the list of relations that can be joined.
+	Relations map[string]Whitelist
 
-	// FieldsBlacklist prevent the fields in this list to be selected or to
-	// be used in filters and sorts.
-	FieldsBlacklist []string
-	// RelationsBlacklist prevent joining the relations in this list.
-	RelationsBlacklist []string
+	// Fields the field names (either struct field names or DB names)
+	// that can be selected or used in filters and sorts.
+	Fields []string
+}
 
-	// IsFinal if true, prevent joining any relation
-	IsFinal bool
+var AllowAllFields = []string{"*"}
+
+func (w Whitelist) allowed(f *schema.Field) bool {
+	for _, fieldName := range w.Fields {
+		if f.DBName == fieldName || f.Name == fieldName || fieldName == "*" {
+			return true
+		}
+	}
+	return false
 }
 
 func parseModel(db *gorm.DB, model any) (*schema.Schema, error) {
 	return schema.Parse(model, modelCache, db.NamingStrategy)
 }
 
-// Scope using the default FilterSettings. See `FilterSettings.Scope()` for more details.
+// Scope using the default [Settings]. See [Settings.Scope] for more details.
+// It uses a [Whitelist] that allows all fields but no relation. The search feature is disabled.
 func Scope[T any](db *gorm.DB, request *Request, dest *[]T) (*database.Paginator[T], error) {
-	return (&Settings[T]{}).Scope(db, request, dest)
+	settings := &Settings[T]{
+		DisableSearch: true,
+		Whitelist:     Whitelist{Fields: AllowAllFields},
+	}
+	return settings.Scope(db, request, dest)
 }
 
-// ScopeUnpaginated using the default FilterSettings. See `FilterSettings.ScopeUnpaginated()` for more details.
+// ScopeUnpaginated using the default [Settings]. See [Settings.ScopeUnpaginated] for more details.
+// It uses a [Whitelist] that allows all fields but no relation. The search feature is disabled.
 func ScopeUnpaginated[T any](db *gorm.DB, request *Request, dest *[]T) *gorm.DB {
-	return (&Settings[T]{}).ScopeUnpaginated(db, request, dest)
+	settings := &Settings[T]{
+		DisableSearch: true,
+		Whitelist:     Whitelist{Fields: AllowAllFields},
+	}
+	return settings.ScopeUnpaginated(db, request, dest)
 }
 
-// Scope apply all filters, sorts and joins defined in the request's data to the given `*gorm.DB`
-// and process pagination. Returns the resulting `*database.Paginator`.
-// The given request is expected to be validated using `ApplyValidation`.
+// Scope apply all filters, sorts and joins defined in the request's data to the given [*gorm.DB]
+// and process pagination. Returns the resulting [*database.Paginator].
+// The given request is expected to be validated using [Validation].
 func (s *Settings[T]) Scope(db *gorm.DB, request *Request, dest *[]T) (*database.Paginator[T], error) {
 	page := request.Page.Default(1)
 	pageSize := request.PerPage.Default(DefaultPageSize)
@@ -160,13 +178,13 @@ func (s *Settings[T]) Scope(db *gorm.DB, request *Request, dest *[]T) (*database
 		paginator = database.NewPaginator(tx, page, pageSize, dest)
 		err := paginator.UpdatePageInfo()
 		if err != nil {
-			return errors.New(err)
+			return errwrap.New(err)
 		}
 		paginator.DB = s.scopeSort(paginator.DB, request, schema)
 		if fieldsDB := s.scopeFields(paginator.DB, request, schema, hasJoins); fieldsDB != nil {
 			paginator.DB = fieldsDB
 		} else {
-			return errors.New(paginator.DB.Error)
+			return errwrap.New(paginator.DB.Error)
 		}
 
 		return paginator.Find()
@@ -175,11 +193,11 @@ func (s *Settings[T]) Scope(db *gorm.DB, request *Request, dest *[]T) (*database
 	return paginator, err
 }
 
-// ScopeUnpaginated apply all filters, sorts and joins defined in the request's data to the given `*gorm.DB`
+// ScopeUnpaginated apply all filters, sorts and joins defined in the request's data to the given [*gorm.DB]
 // without any pagination.
-// Returns the `*gorm.DB` result, which can be used to check for database errors.
+// Returns the [*gorm.DB] result, which can be used to check for database errors.
 // The records will be added in the given `dest` slice.
-// The given request is expected to be validated using `ApplyValidation`.
+// The given request is expected to be validated using [Validation].
 func (s *Settings[T]) ScopeUnpaginated(db *gorm.DB, request *Request, dest *[]T) *gorm.DB {
 	db, schema, hasJoins := s.scopeCommon(db, request, dest)
 	db = s.scopeSort(db, request, schema)
@@ -196,7 +214,7 @@ func (s *Settings[T]) ScopeUnpaginated(db *gorm.DB, request *Request, dest *[]T)
 func (s *Settings[T]) scopeCommon(db *gorm.DB, request *Request, dest any) (*gorm.DB, *schema.Schema, bool) {
 	schema, err := parseModel(db, dest)
 	if err != nil {
-		panic(errors.New(err))
+		panic(errwrap.New(err))
 	}
 
 	db = db.Model(dest)
@@ -209,7 +227,7 @@ func (s *Settings[T]) scopeCommon(db *gorm.DB, request *Request, dest any) (*gor
 		for _, j := range joins {
 			hasJoins = true
 			j.selectCache = selectCache
-			if s := j.Scopes(s.Blacklist, schema); s != nil {
+			if s := j.Scopes(s.Whitelist, schema); s != nil {
 				db = db.Scopes(s...)
 			}
 		}
@@ -238,15 +256,15 @@ func (s *Settings[T]) scopeFields(db *gorm.DB, request *Request, schema *schema.
 		fields := slices.Clone(request.Fields.Val)
 		if hasJoins {
 			if len(schema.PrimaryFieldDBNames) == 0 {
-				db.AddError(errors.New("could not find primary key. Add `gorm:\"primaryKey\"` to your model"))
+				db.AddError(errwrap.New("could not find primary key. Add `gorm:\"primaryKey\"` to your model"))
 				return nil
 			}
 			fields = addPrimaryKeys(schema, fields)
 			fields = addForeignKeys(schema, fields)
 		}
-		return db.Scopes(selectScope(schema.Table, cleanColumns(schema, fields, s.FieldsBlacklist), false))
+		return db.Scopes(selectScope(schema.Table, cleanColumns(s.Whitelist, schema, fields), false))
 	}
-	return db.Scopes(selectScope(schema.Table, getSelectableFields(&s.Blacklist, schema), false))
+	return db.Scopes(selectScope(schema.Table, getSelectableFields(s.Whitelist, schema), false))
 }
 
 func (s *Settings[T]) scopeSort(db *gorm.DB, request *Request, schema *schema.Schema) *gorm.DB {
@@ -259,7 +277,7 @@ func (s *Settings[T]) scopeSort(db *gorm.DB, request *Request, schema *schema.Sc
 
 	if !s.DisableSort {
 		for _, sort := range sorts {
-			if scope := sort.Scope(s.Blacklist, schema, s.CaseInsensitiveSort); scope != nil {
+			if scope := sort.Scope(s.Whitelist, schema, s.CaseInsensitiveSort); scope != nil {
 				db = db.Scopes(scope)
 			}
 		}
@@ -301,7 +319,7 @@ func (s *Settings[T]) applyFilters(db *gorm.DB, request *Request, schema *schema
 					Or:       false,
 				}
 			}
-			joinScope, conditionScope := f.Scope(s.Blacklist, schema)
+			joinScope, conditionScope := f.Scope(s.Whitelist, schema)
 			if conditionScope != nil {
 				group = append(group, conditionScope)
 			}
@@ -337,7 +355,7 @@ func (s *Settings[T]) applySearch(query string, schema *schema.Schema) *Search {
 	// Note: the search condition is not in a group condition (parenthesis)
 	fields := s.FieldsSearch
 	if fields == nil {
-		for _, f := range getSelectableFields(&s.Blacklist, schema) {
+		for _, f := range getSelectableFields(s.Whitelist, schema) {
 			fields = append(fields, f.DBName)
 		}
 	}
@@ -356,19 +374,24 @@ func (s *Settings[T]) applySearch(query string, schema *schema.Schema) *Search {
 	return search
 }
 
-func getSelectableFields(blacklist *Blacklist, sch *schema.Schema) []*schema.Field {
-	b := []string{}
-	if blacklist != nil && blacklist.FieldsBlacklist != nil {
-		b = blacklist.FieldsBlacklist
+func getSelectableFields(whitelist Whitelist, sch *schema.Schema) []*schema.Field {
+	if slices.Contains(whitelist.Fields, "*") {
+		return lo.Filter(sch.Fields, func(f *schema.Field, _ int) bool {
+			return f.TagSettings["-"] != "-" && f.DBName != ""
+		})
 	}
-	columns := make([]*schema.Field, 0, len(sch.DBNames))
-	for _, f := range sch.DBNames {
-		if !lo.Contains(b, f) {
-			columns = append(columns, sch.FieldsByDBName[f])
+
+	columns := make([]*schema.Field, 0, len(whitelist.Fields))
+	for _, fieldName := range whitelist.Fields {
+		field := sch.LookUpField(fieldName)
+		if field != nil && field.DBName != "" && field.TagSettings["-"] != "-" {
+			columns = append(columns, field)
 		}
 	}
 
-	return columns
+	return lo.UniqBy(columns, func(f *schema.Field) string {
+		return f.DBName
+	})
 }
 
 func selectScope(table string, fields []*schema.Field, override bool) func(*gorm.DB) *gorm.DB {
@@ -405,32 +428,36 @@ func selectScope(table string, fields []*schema.Field, override bool) func(*gorm
 	}
 }
 
-func getField(field string, sch *schema.Schema, blacklist *Blacklist) (*schema.Field, *schema.Schema, string) {
+func getField(field string, sch *schema.Schema, whitelist *Whitelist) (*schema.Field, *schema.Schema, string) {
 	joinName := ""
 	s := sch
 	if i := strings.LastIndex(field, "."); i != -1 && i+1 < len(field) {
 		rel := field[:i]
 		field = field[i+1:]
-		for v := range strings.SplitSeq(rel, ".") {
-			if blacklist != nil && (lo.Contains(blacklist.RelationsBlacklist, v) || blacklist.IsFinal) {
-				return nil, nil, ""
+		for relationName := range strings.SplitSeq(rel, ".") {
+			if whitelist != nil {
+				if whitelist.Relations == nil {
+					return nil, nil, ""
+				}
+				relationWhitelist, whitelisted := whitelist.Relations[relationName]
+				if !whitelisted {
+					return nil, nil, ""
+				}
+				whitelist = &relationWhitelist
 			}
-			relation, ok := s.Relationships.Relations[v]
+			relation, ok := s.Relationships.Relations[relationName]
 			if !ok || (relation.Type != schema.HasOne && relation.Type != schema.BelongsTo) {
 				return nil, nil, ""
 			}
 			s = relation.FieldSchema
-			if blacklist != nil {
-				blacklist = blacklist.Relations[v]
-			}
 		}
 		joinName = rel
 	}
-	if blacklist != nil && lo.Contains(blacklist.FieldsBlacklist, field) {
+	col := s.LookUpField(field)
+	if col == nil || col.DBName == "" {
 		return nil, nil, ""
 	}
-	col := s.LookUpField(field)
-	if col == nil {
+	if whitelist != nil && !whitelist.allowed(col) {
 		return nil, nil, ""
 	}
 	return col, s, joinName
@@ -438,9 +465,9 @@ func getField(field string, sch *schema.Schema, blacklist *Blacklist) (*schema.F
 
 func tableFromJoinName(table string, joinName string) string {
 	if joinName != "" {
-		i := strings.LastIndex(joinName, ".")
-		if i != -1 {
-			table = joinName[i+1:]
+		_, after, ok := strings.CutLast(joinName, ".")
+		if ok {
+			table = after
 		} else {
 			table = joinName
 		}
